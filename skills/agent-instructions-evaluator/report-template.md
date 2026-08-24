@@ -1,17 +1,30 @@
 # Report Template Structure
 
-This file defines three templates that together form the **report set** produced for every evaluation:
+This file defines **seven templates** that together form the **complete report set** produced for every evaluation.
 
-1. **Agent report** — scores the main agent instructions; contains the Skill Health Assessment (cross-skill) and links to skill reports
-2. **Skill report** — scores one skill's `SKILL.md` body; links back to the agent report
-3. **Index** — one-page manifest summarising the full set
+> ⚠️ **All seven reports are mandatory.** An evaluation that omits any of these files is incomplete.
 
-**Filename conventions** (all files go in `eval/` relative to the agent YAML's directory):
-- `agent_<name>_report.md` / `agent_<name>_report_harness.json`
-- `skill_<skill-name>_report.md` / `skill_<skill-name>_report_harness.json`
-- `index.md`
+## Required report set
 
-Each report is saved to disk as soon as it is complete. Skill reports are produced in **batches of at most 2 at a time** — complete and save 2 skill reports before starting the next pair. Do not evaluate all skills in parallel.
+| # | Template | Filename | Always produced? |
+|---|---|---|---|
+| 1 | Agent report | `agent_<name>_report.md` + `agent_<name>_report_harness.json` | ✓ Yes |
+| 2 | Skill report (one per skill) | `skill_<skill-name>_report.md` + `skill_<skill-name>_report_harness.json` | ✓ Yes — one per resolved skill |
+| 3 | Index | `index.md` | ✓ Yes — written last |
+| 4 | Token optimization report | `token_optimization_report.md` | ✓ Yes — even if no issues found |
+| 5 | Performance optimization report | `performance_optimization_report.md` | ✓ Yes — even if no issues found |
+| 6 | **Reliability optimization report** | **`reliability_optimization_report.md`** | ✓ **Yes — even if no issues found** |
+| 7 | Rules reference copy | `rules-summary.md` | ✓ Yes — copied from skill directory |
+
+All files go in `eval/` relative to the agent YAML's directory. Each report is saved to disk as soon as it is complete. Skill reports are produced in **batches of at most 2 at a time** — complete and save 2 skill reports before starting the next pair. Do not evaluate all skills in parallel.
+
+**Writing order:**
+1. Agent report (first — establishes cross-skill context)
+2. Skill reports in batches of 2
+3. Token optimization report (Template 4)
+4. Performance optimization report (Template 5)
+5. **Reliability optimization report (Template 6) — do not skip**
+6. Index (last — references all of the above)
 
 ---
 
@@ -384,6 +397,11 @@ Generated: [date/time if available]
 
 ## Reference Documents
 
+### Extraction Snapshots
+- [agent_<name>_extracted.json](agent_<name>_extracted.json) — Full agent metadata snapshot: instructions tokens, skill catalog tokens, collaborator routing tokens, resolved skills + collaborators with all frontmatter validation flags
+- [tool_<tool-name>_extracted.json](tool_<tool-name>_extracted.json) — Tool spec snapshot: signatures, parameters, return types, spec chars, spec token estimate *(one file per tool)*
+
+### Evaluation Reports
 - [rules-summary.md](rules-summary.md) — Evaluation rules reference (Rules A–Q, scoring dimensions, interpretation bands)
 - [token_optimization_report.md](token_optimization_report.md) — Token consumption optimization ([N optimizations identified / No issues found] — ~X% per-turn reduction or baseline recorded)
 - [performance_optimization_report.md](performance_optimization_report.md) — Runtime performance optimization ([N items identified / No issues found] — ~X hops eliminated or baseline recorded)
@@ -458,28 +476,52 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 
 ### Token Budget (per turn, estimated)
 
-> Token estimates use **character count ÷ 4** (≈4 chars/token). `extract_agent_info.py` computes these automatically — use the reported `instructions_est_tokens`, `skill_catalog_est_tokens`, `collaborator_routing_est_tokens`, per-skill `catalog_est_tokens` and `body_est_tokens`, and per-collaborator `routing_est_tokens` directly.
+> Token estimates use **character count ÷ 4** (≈4 chars/token). `extract_agent_info.py` computes these automatically — use the reported values directly. Token costs are **scoped per level** — report each level separately, never sum across levels.
 
-| Component | Chars | Est. Tokens | Loaded every turn? |
+#### Level 1 — Agent context (paid on every agent turn)
+
+| Component | Chars | Est. Tokens | Notes |
 |---|---:|---:|---|
-| Agent instructions | [N] | ~[N] (`instructions_est_tokens`) | ✓ Always |
-| Skill catalog — names + descriptions (N skills) | [N] | ~[N] (`skill_catalog_est_tokens`) | ✓ Always — paid every turn regardless of which skill is loaded |
-| Collaborator routing — names + descriptions (N collabs) | [N] | ~[N] (`collaborator_routing_est_tokens`) | ✓ Always — paid every supervisor turn for routing decisions |
-| [Any mandatory pre-routing tool call] | — | ~[N] | ✓ / Conditional |
+| Agent instructions | [N] | ~[N] (`instructions_est_tokens`) | Always |
+| Skill catalog — names + descriptions (N skills) | [N] | ~[N] (`skill_catalog_est_tokens`) | Always — agent needs all skill descriptions to decide which skill to load |
+| Collaborator routing — names + descriptions (N collabs) | [N] | ~[N] (`collaborator_routing_est_tokens`) | Always — routing signal only; collaborator internals are in their own context |
+| Agent tool list — names only (N tools) | [N] | ~[N] (`tool_list_est_tokens`) | Always — present for tool routing decisions |
+| Agent tool specs — schemas (N tools) | [N] | ~[N] (`tools_spec_est_tokens`) | Always — tool schemas present every turn |
+| [Any mandatory pre-routing tool call] | — | ~[N] | Always / Conditional |
+| **Agent floor total** | | **~[N] (`agent_floor_est_tokens`)** | **Paid on every turn** |
+
+> **Double-spend tool waste (SK-6 Trigger 3a):** If `skill_only_tools` is non-empty, the agent is paying to tokenize each of those tool schemas **twice** — once at L1 (every turn, wasted because the tool cannot be called at the agent level) and once at L2 (when the owning skill loads, correct). The wasted tokens per turn equal `skill_only_spec_tokens + skill_only_list_tokens`. The corrected L1 floor if those tools are removed from `agent tools:` is `agent_floor_corrected_est_tokens`. **Fix: remove each tool from `agent tools:` — the skill's `allowed-tools` is the correct and sufficient place. If the agent needs the capability, it should invoke the skill, not the tool directly.** Always report both the current floor and the corrected floor.
+
+#### Level 2 — Skill context (added on top of Level 1 when a skill is loaded)
+
+| Component | Chars | Est. Tokens | Notes |
+|---|---:|---:|---|
 | Loaded skill body (avg) | [N] | ~[N] (`body_est_tokens` avg) | On every intent turn where a skill is loaded |
 | Loaded skill body (max — [skill-name]) | [N] | ~[N] | On [intent type] turns |
+| Skill allowed-tool list — names (avg) | [N] | ~[N] | Injected when skill loads — owned by the skill, not the agent |
+| Skill allowed-tool specs — schemas (avg) | [N] | ~[N] (`allowed_tools_spec_est_tokens` avg) | Injected when skill loads — owned by the skill, not the agent |
 | KB / retrieval tool output ([tool-name], [N] passages est.) | — | ~[N] | On [intent type] turns — see passage count note |
-| **Typical turn (instructions + catalogs + 1 avg skill)** | | **~[N]** | |
-| **Complex turn (instructions + catalogs + max skill + KB)** | | **~[N]** | |
+| **Typical skill-load cost (avg body + avg allowed-tools)** | | **~[N]** | Added to Level 1 floor |
+| **Complex skill-load cost (max body + max allowed-tools + KB)** | | **~[N]** | Added to Level 1 floor |
 | **Multi-step turn ([A] then [B] sequentially)** | | **~[N] per load** | On ~[N]% of turns — each load replaces the previous body |
 
-> Note: only one skill body is active at a time. A turn that requires two sequential skill loads pays for each body separately (the first is replaced when the second loads) — not both simultaneously.
+#### Level 3 — Collaborator context (separate LLM call, own context window)
+
+> Collaborator instructions, tools, and skills run in an entirely separate context window. These tokens are **not additive to Level 1 or Level 2** — they are a distinct per-call budget. Report collaborator token cost separately, not as part of the agent floor.
+
+| Collaborator | Instructions | Tool list | Tool specs | Skill catalog | Per-call floor |
+|---|---:|---:|---:|---:|---:|
+| [collab-name] | ~[N] (`instructions_est_tokens`) | ~[N] | ~[N] | ~[N] | ~[N] |
+
+---
+
+> **Note — skill load model:** Only one skill body is active at a time. A turn that requires two sequential skill loads pays for each body (+ its allowed-tools) separately — the first is replaced when the second loads, not summed.
 >
-> **Skill + collaborator routing tokens are permanent overhead** — these are paid on every turn regardless of which skill is active or which collaborator is dispatched. A large skill catalog or many verbose collaborator descriptions inflate every single turn. Optimizations here (trimming descriptions) have the same universal leverage as optimizing agent instructions.
+> **Note — allowed-tools scoping:** A skill's `allowed-tools` names and schemas are owned by the skill and injected only when that skill loads. They are **not** part of the agent's Level 1 floor. Do not include them in the agent floor total.
 >
-> **KB / retrieval note:** Retrieved passages are injected into context at runtime and are **not visible to static analysis** — passage token cost cannot be fully verified without running the agent. Use ≥500 tokens/passage as a conservative lower-bound estimate (typical retrieval chunks are 500–1,500 tokens depending on chunk size configuration). The row above is based on the passage count limit found in the instructions or tool definition. If no limit is stated, the payload is unknown and potentially unbounded — flag as High risk. Always state this estimate as an approximation and note that exact values require runtime inspection.
+> **Note — collaborator scoping:** Collaborator internal costs (instructions, tools, skills) are in the collaborator's own context window. Only the collaborator's routing tokens (name + description) appear in the supervisor's Level 1 context.
 >
-> Agent instructions + skill catalog + collaborator routing catalog together form the fixed per-turn token floor. The loaded skill body and any KB output are the variable component. Reducing the fixed floor saves tokens universally; reducing skill bodies and retrieval scope saves tokens only on the affected turns.
+> **KB / retrieval note:** Retrieved passages are injected into context at runtime and are **not visible to static analysis**. Use ≥500 tokens/passage as a conservative lower-bound estimate (typical chunks: 500–1,500 tokens). If no limit is stated, flag as High risk (unbounded). Always state as an approximation; exact values require runtime tracing.
 
 ---
 

@@ -28,6 +28,18 @@ Discovery strategy for collaborator agent YAML:
      *.yml file whose top-level 'name' field matches the collaborator name.
   Co-located matches always take priority over search-root matches.
 
+Tool discovery (--tools-root):
+  Recursively scans a directory for tool source files and builds the spec
+  lookup inline — no separate extraction step required.
+  - .py files: included when they contain at least one @tool or @flow decorator
+  - .json files: included when detect_json_tool_type() returns agentic_workflow
+                 or langflow (i.e. spec.kind == 'flow' or Langflow data.nodes
+                 structure); other JSON files are silently skipped
+
+  Alternatively, supply --tools-dir pointing at a directory of
+  tool_*_extracted.json files already produced by
+  extract_tool_info.py --output-dir.
+
 Usage:
     python extract_agent_info.py <agent.yaml>
     python extract_agent_info.py <agent.yaml> --json
@@ -35,16 +47,33 @@ Usage:
     python extract_agent_info.py <agent.yaml> --field skills
     python extract_agent_info.py <agent.yaml> --field collaborators
     python extract_agent_info.py <agent.yaml> --search-root /path/to/project
+    python extract_agent_info.py <agent.yaml> --tools-root /path/to/toolkit
     python extract_agent_info.py <agent.yaml> --compact
 """
 
 import re
 import sys
+import ast
 import yaml
 import json
 import argparse
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+# Import tool extraction helpers from the sibling script.  We add the script's
+# directory to sys.path at import time so this works regardless of cwd.
+_SCRIPTS_DIR = Path(__file__).parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+try:
+    from extract_tool_info import (  # type: ignore
+        extract_tool_info as _extract_tool_info,
+        detect_python_tool_type as _detect_python_tool_type,
+        detect_json_tool_type as _detect_json_tool_type,
+    )
+    _TOOL_INFO_AVAILABLE = True
+except ImportError:
+    _TOOL_INFO_AVAILABLE = False
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +91,244 @@ def _estimate_tokens(text: str) -> int:
     if not text:
         return 0
     return max(1, round(len(text) / _CHARS_PER_TOKEN))
+
+
+# ---------------------------------------------------------------------------
+# Tool spec loading
+# ---------------------------------------------------------------------------
+
+def _load_tool_specs(tools_dir: Path) -> Dict[str, Dict[str, Any]]:
+    """
+    Scan *tools_dir* for ``tool_*_extracted.json`` files produced by
+    ``extract_tool_info.py --output-dir`` and build a lookup keyed by the
+    canonical tool name.
+
+    For Python files the tool name is taken from the first decorated function
+    entry.  For all other types it is the top-level ``name`` field.
+
+    Returns a dict: ``{tool_name: {spec_chars, spec_est_tokens, type, file_path, …}}``.
+    The dict is empty if *tools_dir* does not exist or contains no matching files.
+    """
+    specs: Dict[str, Dict[str, Any]] = {}
+    if not tools_dir.is_dir():
+        return specs
+
+    for json_file in sorted(tools_dir.glob('tool_*_extracted.json')):
+        try:
+            data: Dict[str, Any] = json.loads(json_file.read_text(encoding='utf-8'))
+        except Exception:
+            continue
+
+        file_type = data.get('file_type', '')
+        if file_type == 'python':
+            for func in data.get('functions', []):
+                name = func.get('name', '')
+                if name:
+                    specs[name] = {
+                        'spec_chars': func.get('spec_chars', 0),
+                        'spec_est_tokens': func.get('spec_est_tokens', 0),
+                        'type': data.get('type', 'tool'),
+                        'file_path': data.get('file_path', ''),
+                    }
+        else:
+            name = data.get('name', '')
+            if name:
+                specs[name] = {
+                    'spec_chars': data.get('spec_chars', 0),
+                    'spec_est_tokens': data.get('spec_est_tokens', 0),
+                    'type': data.get('type', ''),
+                    'file_path': data.get('file_path', ''),
+                }
+
+    return specs
+
+
+def _scan_tools_root(tools_root: Path) -> Dict[str, Dict[str, Any]]:
+    """
+    Recursively scan *tools_root* for tool source files and build a spec
+    lookup dict with the same shape as ``_load_tool_specs``.
+
+    Inclusion rules:
+    - ``.py`` files: included only when they contain at least one ``@tool``
+      or ``@flow`` decorated function.  Files that parse successfully but
+      have no such decorator are silently skipped.  Parse errors are also
+      silently skipped.
+    - ``.json`` files: included only when ``detect_json_tool_type()`` returns
+      ``'agentic_workflow'`` or ``'langflow'``.  All other JSON (config,
+      lock-files, plain data) is silently skipped.
+    - All other extensions (e.g. ``.yaml``, ``.md``) are ignored.
+
+    When ``extract_tool_info`` is not importable (sibling script missing)
+    this function returns an empty dict and emits a warning to stderr.
+
+    Returns a dict: ``{tool_name: {spec_chars, spec_est_tokens, type, file_path}}``.
+    """
+    specs: Dict[str, Dict[str, Any]] = {}
+
+    if not tools_root.is_dir():
+        print(
+            f"Warning: --tools-root '{tools_root}' is not a directory — skipping tool scan.",
+            file=sys.stderr,
+        )
+        return specs
+
+    if not _TOOL_INFO_AVAILABLE:
+        print(
+            "Warning: extract_tool_info.py not found alongside extract_agent_info.py — "
+            "--tools-root scan disabled.  Copy extract_tool_info.py to the same directory "
+            "or use --tools-dir with pre-extracted JSON files instead.",
+            file=sys.stderr,
+        )
+        return specs
+
+    py_files = sorted(tools_root.rglob('*.py'))
+    json_files = sorted(tools_root.rglob('*.json'))
+
+    scanned = skipped_no_decorator = skipped_not_tool_json = errors = 0
+
+    # --- Python files ---
+    for py_file in py_files:
+        try:
+            source = py_file.read_text(encoding='utf-8')
+            tree = ast.parse(source)
+        except Exception:
+            errors += 1
+            continue
+
+        tool_type = _detect_python_tool_type(tree)
+        if tool_type == 'unknown':
+            skipped_no_decorator += 1
+            continue
+
+        try:
+            metadata = _extract_tool_info(str(py_file))
+        except Exception:
+            errors += 1
+            continue
+
+        for func in metadata.get('functions', []):
+            name = func.get('name', '')
+            if name:
+                specs[name] = {
+                    'spec_chars': func.get('spec_chars', 0),
+                    'spec_est_tokens': func.get('spec_est_tokens', 0),
+                    'type': metadata.get('type', 'tool'),
+                    'file_path': str(py_file),
+                }
+                scanned += 1
+
+    # --- JSON files ---
+    for json_file in json_files:
+        try:
+            data: Dict[str, Any] = json.loads(json_file.read_text(encoding='utf-8'))
+        except Exception:
+            errors += 1
+            continue
+
+        json_type = _detect_json_tool_type(data)
+        if json_type not in ('agentic_workflow', 'langflow'):
+            skipped_not_tool_json += 1
+            continue
+
+        try:
+            metadata = _extract_tool_info(str(json_file))
+        except Exception:
+            errors += 1
+            continue
+
+        name = metadata.get('name', '')
+        if name:
+            specs[name] = {
+                'spec_chars': metadata.get('spec_chars', 0),
+                'spec_est_tokens': metadata.get('spec_est_tokens', 0),
+                'type': metadata.get('type', json_type),
+                'file_path': str(json_file),
+            }
+            scanned += 1
+        else:
+            skipped_not_tool_json += 1
+
+    print(
+        f"Tool scan: {scanned} tools loaded from '{tools_root}' "
+        f"({skipped_no_decorator} .py files skipped — no @tool/@flow, "
+        f"{skipped_not_tool_json} .json files skipped — not agentic workflow/langflow"
+        + (f", {errors} parse errors" if errors else "")
+        + ")",
+        file=sys.stderr,
+    )
+
+    return specs
+
+
+def _strip_namespace(name: str) -> str:
+    """
+    Strip a ``namespace:`` prefix from a tool name if present.
+
+    Many watsonx Orchestrate agents reference tools with a toolkit namespace
+    prefix (e.g. ``silver:calculator_tool``).  Extracted spec files are keyed
+    by the bare function name (``calculator_tool``).  This helper normalises
+    both sides so the lookup succeeds regardless of whether a prefix is present.
+    """
+    return name.split(':', 1)[-1] if ':' in name else name
+
+
+def _enrich_tools(
+    tool_names: List[str],
+    tool_specs: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Convert a flat list of tool name strings into a list of enriched dicts::
+
+        [
+          {
+            "name": "get_invoice",
+            "spec_chars": 87,
+            "spec_est_tokens": 22,
+            "type": "tool",
+            "file_path": "/path/to/get_invoice.py",
+            "resolved": True,
+          },
+          {
+            "name": "missing_tool",
+            "spec_chars": 0,
+            "spec_est_tokens": 200,
+            "type": None,
+            "file_path": None,
+            "resolved": False,
+          },
+        ]
+
+    Tools with no matching entry in *tool_specs* are marked ``resolved=False``
+    and use a 200-token fallback estimate — a conservative approximation for a
+    tool whose definition is unavailable.
+
+    Namespace prefixes (e.g. ``silver:``) are stripped before lookup so that
+    ``silver:calculator_tool`` resolves to the same spec as ``calculator_tool``.
+    """
+    _UNRESOLVED_FALLBACK_TOKENS = 200
+    result = []
+    for name in tool_names:
+        bare = _strip_namespace(name)
+        spec = tool_specs.get(bare) or tool_specs.get(name)
+        if spec:
+            result.append({
+                'name': name,
+                'spec_chars': spec['spec_chars'],
+                'spec_est_tokens': spec['spec_est_tokens'],
+                'type': spec.get('type'),
+                'file_path': spec.get('file_path'),
+                'resolved': True,
+            })
+        else:
+            result.append({
+                'name': name,
+                'spec_chars': 0,
+                'spec_est_tokens': _UNRESOLVED_FALLBACK_TOKENS,
+                'type': None,
+                'file_path': None,
+                'resolved': False,
+            })
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -119,10 +386,16 @@ def _find_skill_file(skill_name: str, search_root: Path) -> Optional[Path]:
     return None
 
 
-def _resolve_skill(skill_name: str, search_root: Path) -> Dict[str, Any]:
+def _resolve_skill(
+    skill_name: str,
+    search_root: Path,
+    tool_specs: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """
     Locate the SKILL.md for skill_name and extract its full metadata:
       - description, allowed_tools  (from frontmatter; allowed_tools always a list)
+      - resolved_allowed_tools       (enriched list with spec_chars/spec_est_tokens per tool)
+      - allowed_tools_spec_est_tokens (sum of spec tokens across all allowed tools)
       - name_length, name_est_tokens
       - description_length, description_est_tokens
       - name_too_long, description_too_long (hard-limit validation)
@@ -223,6 +496,10 @@ def _resolve_skill(skill_name: str, search_root: Path) -> Dict[str, Any]:
         'description_too_long': description_length > 1024,
         'unmatched_placeholders': sorted(set(unmatched_placeholders)),
         'allowed_tools': allowed_tools,
+        'resolved_allowed_tools': _enrich_tools(allowed_tools, tool_specs or {}),
+        'allowed_tools_spec_est_tokens': sum(
+            t['spec_est_tokens'] for t in _enrich_tools(allowed_tools, tool_specs or {})
+        ),
         'body_chars': body_chars,
         'body_est_tokens': body_est_tokens,
         'scripts': scripts,
@@ -276,6 +553,7 @@ def _resolve_collaborator(
     collaborator_name: str,
     agent_dir: Path,
     search_root: Path,
+    tool_specs: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Locate the agent YAML for collaborator_name and extract its key metadata:
@@ -283,7 +561,9 @@ def _resolve_collaborator(
       - description         (description field)
       - kind                (kind field, e.g. 'native')
       - llm                 (llm field)
-      - tools               (tools list)
+      - tools               (raw list of tool name strings)
+      - resolved_tools      (enriched list with spec_chars/spec_est_tokens per tool)
+      - tools_spec_est_tokens (sum of spec tokens across all tools)
       - collaborators       (collaborators list — nested collaborators)
       - skills              (skills list — skill names)
       - instructions_length (line count of instructions field)
@@ -305,6 +585,8 @@ def _resolve_collaborator(
             'kind': None,
             'llm': None,
             'tools': [],
+            'resolved_tools': [],
+            'tools_spec_est_tokens': 0,
             'collaborators': [],
             'skills': [],
             'instructions_length': 0,
@@ -346,6 +628,11 @@ def _resolve_collaborator(
         'kind': data.get('kind', None),
         'llm': data.get('llm', None),
         'tools': data.get('tools', []) or [],
+        'resolved_tools': _enrich_tools(data.get('tools', []) or [], tool_specs or {}),
+        'tools_spec_est_tokens': sum(
+            ((tool_specs or {}).get(_strip_namespace(t)) or (tool_specs or {}).get(t) or {}).get('spec_est_tokens', 0)
+            for t in (data.get('tools', []) or [])
+        ),
         'collaborators': data.get('collaborators', []) or [],
         'skills': data.get('skills', []) or [],
         'instructions_length': instructions_lines,
@@ -364,7 +651,12 @@ def _resolve_collaborator(
 # Main extraction
 # ---------------------------------------------------------------------------
 
-def extract_agent_info(yaml_path: str, search_root: Optional[str] = None) -> Dict[str, Any]:
+def extract_agent_info(
+    yaml_path: str,
+    search_root: Optional[str] = None,
+    tools_dir: Optional[str] = None,
+    tools_root: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Extract agent information from a watsonx Orchestrate native agent YAML file.
 
@@ -373,6 +665,21 @@ def extract_agent_info(yaml_path: str, search_root: Optional[str] = None) -> Dic
         search_root: Root directory to search for SKILL.md files and collaborator
                      agent YAML files.  Defaults to the directory containing the
                      agent YAML.
+        tools_dir:   Directory containing ``tool_*_extracted.json`` files produced
+                     by ``extract_tool_info.py --output-dir``.  When supplied,
+                     every tool name in the agent's ``tools:`` list, each
+                     collaborator's ``tools:`` list, and each skill's
+                     ``allowed-tools`` is enriched with ``spec_chars`` and
+                     ``spec_est_tokens`` from the matching JSON file.
+        tools_root:  Root directory to scan for tool source files (.py with
+                     @tool/@flow, .json agentic-workflow/langflow).  Builds
+                     the spec lookup inline — no separate extraction step needed.
+                     When both tools_dir and tools_root are supplied, tools_dir
+                     takes priority (pre-extracted JSONs are used as-is, and
+                     tools_root fills in any names not found in tools_dir).
+                     When neither tools_root nor tools_dir is supplied, the scan
+                     runs automatically against search_root (or the agent YAML's
+                     directory if search_root is also absent).
 
     Returns:
         Dictionary containing agent metadata including resolved skills and
@@ -396,30 +703,140 @@ def extract_agent_info(yaml_path: str, search_root: Optional[str] = None) -> Dic
     agent_dir = yaml_file.parent.resolve()
     root = Path(search_root).resolve() if search_root else agent_dir
 
-    skill_names: List[str] = agent_data.get('skills', []) or []
-    resolved_skills = [_resolve_skill(name, root) for name in skill_names]
+    # Build tool spec lookup.
+    # Priority: tools_dir (pre-extracted JSONs) > tools_root (live scan) > auto (search_root).
+    # When both tools_dir and tools_root are provided, tools_dir entries win.
+    # When neither is supplied, fall back to scanning search_root automatically so
+    # callers get tool specs without having to know where the toolkit lives.
+    tool_specs: Dict[str, Dict[str, Any]] = {}
+    scan_root = Path(tools_root).resolve() if tools_root else root
+    tool_specs = _scan_tools_root(scan_root)
+    if tools_dir:
+        # Pre-extracted JSONs take priority — merge on top, overwriting any
+        # same-named entries from the live scan.
+        tool_specs.update(_load_tool_specs(Path(tools_dir)))
 
-    collaborator_names: List[str] = agent_data.get('collaborators', []) or []
-    resolved_collaborators = [
-        _resolve_collaborator(name, agent_dir, root)
-        for name in collaborator_names
+    skill_names: List[str] = agent_data.get('skills', []) or []
+    resolved_skills = [
+        _resolve_skill(name, root, tool_specs) for name in skill_names
     ]
 
+    # Instructions and guidelines text — needed before tool classification so
+    # we can search them for direct agent-level tool name references.
     instructions_text: str = agent_data.get('instructions', '') or ''
     instructions_lines: int = len(instructions_text.split('\n')) if instructions_text else 0
     instructions_chars: int = len(instructions_text)
     instructions_est_tokens: int = _estimate_tokens(instructions_text)
 
+    guidelines_list = agent_data.get('guidelines', []) or []
+    guidelines_text = ' '.join(
+        str(g) for g in guidelines_list
+    ) if guidelines_list else ''
+
+    agent_tools: List[str] = agent_data.get('tools', []) or []
+    agent_tools_set = set(agent_tools)
+
+    # Collect all tool names that appear in any skill's allowed-tools.
+    skill_owned_tools: set = set()
+    for skill in resolved_skills:
+        for t in skill.get('allowed_tools', []):
+            skill_owned_tools.add(_strip_namespace(t))
+            skill_owned_tools.add(t)
+
+    # Build the text corpus to search for direct agent-level tool references.
+    agent_text_corpus = (instructions_text + ' ' + guidelines_text).lower()
+
+    # Classify each agent tool as either agent-callable or skill-only.
+    #
+    # A tool is "skill-only" when:
+    #   1. It appears in at least one skill's allowed-tools list (the skill already
+    #      owns it — the spec will be loaded into L2 context when that skill loads).
+    #   2. Its bare name does NOT appear in the agent's instructions: or guidelines:
+    #      text (the agent has no direct instruction to call it at L1).
+    #
+    # The double-spend problem:
+    #   A tool named in both agent tools: AND a skill's allowed-tools has its spec
+    #   loaded TWICE: once into L1 (every single turn, whether the skill is active
+    #   or not) and once into L2 (when the skill loads). The L1 copy is pure waste —
+    #   the tool cannot be called at L1 because it is skill-scoped, so the agent
+    #   pays the tokenization cost but gets no benefit from it.
+    #
+    # Fix: remove the tool from agent tools: entirely. The skill's allowed-tools
+    #   entry is the correct and sufficient place for it. If the agent needs the
+    #   capability, it should invoke the skill — not call the tool directly.
+    skill_only_tools: List[str] = []     # double-spend: in skill allowed-tools, spec loaded at L1 for nothing
+    agent_callable_tools: List[str] = [] # legitimately at L1: either not skill-owned, or referenced in agent text
+    for t in agent_tools:
+        bare = _strip_namespace(t)
+        in_skill = bare in skill_owned_tools or t in skill_owned_tools
+        # Check whether the bare tool name appears anywhere in agent text.
+        referenced_in_agent = bare.lower() in agent_text_corpus or t.lower() in agent_text_corpus
+        if in_skill and not referenced_in_agent:
+            skill_only_tools.append(t)
+        else:
+            agent_callable_tools.append(t)
+
+    for skill in resolved_skills:
+        shadowed = [t for t in skill.get('allowed_tools', []) if t in agent_tools_set]
+        skill['tool_binding_shadows'] = shadowed
+
+    collaborator_names: List[str] = agent_data.get('collaborators', []) or []
+    resolved_collaborators = [
+        _resolve_collaborator(name, agent_dir, root, tool_specs)
+        for name in collaborator_names
+    ]
+
     # Skill catalog: sum of (name + description) tokens across all skills.
-    # This cost is paid on EVERY turn regardless of which skill is loaded.
+    # This cost is paid on EVERY agent turn regardless of which skill is loaded —
+    # the agent needs all skill names+descriptions to decide which skill to load.
     skill_catalog_est_tokens: int = sum(
         s.get('catalog_est_tokens', 0) for s in resolved_skills
     )
 
     # Collaborator routing catalog: sum of (name + description) tokens across
     # all collaborators. Paid on every supervisor turn for routing decisions.
+    # NOTE: collaborator *internals* (their instructions, tools, skills) run in
+    # the collaborator's own separate context window — they are NOT additive to
+    # the supervisor's context and must NOT be included in the agent floor total.
     collaborator_routing_est_tokens: int = sum(
         c.get('routing_est_tokens', 0) for c in resolved_collaborators
+    )
+
+    # Agent-level tool list and spec costs.
+    # tool_list_est_tokens  — names of the agent's own tools, paid every turn so
+    #                         the LLM can decide which tool to invoke.
+    # tools_spec_est_tokens — spec bodies of the agent's own tools; also paid
+    #                         every turn (tool schemas are part of the prompt).
+    # SCOPE NOTE: skills carry their OWN allowed-tools list and specs.  Those
+    # tokens are paid only when the skill is loaded (skill-level cost), not here.
+    resolved_agent_tools = _enrich_tools(agent_tools, tool_specs)
+    agent_tools_spec_est_tokens: int = sum(
+        t['spec_est_tokens'] for t in resolved_agent_tools
+    )
+    tool_list_est_tokens: int = sum(
+        _estimate_tokens(name) for name in agent_tools
+    )
+
+    # Corrected L1 floor: subtract the wasted tokens from skill_only_tools.
+    # These tools are listed at agent level but can never be called there —
+    # removing them from agent tools: would reduce L1 cost on every turn.
+    skill_only_tool_names_set = set(skill_only_tools)
+    skill_only_spec_tokens: int = sum(
+        t['spec_est_tokens'] for t in resolved_agent_tools
+        if t['name'] in skill_only_tool_names_set
+    )
+    skill_only_list_tokens: int = sum(
+        _estimate_tokens(name) for name in skill_only_tools
+    )
+    agent_floor_est_tokens: int = (
+        instructions_est_tokens
+        + skill_catalog_est_tokens
+        + collaborator_routing_est_tokens
+        + tool_list_est_tokens
+        + agent_tools_spec_est_tokens
+    )
+    agent_floor_corrected_est_tokens: int = (
+        agent_floor_est_tokens - skill_only_spec_tokens - skill_only_list_tokens
     )
 
     return {
@@ -428,7 +845,16 @@ def extract_agent_info(yaml_path: str, search_root: Optional[str] = None) -> Dic
         'description': agent_data.get('description', ''),
         'kind': agent_data.get('kind', 'unknown'),
         'llm': agent_data.get('llm', 'unknown'),
-        'tools': agent_data.get('tools', []),
+        'tools': agent_tools,
+        'resolved_tools': resolved_agent_tools,
+        'tools_spec_est_tokens': agent_tools_spec_est_tokens,
+        'tool_list_est_tokens': tool_list_est_tokens,
+        'skill_only_tools': skill_only_tools,
+        'agent_callable_tools': agent_callable_tools,
+        'skill_only_spec_tokens': skill_only_spec_tokens,
+        'skill_only_list_tokens': skill_only_list_tokens,
+        'agent_floor_est_tokens': agent_floor_est_tokens,
+        'agent_floor_corrected_est_tokens': agent_floor_corrected_est_tokens,
         'collaborators': agent_data.get('collaborators', []),
         'resolved_collaborators': resolved_collaborators,
         'context_variables': agent_data.get('context_variables', []),
@@ -480,11 +906,84 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
         f"Description:         {info['description']}",
         f"Instructions Length: {info['instructions_length']} lines  |  {info.get('instructions_chars', '?')} chars  |  ~{info.get('instructions_est_tokens', '?')} est. tokens",
         f"Guidelines Count:    {info['guidelines_count']}",
-        f"Tools:               {len(info['tools'])} ({', '.join(info['tools']) if info['tools'] else 'none'})",
         f"Context Variables:   {len(info['context_variables'])}",
-        f"Skill catalog:       ~{info.get('skill_catalog_est_tokens', 0)} est. tokens (name+desc of all skills, paid every turn)",
-        f"Collab routing:      ~{info.get('collaborator_routing_est_tokens', 0)} est. tokens (name+desc of all collaborators, paid every turn)",
+        "",
+        f"── LEVEL 1 — Agent context (paid on every agent turn) ─────────────────────────────────────────",
+        f"  Instructions:      ~{info.get('instructions_est_tokens', 0)} est. tokens",
+        f"  Skill catalog:     ~{info.get('skill_catalog_est_tokens', 0)} est. tokens  (name+desc of all {len(info.get('skills', []))} skills — agent needs these to decide which skill to load)",
+        f"  Collab routing:    ~{info.get('collaborator_routing_est_tokens', 0)} est. tokens  (name+desc of all {len(info.get('collaborators', []))} collaborators — routing only; collab internals run in their own context)",
+        f"  Agent tool list:   ~{info.get('tool_list_est_tokens', 0)} est. tokens  (names of {len(info.get('tools', []))} agent-level tools)",
+        f"  Agent tool specs:  ~{info.get('tools_spec_est_tokens', 0)} est. tokens  (schemas of {len(info.get('tools', []))} agent-level tools)",
+        f"  ─────────────────────────────────────────────────────────────────────────────────────────────",
+        f"  Agent floor total: ~{info.get('agent_floor_est_tokens', 0)} est. tokens/turn",
+        f"",
+        f"── LEVEL 2 — Skill context (added on top of agent context when a skill is loaded) ─────────────",
+        f"  Skill body:        per-skill — see skill detail below  (body_est_tokens per skill)",
+        f"  Skill tool list:   per-skill — allowed-tool names injected when skill loads",
+        f"  Skill tool specs:  per-skill — allowed-tool schemas injected when skill loads",
+        f"  NOTE: only one skill body is active at a time; sequential loads replace the previous body",
+        f"",
+        f"── LEVEL 3 — Collaborator context (separate LLM call, own context window) ─────────────────────",
+        f"  Collaborator instructions, tools, and skills run in their own context window.",
+        f"  These tokens are NOT part of the supervisor's context — see collaborator detail below.",
+        f"",
     ]
+
+    # --- Agent tools ---
+    resolved_tools = info.get('resolved_tools', [])
+    tools_spec_total = info.get('tools_spec_est_tokens', 0)
+    any_tool_resolved = any(t.get('resolved') for t in resolved_tools)
+    if resolved_tools:
+        lines.append(
+            f"Tools:               {len(resolved_tools)}  |  ~{tools_spec_total} est. tokens total spec"
+            + ("" if any_tool_resolved else "  (unresolved tools use ~200 token fallback)")
+        )
+        for t in resolved_tools:
+            if t.get('resolved'):
+                lines.append(
+                    f"  [{t['name']}]  ~{t['spec_est_tokens']} est. tokens  ({t['spec_chars']} chars)"
+                )
+            else:
+                lines.append(f"  [{t['name']}]  ~{t['spec_est_tokens']} est. tokens (fallback — definition not found)")
+    else:
+        lines.append("Tools:               0")
+
+    # Skill-only tools: tool spec is loaded twice — once at L1 (every turn, wasted)
+    # and once at L2 (when the skill loads, correct). Fix: remove from agent tools:.
+    skill_only = info.get('skill_only_tools', [])
+    if skill_only:
+        wasted = info.get('skill_only_spec_tokens', 0) + info.get('skill_only_list_tokens', 0)
+        corrected = info.get('agent_floor_corrected_est_tokens', 0)
+        lines.append(
+            f"Skill-only tools:    {len(skill_only)} detected  ← spec loaded twice (L1+L2), L1 copy is pure waste  ~{wasted} tokens/turn"
+        )
+        for t in skill_only:
+            lines.append(
+                f"  [{t}]  ← remove from agent tools:  "
+                f"(already in a skill's allowed-tools; agent should invoke the skill, not the tool directly)"
+            )
+        lines.append(
+            f"  If removed → agent floor drops to ~{corrected} est. tokens/turn  (saving ~{wasted} tokens every turn)"
+        )
+    else:
+        lines.append("Skill-only tools:    none")
+
+    # Tool-binding shadows summary: tools in any skill's allowed-tools that also
+    # appear in the agent's top-level tools: list (SK-6 violation).
+    all_shadows = [
+        (s['name'], t)
+        for s in info.get('skills', [])
+        for t in s.get('tool_binding_shadows', [])
+    ]
+    if all_shadows:
+        lines.append(f"Tool-binding shadows: {len(all_shadows)} detected  ← SK-6 violation")
+        for skill_name, tool_name in all_shadows:
+            lines.append(
+                f"  [{tool_name}] in skill [{skill_name}].allowed-tools AND in agent tools: "
+                f"— agent cannot call it when no skill is active"
+            )
+    else:
+        lines.append("Tool-binding shadows: none")
 
     # --- Collaborators ---
     rc = info.get('resolved_collaborators', [])
@@ -503,7 +1002,6 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
     for c in resolved_c:
         loc_flag = ' [co-located]' if c['collocated'] else ' [remote]'
         nested_collabs = len(c['collaborators'])
-        nested_tools = len(c['tools'])
         nested_skills = len(c['skills'])
         lines.append(f"  [{c['name']}]{loc_flag}  ← {c['display_name']}")
         lines.append(f"    kind: {c['kind']}  llm: {c['llm']}")
@@ -513,13 +1011,32 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
             f"|  ~{c.get('instructions_est_tokens', '?')} est. tokens  "
             f"|  guidelines: {c['guidelines_count']}"
         )
+        # Routing tokens: name + description injected on every supervisor turn
+        # so the supervisor can decide whether to dispatch to this collaborator.
         lines.append(
-            f"    routing overhead: ~{c.get('routing_est_tokens', '?')} est. tokens "
-            f"(name ~{c.get('name_est_tokens', '?')} + desc ~{c.get('description_est_tokens', '?')}, paid every supervisor turn)"
+            f"    routing tokens:  ~{c.get('routing_est_tokens', '?')} est. tokens/supervisor-turn"
+            f"  (name ~{c.get('name_est_tokens', '?')} + desc ~{c.get('description_est_tokens', '?')})"
         )
-        lines.append(
-            f"    tools: {nested_tools}  collaborators: {nested_collabs}  skills: {nested_skills}"
-        )
+        # Per-tool spec tokens: cost paid when the supervisor/collaborator
+        # decides which tool to invoke.
+        c_resolved_tools = c.get('resolved_tools', [])
+        c_tools_spec_total = c.get('tools_spec_est_tokens', 0)
+        if c_resolved_tools:
+            any_c_tool_resolved = any(t.get('resolved') for t in c_resolved_tools)
+            lines.append(
+                f"    tools ({len(c_resolved_tools)}):  ~{c_tools_spec_total} est. tokens total spec"
+                + ("" if any_c_tool_resolved else "  (unresolved tools use ~200 token fallback)")
+                + f"  collaborators: {nested_collabs}  skills: {nested_skills}"
+            )
+            for t in c_resolved_tools:
+                if t.get('resolved'):
+                    lines.append(
+                        f"      [{t['name']}]  ~{t['spec_est_tokens']} est. tokens  ({t['spec_chars']} chars)"
+                    )
+                else:
+                    lines.append(f"      [{t['name']}]  ~{t['spec_est_tokens']} est. tokens (fallback — definition not found)")
+        else:
+            lines.append(f"    tools: 0  collaborators: {nested_collabs}  skills: {nested_skills}")
         if c['description']:
             # Truncate long descriptions for readability
             desc = c['description'].replace('\n', ' ').strip()
@@ -538,7 +1055,6 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
     lines.append(f"Skills:              {len(skills)} ({len(resolved_s)} resolved, {len(unresolved_s)} not found)")
 
     for s in resolved_s:
-        tools_str = ', '.join(s['allowed_tools']) if s['allowed_tools'] else 'none'
         flags = []
         if s.get('name_too_long'):
             flags.append(f"NAME TOO LONG ({s['name_length']} chars, limit 64)")
@@ -548,15 +1064,49 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
             flags.append(f"UNMATCHED PLACEHOLDERS: {s['unmatched_placeholders']}")
         flag_str = ' [' + '; '.join(flags) + ']' if flags else ''
         lines.append(f"  [{s['name']}]{flag_str}")
+        # Catalog cost: name+desc paid every agent turn (agent needs this to route to the skill)
         lines.append(
-            f"    catalog: ~{s.get('catalog_est_tokens', '?')} est. tokens/turn "
+            f"    [L1 agent ctx]  catalog: ~{s.get('catalog_est_tokens', '?')} est. tokens/turn "
             f"(name ~{s.get('name_est_tokens', '?')} + desc ~{s.get('description_est_tokens', '?')})"
         )
+        # Skill-level costs: paid only when this skill is loaded (Level 2 context)
+        s_resolved_tools = s.get('resolved_allowed_tools', [])
+        s_tools_spec_total = sum(t['spec_est_tokens'] for t in s_resolved_tools)
+        # allowed-tool names (list) — injected when skill loads
+        s_tool_list_tokens: int = sum(
+            _estimate_tokens(t['name']) for t in s_resolved_tools
+        )
+        skill_load_total = s.get('body_est_tokens', 0) + s_tool_list_tokens + s_tools_spec_total
         lines.append(
-            f"    body:    ~{s.get('body_est_tokens', '?')} est. tokens/load "
+            f"    [L2 skill load] body:    ~{s.get('body_est_tokens', '?')} est. tokens  "
             f"({s.get('body_chars', '?')} chars)"
         )
-        lines.append(f"    allowed-tools: {tools_str}")
+        if s_resolved_tools:
+            any_s_tool_resolved = any(t.get('resolved') for t in s_resolved_tools)
+            lines.append(
+                f"    [L2 skill load] allowed-tools ({len(s_resolved_tools)})"
+                f":  list ~{s_tool_list_tokens} tokens (names)"
+                + f" + specs ~{s_tools_spec_total} tokens (schemas)"
+                + ("" if any_s_tool_resolved else "  (unresolved tools use ~200 token fallback)")
+            )
+            for t in s_resolved_tools:
+                if t.get('resolved'):
+                    lines.append(
+                        f"      [{t['name']}]  ~{t['spec_est_tokens']} est. tokens  ({t['spec_chars']} chars)"
+                    )
+                else:
+                    lines.append(f"      [{t['name']}]  ~{t['spec_est_tokens']} est. tokens (fallback — definition not found)")
+        else:
+            lines.append("    [L2 skill load] allowed-tools: none")
+        lines.append(
+            f"    [L2 skill load] total:   ~{skill_load_total} est. tokens added to context when this skill is loaded"
+        )
+        shadows = s.get('tool_binding_shadows', [])
+        if shadows:
+            lines.append(
+                f"    ⚠ tool-binding shadows ({len(shadows)}): {', '.join(shadows)}"
+                f"  ← also in agent tools: — agent cannot call these when no skill is active (SK-6)"
+            )
         if s['scripts']:
             lines.append(f"    scripts ({len(s['scripts'])}): {', '.join(s['scripts'])}")
         if s['references']:
@@ -598,6 +1148,18 @@ Examples:
   # Override search root (useful when agent.yaml is nested deep and
   # collaborators / SKILL.md files live in sibling directories)
   python extract_agent_info.py agent.yaml --search-root /path/to/project
+
+  # Save JSON extraction to the eval output directory (always written as JSON;
+  # stdout output is controlled separately by --json / --compact / default)
+  python extract_agent_info.py agent.yaml --output-dir eval/
+
+  # Enrich tool specs from previously-extracted tool JSON files
+  python extract_agent_info.py agent.yaml --output-dir eval/ --tools-dir eval/
+
+  # Scan a toolkit directory directly — no pre-extraction step needed
+  # (.py files with @tool/@flow + .json agentic-workflow/langflow are auto-detected)
+  python extract_agent_info.py agent.yaml --tools-root /path/to/toolkit
+  python extract_agent_info.py agent.yaml --search-root /project --tools-root /project/toolkit
         """
     )
 
@@ -612,11 +1174,35 @@ Examples:
                         help='Root directory for SKILL.md and collaborator YAML discovery '
                              '(default: directory of the agent YAML). Co-located files always '
                              'take priority over search-root matches.')
+    parser.add_argument('--output-dir', type=str, default=None,
+                        help='Directory to write the JSON extraction file into.  The file is named '
+                             'agent_<name>_extracted.json and is always written as pretty-printed JSON, '
+                             'independent of the --json / --compact stdout flag.  The directory is '
+                             'created if it does not exist.')
+    parser.add_argument('--tools-dir', type=str, default=None,
+                        help='Directory containing tool_*_extracted.json files produced by '
+                             'extract_tool_info.py --output-dir.  When supplied, every tool name '
+                             'in the agent, collaborators, and skill allowed-tools lists is enriched '
+                             'with spec_chars and spec_est_tokens from the matching JSON file.')
+    parser.add_argument('--tools-root', type=str, default=None,
+                        help='Root directory to scan for tool source files.  Recursively finds '
+                             '.py files containing @tool or @flow decorators, and .json files '
+                             'matching the agentic-workflow or langflow format.  Builds the spec '
+                             'lookup inline — no separate extract_tool_info.py step required.  '
+                             'When both --tools-dir and --tools-root are supplied, --tools-dir '
+                             'entries take priority; --tools-root fills in any gaps.  '
+                             'When omitted, the scan runs automatically against --search-root '
+                             '(or the agent YAML directory if --search-root is also absent).')
 
     args = parser.parse_args()
 
     try:
-        info = extract_agent_info(args.yaml_path, search_root=args.search_root)
+        info = extract_agent_info(
+            args.yaml_path,
+            search_root=args.search_root,
+            tools_dir=args.tools_dir,
+            tools_root=args.tools_root,
+        )
 
         if args.json:
             output_format = 'json'
@@ -626,6 +1212,19 @@ Examples:
             output_format = 'text'
 
         print(format_output(info, output_format, args.field))
+
+        # --output-dir: persist the full JSON extraction to disk so evaluation
+        # reports can reference it without re-running the extractor.
+        if args.output_dir:
+            out_dir = Path(args.output_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            agent_name = info.get('name', 'agent')
+            # Sanitise to a safe filename component (spaces → underscores).
+            safe_name = agent_name.replace(' ', '_')
+            out_file = out_dir / f"agent_{safe_name}_extracted.json"
+            out_file.write_text(json.dumps(info, indent=2), encoding='utf-8')
+            print(f"Extraction saved: {out_file}", file=sys.stderr)
+
         return 0
 
     except FileNotFoundError as e:
