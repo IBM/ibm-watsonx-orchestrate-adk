@@ -3604,13 +3604,6 @@ class Token(BaseModel):
     confidence: Optional[float] = Field(None, description="Confidence score for the token")
 
 
-class Signature(BaseModel):
-    id: str = Field(..., description="Unique identifier for the signature")
-    parent_id: str = Field(..., description="Unique identifier of the parent structure")
-    text: Optional[str] = Field(None, description="Text associated with the signature")
-    bbox: Optional[DocProcBoundingBox] = Field(None, description="Bounding box of the signature on the page")
-
-
 class Structures(BaseModel):
     sections: Optional[List[Section]] = Field(
         default=None, description="All Section objects found in the document"
@@ -3663,8 +3656,8 @@ class Structures(BaseModel):
     bar_codes: Optional[List[BarCode]] = Field(
         default=None, description="All BarCode objects found in the document"
     )
-    signatures: Optional[List[Signature]] = Field(
-        default=None, description="Signatures detected in the document. Populated when detect_signatures is True."
+    signatures: Optional[List[dict]] = Field(
+        default=None, description="Signatures detected in the document. Populated when detect_signatures is True. Each element is a raw WDU picture object."
     )
     tokens: Optional[List[Token]] = Field(
         default=None, description="All Token objects found in the document"
