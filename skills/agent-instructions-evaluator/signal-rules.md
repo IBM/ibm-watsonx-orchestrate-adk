@@ -363,6 +363,14 @@ Build a directed graph using forward `load_skill` pointers: draw an edge A → B
 
 **Trigger 3 — Tool-binding shadow:** A tool that appears in any skill's `allowed-tools` is removed from the agent's base tool set. If that same tool is also bound at the agent's top-level `tools:`, the agent cannot call it when no skill is active — a silent execution gap. Check each skill's `allowed-tools` against the agent's `tools:` list and flag every match.
 
+**Trigger 3a — Skill-only tool / double-spend (SK-6 subset, deterministic signal):** A tool named in both the agent's `tools:` list AND a skill's `allowed-tools` has its spec loaded **twice**: once into L1 context on every single turn (whether the skill is active or not), and once into L2 context when the skill loads (which is correct and necessary). The L1 copy is pure waste — the tool is skill-scoped and cannot be called at the agent level, so the agent pays the tokenization cost every turn with zero benefit.
+
+This is detected when: (a) the tool appears in at least one skill's `allowed-tools`, AND (b) the tool's bare name does not appear in the agent's `instructions:` or `guidelines:` text (confirming there is no agent-level instruction to call it directly).
+
+**Fix:** Remove the tool from `agent tools:` entirely. The skill's `allowed-tools` entry is the correct and sufficient place. If the agent needs the capability, it should invoke the skill — not call the tool directly.
+
+`extract_agent_info.py` reports these under `skill_only_tools` and computes the wasted tokens per turn (`skill_only_spec_tokens + skill_only_list_tokens`) and the corrected floor if removed (`agent_floor_corrected_est_tokens`). **Always flag as a high-priority token optimization** — the saving is proportional to the number of skill-owned tools and applies on every single agent turn.
+
 **Consolidation recommendation trigger:** If both skills exhibit SK-2 Moderate/High overlap AND cover intents likely to co-occur in a single turn, OR if one skill's body issues a mid-body `load_skill` call to the other, recommend consolidation.
 
 **Effect:** Note sequential-load performance risk. Log tool-binding shadows as execution gaps. Log correlated pairs with evidence.
@@ -457,11 +465,27 @@ Build a directed graph using forward `load_skill` pointers: draw an edge A → B
 6. **Projected saving** — estimated as a **percentage of the current component size** (not a rewrite): count the lines that could be removed, divide by the current total line count of that component, and express the saving as `~X% of [agent instructions / skill body / catalog]`. Then translate to tokens using `removable chars ÷ 4`. Report as: `~X lines (~Y% of current [N]-line [component]) → ~Z tokens saved per [turn type]`. Do not present as an absolute byte saving — the instructions are not being rewritten, so the percentage-of-current-size framing is more honest and easier to validate.
 7. **Reliability benefit** — whether the change also reduces a Rule A/B/C/E/F signal (secondary gain beyond token reduction)
 
-**Token estimation guidance:**
-- Use **character count ÷ 4** as a working approximation (≈4 chars/token for English instruction prose with mixed punctuation and parameter names). This is more accurate than a lines-based estimate because line length varies significantly across instruction styles.
-- `extract_agent_info.py` computes this automatically: `instructions_est_tokens`, `skill_catalog_est_tokens`, `collaborator_routing_est_tokens` for the agent; `body_est_tokens` and `catalog_est_tokens` (name + description) for each skill; `instructions_est_tokens` and `routing_est_tokens` (name + description) for each collaborator. Use these values directly in the token budget table.
-- **Skill and collaborator names + descriptions are routing tokens** — they are paid every turn (for skills: present in catalog regardless of which skill is loaded; for collaborators: present every supervisor turn for routing decisions). Report these separately from instruction body tokens in the budget table.
-- Per-turn cost: agent instructions + skill catalog (all skill names + descriptions) + collaborator routing catalog (all collaborator names + descriptions) + the one skill body loaded on that turn
+**Token estimation guidance — per-level scoping:**
+
+Token costs are scoped to the context window where they are paid. Always report them by level, not as a flat sum.
+
+- **Level 1 — Agent context (paid on every agent turn):**
+  `instructions_est_tokens` + `skill_catalog_est_tokens` + `collaborator_routing_est_tokens` + `tool_list_est_tokens` + `tools_spec_est_tokens`
+  - `skill_catalog_est_tokens` = sum of (name + description) for all skills — the agent needs all skill descriptions every turn to decide which skill to load
+  - `collaborator_routing_est_tokens` = sum of (name + description) for all collaborators — routing signal only; collaborator internals are **not** in the supervisor's context
+  - `tool_list_est_tokens` = sum of token cost of each agent-level tool name — always present for tool routing decisions
+  - `tools_spec_est_tokens` = sum of spec body tokens for agent-level tools — present every turn with the tool schemas
+
+- **Level 2 — Skill context (added on top of agent context when a skill is loaded):**
+  `body_est_tokens` + skill's allowed-tool name tokens + skill's `allowed_tools_spec_est_tokens`
+  - The skill's `allowed-tools` (names + schemas) are owned by the skill and injected **only** when that skill loads — they are **not** part of the agent's Level 1 floor
+  - Only one skill body is active at a time; sequential skill loads replace the previous body
+
+- **Level 3 — Collaborator context (separate LLM call, own context window):**
+  A dispatched collaborator runs in its own context window with its own instructions, tools, and skills. These tokens are **entirely separate** from the supervisor's context — do not include them in the agent-level or skill-level totals.
+
+`extract_agent_info.py` computes all of these automatically: `instructions_est_tokens`, `skill_catalog_est_tokens`, `collaborator_routing_est_tokens`, `tool_list_est_tokens`, `tools_spec_est_tokens` for the agent; per-skill `catalog_est_tokens`, `body_est_tokens`, `allowed_tools_spec_est_tokens`; per-collaborator `routing_est_tokens` and `instructions_est_tokens`. Use these values directly in the token budget table.
+
 - State these estimates as approximations; exact values depend on the specific tokenizer and model
 
 **Anti-patterns to document** (include in the report to guide future prompt authors):

@@ -34,38 +34,68 @@ Score the artifact not by how much behavior it describes, but by how much behavi
 <Step>
 **Gather all relevant data**
 
-Before beginning analysis, collect all available metadata and context.
+Before beginning analysis, collect all available metadata and context. **The raw JSON files produced by the extraction scripts are a required deliverable — save them into the `eval/` folder alongside the report files. Every report in the set must reference them.**
 
 > **Path note:** All `scripts/` paths below are relative to the skill directory (`skills/agent-instructions-evaluator/`). Run these commands from that directory, or prefix the path accordingly (e.g. `skills/agent-instructions-evaluator/scripts/extract_agent_info.py`).
 
 1. **Extract agent metadata** (if evaluating a YAML file):
    ```bash
-   python scripts/extract_agent_info.py <agent.yaml> --json
-   # If SKILL.md / collaborator YAML files live outside the agent's directory, point at the project root:
-   python scripts/extract_agent_info.py <agent.yaml> --search-root /path/to/project --json
+   # Preferred — single command; auto-scans the project tree for tool source files
+   python scripts/extract_agent_info.py <agent.yaml> \
+       --search-root /path/to/project \
+       --output-dir eval/ --json
+
+   # Alternative — explicit toolkit directory (faster on large trees)
+   python scripts/extract_agent_info.py <agent.yaml> \
+       --search-root /path/to/project \
+       --tools-root /path/to/toolkit \
+       --output-dir eval/ --json
+
+   # Alternative — use pre-extracted tool JSONs from step 2 below
+   python scripts/extract_agent_info.py <agent.yaml> \
+       --search-root /path/to/project \
+       --tools-dir eval/ \
+       --output-dir eval/ --json
    ```
-   This provides: name, display_name, kind, llm, collaborators (**with each collaborator resolved**), tools, context variables, instructions length, guidelines count, and the full **skills list** with each skill resolved.
+
+   **`--tools-root` / auto-scan behaviour:**
+   - When `--tools-root` is supplied, the script recursively scans that directory for tool source files.
+   - When neither `--tools-root` nor `--tools-dir` is supplied, the scan runs automatically against `--search-root` (or the agent YAML's directory if `--search-root` is also absent). This means in most cases a single command is sufficient.
+   - `.py` files are included only when they contain at least one `@tool` or `@flow` decorated function — all other Python files are silently skipped.
+   - `.json` files are included only when `detect_json_tool_type()` identifies them as an agentic workflow (`spec.kind == "flow"`) or Langflow format — all other JSON is silently skipped.
+   - When both `--tools-dir` and `--tools-root` are supplied, `--tools-dir` entries take priority; `--tools-root` fills gaps.
+
+   This produces **`eval/agent_<name>_extracted.json`** — a full snapshot including:
+   - `name`, `display_name`, `kind`, `llm`, `context_variables`, `guidelines_count`
+   - `instructions_length`, `instructions_chars`, `instructions_est_tokens`
+   - `skill_catalog_est_tokens`, `collaborator_routing_est_tokens`, `tool_list_est_tokens`, `tools_spec_est_tokens`
+   - `resolved_tools` — each agent-level tool with `spec_chars`, `spec_est_tokens`, `type`, `file_path`, `resolved`
+   - `resolved_collaborators` — each collaborator with `display_name`, `description`, `kind`, `llm`, `tools`, `skills`, `instructions_length`, `guidelines_count`, `routing_est_tokens`, `collocated`
+   - `skills` — each skill fully resolved: `description`, `name_length`, `description_length`, `name_too_long`, `description_too_long`, `unmatched_placeholders`, `allowed_tools`, `resolved_allowed_tools` (with per-tool `spec_est_tokens`), `allowed_tools_spec_est_tokens`, `body_chars`, `body_est_tokens`, `catalog_est_tokens`, `tool_binding_shadows`, `scripts`, `references`, `skill_file`
+
+   - Always pass `--output-dir eval/` so the JSON is saved alongside the report files.
    - Co-located collaborator YAML files (same directory as the agent) are found automatically; remote files require `--search-root`.
    - Tool: [`extract_agent_info.py`](scripts/extract_agent_info.py)
 
-2. **Extract tool metadata** for each referenced tool or agent collaborator:
+2. **Extract individual tool metadata** (optional — only needed when `--tools-root` auto-scan is insufficient, e.g. tools in a remote registry or a non-standard format):
    ```bash
-   python scripts/extract_tool_info.py <tool.py|tool.json|tool.yaml> --json
+   python scripts/extract_tool_info.py <tool.py|tool.json|tool.yaml> --output-dir eval/ --json
    ```
    Auto-detects file type:
    - **Python `.py`**: `@tool` decorator → regular Python tool; `@flow` decorator → Python flow tool
    - **JSON `.json`**: `spec.kind == "flow"` → WxO Agentic Workflow; `data.nodes` (list) → Langflow workflow
    - **YAML `.yaml/.yml`**: `kind: knowledge_base` → WxO Knowledge Base; `kind: mcp` → MCP Toolkit
 
-   This provides: tool signatures, parameters, return types, descriptions
+   This produces **`eval/tool_<name>_extracted.json`** per tool. Pass the containing directory to `extract_agent_info.py` via `--tools-dir eval/` to enrich all tool entries.
    - Tool: [`extract_tool_info.py`](scripts/extract_tool_info.py)
 
-   **When reviewing tool metadata, flag any tool as a potential retrieval surface if:**
-   - Its `kind` is `knowledge_base`, OR
-   - Its name or description contains any of: `search`, `query`, `retrieve`, `lookup`, `knowledge`, `kb`, `rag`, `find`, `fetch`, `document`, `semantic`
-   - For flagged tools: note any `top_k`, `max_results`, `limit`, or `num_passages` parameter and its default value. If none exists, record the passage count as **unbounded**.
+   **Token estimation rules applied during extraction:**
+   - All estimates use **character count ÷ 4** (≈4 chars/token).
+   - For Python `@tool` / `@flow` functions: spec = function name + docstring + each parameter serialised as its **JSON Schema representation** (not the bare type string). `Literal["a","b"]` → `{"type":"string","enum":["a","b"]}`; `list[str]` → `{"type":"array","items":{"type":"string"}}`; unknown custom classes → `{"type":"object"}` (conservative fallback). **Return type is excluded** — output schema is not injected into the agent context.
+   - For WxO Agentic Workflow JSON: spec = name + display_name + description + input_schema only. **Output schema is excluded.**
+   - For tools that cannot be resolved (definition file not found): a **200-token fallback estimate** is used. This appears in the output as `~200 est. tokens (fallback — definition not found)`.
 
-3. **Identify missing tool definitions**: Note which tools/collaborators are referenced but not available for inspection
+3. **Identify missing tool definitions**: Note which tools/collaborators are referenced but not available for inspection.
 
 4. **Organize the data**: Create a complete picture of:
    - What the agent instructions say
@@ -75,6 +105,11 @@ Before beginning analysis, collect all available metadata and context.
    - What guidelines constrain behavior
    - What skills are attached and what each skill brings (allowed-tools, scripts, references)
    - Which tools are retrieval/knowledge-base surfaces, their passage-count limits, and where they are referenced (agent instructions, collaborator, or skill body)
+
+   **When reviewing tool metadata, flag any tool as a potential retrieval surface if:**
+   - Its `kind` is `knowledge_base`, OR
+   - Its name or description contains any of: `search`, `query`, `retrieve`, `lookup`, `knowledge`, `kb`, `rag`, `find`, `fetch`, `document`, `semantic`
+   - For flagged tools: note any `top_k`, `max_results`, `limit`, or `num_passages` parameter and its default value. If none exists, record the passage count as **unbounded**.
 
 **Only after gathering all data**, proceed to analysis. This ensures:
 - Tool grounding assessment is based on actual tool signatures, not assumptions
@@ -397,6 +432,8 @@ Generate one report per evaluated artifact — the agent instructions plus one r
 instructions_eval/
 ├── index.md                                    ← manifest listing all reports and their overall verdicts
 ├── rules-summary.md                            ← copy of evaluation rules reference (copy from skill directory)
+├── agent_<name>_extracted.json                 ← raw extraction data from extract_agent_info.py  ← REQUIRED
+├── tool_<name>_extracted.json                  ← raw extraction data per tool (when produced by extract_tool_info.py)
 ├── token_optimization_report.md                ← token consumption optimization (Rule O — always produced)
 ├── performance_optimization_report.md          ← runtime performance optimization (Rule P — always produced)
 ├── reliability_optimization_report.md          ← reliability optimization (Rule Q — always produced)
@@ -406,6 +443,8 @@ instructions_eval/
 ├── skill_<skill-name>_report_harness.json
 └── ...
 ```
+
+The `agent_<name>_extracted.json` file is the authoritative source for all token estimates, tool spec data, and skill resolution metadata used across every report. It is produced by `extract_agent_info.py --output-dir eval/` and **must be present in every complete report set**. The `index.md` must link to it in the Reference Documents section.
 
 **Filename conventions:**
 - Agent report: `agent_<name>_report.md` / `agent_<name>_report_harness.json`
@@ -444,7 +483,7 @@ instructions_eval/
 
 > ⚠️ **Three mandatory side reports** — `token_optimization_report.md`, `performance_optimization_report.md`, and `reliability_optimization_report.md` — must ALL be written before the index. Set up your todo list to track all three explicitly and do not mark any of them complete until the file exists on disk. Missing any one of them is a hard omission failure.
 
-1. Extract all metadata (Step 1) — this is fast and must complete before any analysis
+1. Extract all metadata — run `extract_agent_info.py` with `--search-root` and `--output-dir eval/` so `agent_<name>_extracted.json` is saved before analysis begins. The script auto-scans for tool source files; use `--tools-root` to narrow the scan or `--tools-dir eval/` to use pre-extracted tool JSONs. These files are the grounding source for all tool and token claims in every report. Confirm `agent_<name>_extracted.json` exists in the `eval/` directory before proceeding.
 2. Copy `rules-summary.md` from the skill directory into the output `eval/` directory — do this once, before writing any reports
 3. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-collaborator and cross-skill context
 4. Evaluate and save **collaborator reports** in **batches of at most 2 at a time** — analyse and write 2 collaborators, save both, then proceed to the next 2. Batching limits context load and reduces analysis cross-contamination
