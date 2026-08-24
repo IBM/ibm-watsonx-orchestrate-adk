@@ -46,9 +46,9 @@ from ..node import (
     EndNode, Node, PromptNode, ScriptNode, StartNode, TimerNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
 )
 from ..types import (
-    AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
+    AgentNodeSpec, ThreadControlPolicy, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
     NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema,
-    FlowCallback, FlowCallbackEventKind
+    FlowCallback, FlowCallbackEventKind, _UNSET
 )
 
 from ..data_map import DataMap, DataMapSpec
@@ -1009,7 +1009,8 @@ class Flow(Node):
               description: str | None = None,
               input_schema: type[BaseModel]|None = None, 
               output_schema: type[BaseModel]|None=None,
-              guidelines: str|None=None) -> AgentNode:
+              guidelines: str|None=None,
+              thread_control_policy: ThreadControlPolicy  = cast(ThreadControlPolicy, _UNSET)) -> AgentNode:
 
          # create input spec
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
@@ -1024,6 +1025,7 @@ class Flow(Node):
             title=title,
             message=message,
             guidelines=guidelines,
+            thread_control_policy=thread_control_policy,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj

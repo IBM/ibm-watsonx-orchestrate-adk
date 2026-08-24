@@ -8,6 +8,7 @@ import platform
 from pathlib import Path
 from threading import Lock
 from typing import List, TypeVar
+from urllib.parse import urlparse
 
 from ibm_watsonx_orchestrate_core.utils.config import (
     Config,
@@ -89,6 +90,72 @@ def is_ibm_cloud_platform(url:str | None = None) -> bool:
         return True
     return False
 
+def detect_mcsp_key_type(api_key: str | None) -> str | None:
+    """Detect MCSP key version by base64-decoding the key and checking its prefix.
+
+    MCSP keys encode their version in the first bytes after base64 decoding:
+        "k1:" → MCSP v1  (siusermgr/api/1.0 endpoint)
+        "k2:" → MCSP v2  (account-iam/api/2.0 endpoint)
+
+    The format is an internal IBM MCSP convention — the key is stored as
+    base64(k<version>:<identity>:<secret>). The prefix uniquely identifies
+    the version; no other IBM key type (IAM, CPD) decodes to a k1:/k2: prefix.
+
+    Returns "k1", "k2", or None if the key is not a recognisable MCSP key.
+    Mirrors the detection logic used in wxo-docker-proxy (lua/init.lua).
+
+    Uses strict base64 validation (validate=True) to avoid false positives
+    from keys that contain invalid base64 characters but happen to share a
+    decoded prefix after lenient decoding strips those characters.
+    """
+    if not api_key:
+        return None
+    try:
+        import base64
+        # Strip existing padding before re-padding to a valid multiple-of-4 length.
+        # Adding "==" unconditionally causes "Excess data after padding" on already-padded strings.
+        stripped = api_key.rstrip("=")
+        padding = (4 - len(stripped) % 4) % 4
+        decoded = base64.b64decode(stripped + "=" * padding, validate=True)
+        prefix = decoded[:3].decode("ascii", errors="replace")
+        if prefix == "k1:":
+            return "k1"
+        if prefix == "k2:":
+            return "k2"
+    except Exception:
+        pass
+    return None
+
+# Mapping from WXO hostname fragment → MCSP v2 IAM base URL.
+# The WXO region name in the hostname does not always match the Azure region
+# name used in the IAM URL, so an explicit table is required.
+_MCSPV2_IAM_URL_BY_WXO_REGION: dict[str, str] = {
+    "germanywestcentral": "https://account-iam.azure.westus3.platform.saas.ibm.com",
+}
+
+_MCSPV2_IAM_URL_DEFAULT = "https://account-iam.platform.saas.ibm.com"
+
+def infer_mcspv2_iam_url(wxo_url: str | None) -> str:
+    """Return the MCSP v2 IAM base URL inferred from the WXO instance URL.
+
+    Looks up the WXO hostname against a known region→IAM mapping so that
+    users only need to supply the WXO URL and their API key — no --iam-url flag.
+    Falls back to the global default if the region is not in the table.
+
+    Args:
+        wxo_url: The WXO instance URL, e.g.
+            https://api.germanywestcentral.watson-orchestrate.ibm.com/instances/...
+
+    Returns:
+        The MCSP v2 IAM base URL (no trailing slash).
+    """
+    if wxo_url:
+        hostname = urlparse(wxo_url).hostname or ""
+        for region, iam_url in _MCSPV2_IAM_URL_BY_WXO_REGION.items():
+            if region in hostname:
+                return iam_url
+    return _MCSPV2_IAM_URL_DEFAULT
+
 def is_cpd_env(url: str | None = None, env_auth_type: EnvironmentAuthType | None = None) -> bool:
     try:
         if env_auth_type is None:
@@ -96,7 +163,7 @@ def is_cpd_env(url: str | None = None, env_auth_type: EnvironmentAuthType | None
     except:
         pass
 
-    if env_auth_type is not None and env_auth_type.canonical is EnvironmentAuthType.CPD:
+    if env_auth_type is not None and EnvironmentAuthType(env_auth_type).canonical is EnvironmentAuthType.CPD:
         return True
 
     if url is None:
