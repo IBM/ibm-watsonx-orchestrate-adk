@@ -77,10 +77,10 @@ def _count_spec(spec_str: str) -> Dict[str, int]:
 
 def detect_python_tool_type(tree: ast.Module) -> str:
     """
-    Detect whether the Python file contains a @tool or @flow decorator.
+    Detect whether the Python file contains a @tool, @flow, or @mcp.tool() decorator.
 
     Returns:
-        'tool' | 'flow' | 'unknown'
+        'tool' | 'flow' | 'mcp_tool' | 'unknown'
     """
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
@@ -88,8 +88,13 @@ def detect_python_tool_type(tree: ast.Module) -> str:
                 decorator_name = None
                 if isinstance(decorator, ast.Name):
                     decorator_name = decorator.id
-                elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
-                    decorator_name = decorator.func.id
+                elif isinstance(decorator, ast.Call):
+                    if isinstance(decorator.func, ast.Name):
+                        decorator_name = decorator.func.id
+                    elif isinstance(decorator.func, ast.Attribute):
+                        # Matches @mcp.tool(), @app.tool(), etc.
+                        if decorator.func.attr == 'tool':
+                            return 'mcp_tool'
 
                 if decorator_name == 'tool':
                     return 'tool'
@@ -269,11 +274,17 @@ def _extract_python_metadata(file_path: str) -> Dict[str, Any]:
 
                 if isinstance(decorator, ast.Name):
                     decorator_name = decorator.id
-                elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
-                    decorator_name = decorator.func.id
-                    decorator_args = _extract_decorator_args(decorator)
+                elif isinstance(decorator, ast.Call):
+                    if isinstance(decorator.func, ast.Name):
+                        decorator_name = decorator.func.id
+                        decorator_args = _extract_decorator_args(decorator)
+                    elif isinstance(decorator.func, ast.Attribute):
+                        # @mcp.tool(), @app.tool(), etc.
+                        if decorator.func.attr == 'tool':
+                            decorator_name = 'mcp_tool'
+                            decorator_args = _extract_decorator_args(decorator)
 
-                if decorator_name in ('tool', 'flow'):
+                if decorator_name in ('tool', 'flow', 'mcp_tool'):
                     docstring = ast.get_docstring(node) or ''
                     params = []
                     for arg in node.args.args:
@@ -453,13 +464,15 @@ def _extract_yaml_metadata(file_path: str) -> Dict[str, Any]:
 # JSON tool extraction
 # ---------------------------------------------------------------------------
 
-def detect_json_tool_type(data: Dict[str, Any]) -> str:
+def detect_json_tool_type(data: Any) -> str:
     """
     Detect whether the JSON is an Agentic Workflow or Langflow format.
 
     Returns:
         'agentic_workflow' | 'langflow' | 'unknown'
     """
+    if not isinstance(data, dict):
+        return 'unknown'
     spec = data.get('spec')
     if isinstance(spec, dict) and spec.get('kind') == 'flow':
         if isinstance(data.get('nodes'), dict) and isinstance(data.get('edges'), list):
