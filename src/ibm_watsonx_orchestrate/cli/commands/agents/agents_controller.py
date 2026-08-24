@@ -332,8 +332,7 @@ class AgentsController:
         file: str | None = None,
         app_id: str | None = None,
         custom_agent_file_path: str | None = None,
-        custom_agent_config_file: str | None = None,
-        version: str | None = None
+        custom_agent_config_file: str | None = None
     ) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
         # Check if this is a custom agent with package root
         if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
@@ -365,8 +364,6 @@ class AgentsController:
             return AgentsController._import_from_zip(file, app_id)
 
         agents = parse_file(file)
-
-        # TODO(rohit): handle agent version here
 
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
