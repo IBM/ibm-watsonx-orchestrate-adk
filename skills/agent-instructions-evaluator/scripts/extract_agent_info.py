@@ -31,7 +31,8 @@ Discovery strategy for collaborator agent YAML:
 Tool discovery (--tools-root):
   Recursively scans a directory for tool source files and builds the spec
   lookup inline — no separate extraction step required.
-  - .py files: included when they contain at least one @tool or @flow decorator
+  - .py files: included when they contain at least one @tool, @flow, or
+               @<any>.tool() decorator (e.g. @mcp.tool() in MCP servers)
   - .json files: included when detect_json_tool_type() returns agentic_workflow
                  or langflow (i.e. spec.kind == 'flow' or Langflow data.nodes
                  structure); other JSON files are silently skipped
@@ -149,10 +150,11 @@ def _scan_tools_root(tools_root: Path) -> Dict[str, Dict[str, Any]]:
     lookup dict with the same shape as ``_load_tool_specs``.
 
     Inclusion rules:
-    - ``.py`` files: included only when they contain at least one ``@tool``
-      or ``@flow`` decorated function.  Files that parse successfully but
-      have no such decorator are silently skipped.  Parse errors are also
-      silently skipped.
+    - ``.py`` files: included only when they contain at least one ``@tool``,
+      ``@flow``, or ``@<any>.tool()`` decorated function (covers MCP servers
+      that use ``@mcp.tool()``).  Files that parse successfully but have no
+      such decorator are silently skipped.  Parse errors are also silently
+      skipped.
     - ``.json`` files: included only when ``detect_json_tool_type()`` returns
       ``'agentic_workflow'`` or ``'langflow'``.  All other JSON (config,
       lock-files, plain data) is silently skipped.
@@ -212,7 +214,7 @@ def _scan_tools_root(tools_root: Path) -> Dict[str, Dict[str, Any]]:
                 specs[name] = {
                     'spec_chars': func.get('spec_chars', 0),
                     'spec_est_tokens': func.get('spec_est_tokens', 0),
-                    'type': metadata.get('type', 'tool'),
+                    'type': metadata.get('type', tool_type),
                     'file_path': str(py_file),
                 }
                 scanned += 1
@@ -250,7 +252,7 @@ def _scan_tools_root(tools_root: Path) -> Dict[str, Dict[str, Any]]:
 
     print(
         f"Tool scan: {scanned} tools loaded from '{tools_root}' "
-        f"({skipped_no_decorator} .py files skipped — no @tool/@flow, "
+        f"({skipped_no_decorator} .py files skipped — no @tool/@flow/@mcp.tool, "
         f"{skipped_not_tool_json} .json files skipped — not agentic workflow/langflow"
         + (f", {errors} parse errors" if errors else "")
         + ")",

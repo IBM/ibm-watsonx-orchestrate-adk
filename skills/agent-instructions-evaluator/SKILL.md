@@ -61,7 +61,7 @@ Before beginning analysis, collect all available metadata and context. **The raw
    **`--tools-root` / auto-scan behaviour:**
    - When `--tools-root` is supplied, the script recursively scans that directory for tool source files.
    - When neither `--tools-root` nor `--tools-dir` is supplied, the scan runs automatically against `--search-root` (or the agent YAML's directory if `--search-root` is also absent). This means in most cases a single command is sufficient.
-   - `.py` files are included only when they contain at least one `@tool` or `@flow` decorated function — all other Python files are silently skipped.
+   - `.py` files are included only when they contain at least one `@tool`, `@flow`, or `@<any>.tool()` decorated function (e.g. `@mcp.tool()` in MCP server source files) — all other Python files are silently skipped.
    - `.json` files are included only when `detect_json_tool_type()` identifies them as an agentic workflow (`spec.kind == "flow"`) or Langflow format — all other JSON is silently skipped.
    - When both `--tools-dir` and `--tools-root` are supplied, `--tools-dir` entries take priority; `--tools-root` fills gaps.
 
@@ -141,7 +141,9 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
 
 3. **Collaborators list** (`collaborators:`): Each entry names a subordinate agent the supervisor can delegate to. The script now resolves each name to its YAML file (co-located first, then `--search-root`) and extracts: `display_name`, `description`, `kind`, `llm`, `tools`, nested `collaborators`, `skills`, `instructions_length`, `guidelines_count`, and `collocated` flag.
 
-   For each resolved collaborator, apply the **Collaborator Health** checks (**CO-1 through CO-7**) described below — these are the exact parallel of the SK-1 through SK-7 skill checks, applied to the collaborator's agent YAML instead of a SKILL.md body.
+   **Recursive traversal:** Collaborators are themselves agents and may have their own `collaborators:` lists. Resolve and analyze collaborators at **all depths** — not just the immediate children of the root agent. For each resolved collaborator, check its own `collaborators:` list and apply the same resolution, CO-1 through CO-7 analysis, and report generation recursively. Stop only when a collaborator has no further `collaborators:` entries, or when a YAML cannot be resolved (note it as unresolved). Use a visited-set (by agent `name` or file path) to detect and break cycles — if a collaborator's YAML has already been resolved at a higher level, record the back-edge as a **dependency loop** (CO-4 violation) and do not recurse into it again.
+
+   For each resolved collaborator at every depth, apply the **Collaborator Health** checks (**CO-1 through CO-7**) described below — these are the exact parallel of the SK-1 through SK-7 skill checks, applied to the collaborator's agent YAML instead of a SKILL.md body.
 
    **CO-1 — Single Responsibility**: Does the collaborator agent cover exactly one domain or capability? Count the distinct tool categories and top-level behavioral sections in its `instructions:`. More than one primary workflow is a smell; three or more is a violation.
 
@@ -186,6 +188,8 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
    - **Nested collaborator depth**: any collaborator that itself has collaborators (depth > 1: Medium; depth > 2: High)
    - **Combined instruction cost**: estimated tokens across all collaborator instruction bodies that could be involved in one turn (>2,000: Medium; >4,000: High)
    Report each component with its measured value and risk rating, then produce an overall collaborator dispatch overhead rating (Low / Medium / High).
+
+   **Collaborator depth notation:** When reporting multi-level collaborators, qualify each collaborator's identity with its depth and parent, e.g. `account_agent (depth 2, parent: supervisor_agent)`. Cross-collaborator checks (CO-2, CO-4, CO-6) are applied **within each depth level** — compare siblings only. Parent-to-child relationships are already captured by CO-4 (dispatch dependency), not CO-2 (sibling overlap).
 
    **Structural checks for each resolved collaborator:**
    - **`description`**: Does it give the supervisor enough routing signal (CO-3)? Vague descriptions cause misdirected dispatch.
@@ -430,19 +434,24 @@ Generate one report per evaluated artifact — the agent instructions plus one r
 
 ```
 instructions_eval/
-├── index.md                                    ← manifest listing all reports and their overall verdicts
-├── rules-summary.md                            ← copy of evaluation rules reference (copy from skill directory)
-├── agent_<name>_extracted.json                 ← raw extraction data from extract_agent_info.py  ← REQUIRED
-├── tool_<name>_extracted.json                  ← raw extraction data per tool (when produced by extract_tool_info.py)
-├── token_optimization_report.md                ← token consumption optimization (Rule O — always produced)
-├── performance_optimization_report.md          ← runtime performance optimization (Rule P — always produced)
-├── reliability_optimization_report.md          ← reliability optimization (Rule Q — always produced)
-├── agent_<name>_report.md                      ← agent-level report (main instructions only)
-├── agent_<name>_report_harness.json            ← agent-level JSON harness
-├── skill_<skill-name>_report.md                ← one per resolved skill
+├── index.md                                         ← manifest listing all reports and their overall verdicts
+├── rules-summary.md                                 ← copy of evaluation rules reference (copy from skill directory)
+├── agent_<name>_extracted.json                      ← raw extraction data from extract_agent_info.py  ← REQUIRED
+├── tool_<name>_extracted.json                       ← raw extraction data per tool (when produced by extract_tool_info.py)
+├── token_optimization_report.md                     ← token consumption optimization (Rule O — always produced)
+├── performance_optimization_report.md               ← runtime performance optimization (Rule P — always produced)
+├── reliability_optimization_report.md               ← reliability optimization (Rule Q — always produced)
+├── agent_<name>_report.md                           ← agent-level report (main instructions only)
+├── agent_<name>_report_harness.json                 ← agent-level JSON harness
+├── collaborator_<collab-name>_report.md             ← one per resolved collaborator at any depth
+├── collaborator_<collab-name>_report_harness.json
+├── ...                                              ← repeat for every collaborator across all depth levels
+├── skill_<skill-name>_report.md                     ← one per resolved skill (attached to agent or any collaborator)
 ├── skill_<skill-name>_report_harness.json
 └── ...
 ```
+
+All collaborator and skill reports live flat in the same `eval/` directory regardless of depth. Depth and parent context are encoded inside each report's header metadata, not in the file path.
 
 The `agent_<name>_extracted.json` file is the authoritative source for all token estimates, tool spec data, and skill resolution metadata used across every report. It is produced by `extract_agent_info.py --output-dir eval/` and **must be present in every complete report set**. The `index.md` must link to it in the Reference Documents section.
 
@@ -460,17 +469,18 @@ The `agent_<name>_extracted.json` file is the authoritative source for all token
 |---|---|---|---|
 | Agent-level instructions analysis (all 5 dimensions) | ✓ | — | — |
 | Agent-level Runtime Performance Risk | ✓ | — | — |
-| Collaborator Health Assessment table (all collaborators, cross-collaborator CO-2/CO-6/CO-7) | ✓ | — | — |
-| Collaborator consolidation recommendations (CO-6) | ✓ | — | — |
-| Collaborator architecture performance surface (CO-7) | ✓ | — | — |
-| Skill Health Assessment table (all skills, cross-skill SK-2/SK-6/SK-7) | ✓ | — | — |
-| Skill consolidation recommendations (SK-6) | ✓ | — | — |
-| Skill architecture performance surface (SK-7) | ✓ | — | — |
+| Collaborator Health Assessment table (direct children, CO-2/CO-6/CO-7) | ✓ | ✓ (if has sub-collaborators) | — |
+| Collaborator consolidation recommendations (CO-6) | ✓ | ✓ (if has sub-collaborators) | — |
+| Collaborator architecture performance surface (CO-7) | ✓ | ✓ (if has sub-collaborators) | — |
+| Skill Health Assessment table (all skills, cross-skill SK-2/SK-6/SK-7) | ✓ | ✓ (if has skills) | — |
+| Skill consolidation recommendations (SK-6) | ✓ | ✓ (if has skills) | — |
+| Skill architecture performance surface (SK-7) | ✓ | ✓ (if has skills) | — |
 | Collaborator instructions analysis (5 dimensions applied to collaborator body) | — | ✓ | — |
 | CO-1, CO-3, CO-4, CO-5 deep analysis for this collaborator | — | ✓ | — |
 | Runtime Performance Risk for this collaborator body | — | ✓ | — |
-| Back-reference to agent report | — | ✓ | ✓ |
-| Forward-references to all collaborator and skill reports | ✓ | — | — |
+| Depth + parent metadata header (`Depth: N \| Parent: <name>`) | — | ✓ | — |
+| Back-reference to parent report (agent or collaborator) | — | ✓ | ✓ |
+| Forward-references to own sub-collaborator and skill reports | ✓ | ✓ (if has sub-collaborators or skills) | — |
 | Skill body analysis (5 dimensions applied to skill body) | — | — | ✓ |
 | SK-1, SK-3, SK-4, SK-5 deep analysis for this skill | — | — | ✓ |
 | Runtime Performance Risk for this skill body | — | — | ✓ |
@@ -486,8 +496,13 @@ The `agent_<name>_extracted.json` file is the authoritative source for all token
 1. Extract all metadata — run `extract_agent_info.py` with `--search-root` and `--output-dir eval/` so `agent_<name>_extracted.json` is saved before analysis begins. The script auto-scans for tool source files; use `--tools-root` to narrow the scan or `--tools-dir eval/` to use pre-extracted tool JSONs. These files are the grounding source for all tool and token claims in every report. Confirm `agent_<name>_extracted.json` exists in the `eval/` directory before proceeding.
 2. Copy `rules-summary.md` from the skill directory into the output `eval/` directory — do this once, before writing any reports
 3. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-collaborator and cross-skill context
-4. Evaluate and save **collaborator reports** in **batches of at most 2 at a time** — analyse and write 2 collaborators, save both, then proceed to the next 2. Batching limits context load and reduces analysis cross-contamination
-5. Evaluate and save **skill reports** in **batches of at most 2 at a time** — same batching rule as collaborators
+4. Evaluate and save **collaborator reports** using a **breadth-first, batch-of-2 traversal** across all collaborator depths:
+   - Start at depth 1 (direct children of the root agent); process in batches of at most 2
+   - After all depth-1 collaborators are written, descend to depth 2 (children of depth-1 collaborators that have their own `collaborators:` lists); continue batches of at most 2
+   - Continue until all reachable collaborators at every depth have a report
+   - **Visited-set rule**: if a collaborator YAML (by `name` or file path) has already been resolved at any earlier depth, do not process it again — record the back-edge as a dependency loop in the nearest parent's collaborator report and skip
+   - **Filename convention for sub-collaborators**: use `collaborator_<name>_report.md` regardless of depth; depth and parent are recorded inside the report's header metadata
+5. Evaluate and save **skill reports** in **batches of at most 2 at a time** — same batching rule as collaborators; skills attached to any collaborator at any depth are included
 6. Evaluate and save the **token optimization side report** after all collaborator and skill reports are complete — always; runs Rule O checklist
 7. Evaluate and save the **performance optimization side report** after the token report — always; runs Rule P checklist; cross-references OPT-N items for dual-benefit opportunities
 8. Evaluate and save the **reliability optimization side report** after the performance report — always; runs Rule Q checklist; synthesises findings from all main reports and cross-references OPT-N and PERF-N items
@@ -556,18 +571,20 @@ Refer to these files for detailed guidance:
 8. Cross-collaborator overlap summary (CO-2), consolidation recommendations (CO-6), collaborator architecture performance surface (CO-7)
 9. **Skill Health table** (when skills are present): one row per skill, SK-1 through SK-7 ratings with evidence notes
 10. Cross-skill overlap summary (SK-2), consolidation recommendations (SK-6), skill architecture performance surface (SK-7)
-11. Forward-links to each collaborator report: `See collaborator report: [collaborator_<name>_report.md](collaborator_<name>_report.md)`
+11. Forward-links to each collaborator report at all depths: `See collaborator report: [collaborator_<name>_report.md](collaborator_<name>_report.md)` — include depth and parent annotation for sub-collaborators, e.g. `(depth 2, parent: supervisor_agent)`
 12. Forward-links to each skill report: `See skill report: [skill-<name>_report.md](skill-<name>_report.md)`
 
-*Per-collaborator report* (`collaborator_<name>_report.md` + harness JSON), one per resolved collaborator:
+*Per-collaborator report* (`collaborator_<name>_report.md` + harness JSON), one per resolved collaborator **at any depth**:
 1. Full 5-dimension analysis of the collaborator's `instructions:` and `guidelines:` (treated as the instruction content)
 2. CO-1, CO-3, CO-4, CO-5 deep analysis sections
-3. Per-dimension scores with confidence levels
-4. Deterministic signal summary for this collaborator
-5. Runtime Performance Risk for this collaborator
-6. At least 2-4 findings specific to this collaborator
-7. Key risks and high-impact changes for this collaborator
-8. Back-link to agent report: `Part of agent evaluation: [agent_<name>_report.md](agent_<name>_report.md)`
+3. **If this collaborator itself has sub-collaborators**: include a Collaborator Health table (CO-1 through CO-7) for its own direct children, plus forward-links to their reports — mirror the same structure as the root agent report
+4. Per-dimension scores with confidence levels
+5. Deterministic signal summary for this collaborator
+6. Runtime Performance Risk for this collaborator
+7. At least 2-4 findings specific to this collaborator
+8. Key risks and high-impact changes for this collaborator
+9. Depth and parent metadata in the report header: `Depth: N | Parent agent: <name>` (root agent = depth 0; direct children = depth 1; etc.)
+10. Back-link to parent report (agent or collaborator): `Part of agent evaluation: [<parent>_report.md](<parent>_report.md)`
 
 *Per-skill report* (`skill_<skill-name>_report.md` + harness JSON), one per resolved skill:
 1. Full 5-dimension analysis of the skill's `SKILL.md` body (treated as the instruction content)
@@ -608,8 +625,8 @@ Refer to these files for detailed guidance:
 *Index file* (`index.md`) + `rules-summary.md` (copied from skill directory):
 1. Table listing every report, its artifact type, and its overall verdict/band
 2. Agent-level scorecard summary (one row per dimension)
-3. Collaborator Health summary table (collapsed CO-1–CO-7 ratings per collaborator)
-4. List of any unresolved collaborators (YAML not found)
+3. Collaborator Health summary table (collapsed CO-1–CO-7 ratings per collaborator, **all depths**) — group rows by depth level; include a "Depth" and "Parent" column
+4. List of any unresolved collaborators (YAML not found) at any depth
 5. Skill Health summary table (collapsed SK-1–SK-7 ratings per skill)
 6. List of any unresolved skills (SKILL.md not found)
 7. Links to all three side reports in Reference Documents, each with a one-line summary (issues found or baseline recorded)
