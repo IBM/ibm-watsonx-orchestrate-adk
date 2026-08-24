@@ -858,12 +858,17 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 
 ## Tool Composition Candidates
 
-List every tool chain that could be collapsed into a Python tool, flow tool, or agentic workflow. For each, name the component tools, the sequence, and the recommended composition pattern.
+List every tool chain that could be collapsed into a deterministic server-side pipeline. For each, name the component tools, the sequence, and the recommended composition pattern.
 
-| Chain | Component tools | Sequence | Always fires together? | Recommended pattern |
-|---|---|---|---|---|
-| [chain name] | [tool-A → tool-B → tool-C] | [Sequential / conditional] | [Yes / No — [N]% of turns] | Python tool chain / Agentic workflow / Pre-invoke plugin |
-| [Continue for each candidate] | | | | |
+**Mechanism selection guide:**
+- **`nextTool` chaining** (`_meta.nextTool`) — ≤5 steps, no conditional branches, all steps within a single Python MCP server, inputs flow forward without user interaction between steps. Each tool returns `_meta: { nextTool: { tool, parameters } }` to trigger the next step directly.
+- **Agentic Workflow** (`@flow` / WxO Agentic Workflow JSON) — any of: >5 steps, conditional branches, parallel paths, cross-server tool calls, or anticipated future editability. The flow graph is the control plane; the LLM calls the entry node once.
+- **Pre-invoke plugin** — for mandatory context hydration calls that must fire before every turn; removes the call from the LLM instruction path entirely.
+
+| Chain | Component tools | Sequence type | Steps | Branches? | Single server? | Recommended mechanism |
+|---|---|---|---|---|---|---|
+| [chain name] | [tool-A → tool-B → tool-C] | [Sequential / conditional] | [N] | [Yes / No] | [Yes / No] | `nextTool` chaining / Agentic Workflow / Pre-invoke plugin |
+| [Continue for each candidate] | | | | | | |
 
 ---
 
