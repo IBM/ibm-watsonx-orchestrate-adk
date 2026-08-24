@@ -1,6 +1,5 @@
 import logging
 import os
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
 import platform
 import re
 import shutil
@@ -38,6 +37,8 @@ import base64
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from ibm_watsonx_orchestrate.cli.config import (Config, PREVIOUS_DOCKER_CONTEXT, DOCKER_CONTEXT)
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
+
 
 logger = logging.getLogger(__name__)
 

@@ -222,6 +222,12 @@ class KnowledgeBaseController:
                     logger.error(str(e))
                     continue
 
+            if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
+                logger.error(
+                    f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported."
+                )
+                continue
+
             # Ensure these values are None to prevent issues with datetime not being JSON serializable
             kb.updated_at = None
             kb.created_on = None
@@ -261,12 +267,6 @@ class KnowledgeBaseController:
                     continue
 
                 kb.validate_documents_or_index_exists()
-
-                if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
-                    logger.error(
-                        f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported."
-                    )
-                    continue
 
                 response = None
                 kb_id = None
@@ -642,7 +642,7 @@ class KnowledgeBaseController:
                 return
 
         client = self.get_client()
-        
+
         if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
             logger.error(
                 f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported."
