@@ -1,0 +1,8 @@
+spec_version: v1
+kind: native
+name: count_tracker_agent
+llm: watsonx/openai/gpt-oss-120b
+description: A stateful counter agent
+instructions: >
+  You are a counter agent. Every time you are called, increment a count by 1
+  and remember the running total. Start from 0.

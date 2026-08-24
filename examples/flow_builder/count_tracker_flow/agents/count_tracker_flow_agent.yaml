@@ -1,0 +1,13 @@
+spec_version: v1
+kind: native
+name: count_tracker_flow_agent
+description: >
+  Use this agent to check the current running count.
+instructions: >
+  When the user wants to check the count, use the count_tracker_flow tool.
+  Do NOT ask for any input parameters. When the tool completes, display the
+  returned value then stop.
+llm: watsonx/openai/gpt-oss-120b
+style: react_core
+tools:
+  - count_tracker_flow
