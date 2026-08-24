@@ -426,7 +426,7 @@ Generate one report per evaluated artifact — the agent instructions plus one r
 
 **Token optimization side report (`token_optimization_report.md`):** Always produced as part of every evaluation. Covers both optimization surfaces: agent instructions (every turn) and skill bodies (per load). Runs the full Rule O checklist; reports each pattern with a severity (High / Medium / Low / None found). If no issues are found, records the current per-turn token budget as a verified baseline.
 
-**Performance optimization side report (`performance_optimization_report.md`):** Always produced. Targets execution call-graph depth: unconditional tool calls, sequential tool chains, `next_action` multi-hop dispatch, deep skill/collaborator stacks, guidelines overhead, correlated tool sets. Runs the full Rule P checklist with severity per pattern. If no issues are found, records the current call-graph baseline.
+**Performance optimization side report (`performance_optimization_report.md`):** Always produced. Targets execution call-graph depth: unconditional tool calls, sequential tool chains, `next_action` multi-hop dispatch, deep skill/collaborator stacks, guidelines overhead, correlated tool sets. For every identified sequential chain, recommends the appropriate offload mechanism: **`nextTool` chaining** (`_meta.nextTool`) for straight-line ≤5-step Python sequences with no branches within a single MCP server; **Agentic Workflow** (`@flow` / WxO Agentic Workflow JSON) for chains with conditional branches, parallel steps, cross-server tools, or >5 steps. Both mechanisms eliminate LLM reasoning between steps, reducing token cost and inference passes simultaneously. Runs the full Rule P checklist with severity per pattern. If no issues are found, records the current call-graph baseline.
 
 **Reliability optimization side report (`reliability_optimization_report.md`):** Always produced. Synthesises findings from the main agent and skill reports into a prioritised, implementation-ready rewrite plan grouped by failure class (implicit state, exact-phrase, scope/routing, conflicting rules, tool underspecification, skill body). Every REL-N item traces back to evidence already in the main reports — no new findings. Runs the full Rule Q checklist with severity per pattern. If no issues are found, records a stability baseline.
 
@@ -608,7 +608,7 @@ Refer to these files for detailed guidance:
 *Performance optimization report* (`performance_optimization_report.md`) — always produced:
 1. Current execution profile table: turn types, inference hops, tool-call RTTs, skill loads
 2. Optimization inventory: one PERF-N entry per identified opportunity, with current cost, root cause, mechanism, and estimated impact
-3. Tool composition candidates table: chains that could be collapsed into Python tools, flow tools, or agentic workflows
+3. Tool composition candidates table: chains that could be collapsed into deterministic server-side pipelines — specifies mechanism (`nextTool` chaining vs. Agentic Workflow vs. pre-invoke plugin) per chain based on step count, branch structure, and server scope
 4. Post-optimization call-graph depth estimates (before/after table per turn type)
 5. Implementation priority table (effort × latency impact × Rule O dual benefit)
 6. Anti-pattern section: patterns that produced identified overhead
