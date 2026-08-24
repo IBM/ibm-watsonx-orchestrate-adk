@@ -35,6 +35,23 @@ class ReleaseStatus(str, Enum):
     FAILED = "failed"
     IN_PROGRESS = "in_progress"
 
+class BumpType(str, Enum):
+    MAJOR = "major"
+    MINOR = "minor"
+    PATCH = "patch"
+
+class CreateVersionRequest(BaseModel):
+    bump_type: BumpType
+    version_name: Optional[str] = None
+    version_description: Optional[str] = None
+
+class VersionResponse(BaseModel):
+    version_label: Optional[int] = None
+    semantic_version: Optional[str] = None
+    version_name: Optional[str] = None
+    version_description: Optional[str] = None
+    version_details: Optional[dict] = None
+
 def transform_agents_from_flat_agent_spec(agents: dict | list[dict] ) -> dict | list[dict]:
     if isinstance(agents,list):
         new_agents = []
@@ -123,6 +140,7 @@ class AgentClient(BaseWXOClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.base_endpoint = "/orchestrate/agents" if is_local_dev(self.base_url) else "/agents"
+        self.v2_base_endpoint = "/v2/orchestrate/agents" if is_local_dev(self.base_url) else "/v2/agents"
 
     def create(self, payload: dict) -> AgentUpsertResponse:
         # Resolve workspace field and inject active workspace context
@@ -352,3 +370,219 @@ class AgentClient(BaseWXOClient):
             agent_id: The ID of the newly created agent (returned from copy_agent)
         """
         return self._get(f"{self.base_endpoint}/{agent_id}/template-status")
+
+    # -------------------------------------------------------------------------
+    # V2 Versioning endpoints
+    # -------------------------------------------------------------------------
+
+    def _poll_v2_deployment_status(self, agent_id: str, environment_id: str, mode: str = "deploy") -> bool:
+        """Poll the V2 deployment status endpoint until the expected state is reached."""
+        expected_status = {
+            ReleaseMode.DEPLOY: ReleaseStatus.SUCCESS,
+            ReleaseMode.UNDEPLOY: ReleaseStatus.NONE,
+        }[mode]
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = self._get(
+                    f"{self.v2_base_endpoint}/{agent_id}/versions/deployments/{environment_id}"
+                )
+            except Exception as e:
+                logger.error(f"V2 polling for {mode} failed on attempt {attempt + 1}: {e}")
+                return False
+
+            if not isinstance(response, dict):
+                logger.warning(f"Invalid V2 response format: {response}")
+                return False
+
+            status = response.get("deployment_status")
+
+            if status == expected_status:
+                return True
+            elif status == ReleaseStatus.FAILED:
+                return False
+
+            time.sleep(POLL_INTERVAL)
+
+        logger.warning(f"V2 {mode} status polling timed out")
+        return False
+
+    def create_version(self, agent_id: str, request: CreateVersionRequest) -> VersionResponse:
+        """
+        Create a new semantic version for an agent (V2, decoupled from deployment).
+
+        Args:
+            agent_id: The ID of the agent
+            request: Version creation parameters (bump_type, optional name/description)
+
+        Returns:
+            VersionResponse with version_label, semantic_version and metadata
+        """
+        response = self._post(
+            f"{self.v2_base_endpoint}/{agent_id}/versions",
+            data=request.model_dump(exclude_none=True),
+        )
+        return VersionResponse.model_validate(response)
+
+    def list_versions(self, agent_id: str) -> List[VersionResponse]:
+        """
+        List all semantic versions for an agent.
+
+        Args:
+            agent_id: The ID of the agent
+
+        Returns:
+            List of VersionResponse objects
+        """
+        response = self._get(f"{self.v2_base_endpoint}/{agent_id}/versions")
+        if isinstance(response, list):
+            return [VersionResponse.model_validate(v) for v in response]
+        return [VersionResponse.model_validate(response)]
+
+    def get_version(self, agent_id: str, semantic_version: str) -> VersionResponse:
+        """
+        Get a specific semantic version of an agent.
+
+        Args:
+            agent_id: The ID of the agent
+            semantic_version: Semantic version string (e.g. "1.2.0")
+
+        Returns:
+            VersionResponse for the requested version
+        """
+        response = self._get(f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}")
+        return VersionResponse.model_validate(response)
+
+    def delete_version(self, agent_id: str, semantic_version: str) -> dict:
+        """
+        Delete a specific semantic version of an agent.
+
+        A version cannot be deleted while it is deployed in an environment.
+
+        Args:
+            agent_id: The ID of the agent
+            semantic_version: Semantic version string (e.g. "1.2.0")
+
+        Returns:
+            Response dict from the server
+        """
+        return self._delete(f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}")
+
+    def deploy_version(self, agent_id: str, semantic_version: str, environment_id: str) -> bool:
+        """
+        Deploy an existing semantic version to an environment.
+
+        Args:
+            agent_id: The ID of the agent
+            semantic_version: Semantic version string to deploy (e.g. "1.2.0")
+            environment_id: The target environment ID
+
+        Returns:
+            True if deployment succeeded, False otherwise
+        """
+        self._post(
+            f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}/deploy",
+            data={"environment_id": environment_id},
+        )
+        return self._poll_v2_deployment_status(agent_id, environment_id, mode=ReleaseMode.DEPLOY)
+
+    def undeploy_version(self, agent_id: str, semantic_version: str, environment_id: str) -> bool:
+        """
+        Undeploy a semantic version from an environment.
+
+        Args:
+            agent_id: The ID of the agent
+            semantic_version: Semantic version string to undeploy (e.g. "1.2.0")
+            environment_id: The environment ID to undeploy from
+
+        Returns:
+            True if undeployment succeeded, False otherwise
+        """
+        self._post(f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}/undeploy")
+        return self._poll_v2_deployment_status(agent_id, environment_id, mode=ReleaseMode.UNDEPLOY)
+
+    def get_deployment(self, agent_id: str, environment_id: str) -> dict:
+        """
+        Get the current deployment state for a specific environment.
+
+        Args:
+            agent_id: The ID of the agent
+            environment_id: The environment ID to query
+
+        Returns:
+            Deployment state dict (includes deployment_status, semantic_version, etc.)
+        """
+        return self._get(f"{self.v2_base_endpoint}/{agent_id}/versions/deployments/{environment_id}")
+
+    def list_deployments(self, agent_id: str) -> List[dict]:
+        """
+        Get the full deployment history for an agent.
+
+        Args:
+            agent_id: The ID of the agent
+
+        Returns:
+            List of deployment history records
+        """
+        return self._get(f"{self.v2_base_endpoint}/{agent_id}/versions/deployments")
+
+    def load_version_to_draft(self, agent_id: str, semantic_version: str) -> dict:
+        """
+        Load a specific version into the draft environment.
+
+        Args:
+            agent_id: The ID of the agent
+            semantic_version: Semantic version string to load (e.g. "1.2.0")
+
+        Returns:
+            Response dict from the server
+        """
+        return self._post(
+            f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}/load-to-draft"
+        )
+
+    def restore_version(self, agent_id: str, semantic_version: str) -> dict:
+        """
+        Restore an agent to a specific semantic version.
+
+        Args:
+            agent_id: The ID of the agent
+            semantic_version: Semantic version string to restore (e.g. "1.2.0")
+
+        Returns:
+            Response dict from the server
+        """
+        return self._post(
+            f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}/restore"
+        )
+
+    def update_version(
+        self,
+        agent_id: str,
+        semantic_version: str,
+        version_name: Optional[str] = None,
+        version_description: Optional[str] = None,
+    ) -> VersionResponse:
+        """
+        Update the mutable metadata of a semantic version (name and/or description).
+
+        Args:
+            agent_id: The ID of the agent
+            semantic_version: Semantic version string to update (e.g. "1.2.0")
+            version_name: New display name for the version
+            version_description: New description for the version
+
+        Returns:
+            Updated VersionResponse
+        """
+        payload: dict = {}
+        if version_name is not None:
+            payload["version_name"] = version_name
+        if version_description is not None:
+            payload["version_description"] = version_description
+        response = self._patch(
+            f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}",
+            data=payload,
+        )
+        return VersionResponse.model_validate(response)
+
