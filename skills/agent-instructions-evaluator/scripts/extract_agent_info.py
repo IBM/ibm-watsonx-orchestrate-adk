@@ -746,26 +746,23 @@ def extract_agent_info(
     # Build the text corpus to search for direct agent-level tool references.
     agent_text_corpus = (instructions_text + ' ' + guidelines_text).lower()
 
-    # Classify each agent tool as either agent-callable or skill-only.
+    # Classify each agent tool to detect the tool-binding shadow reliability risk.
     #
-    # A tool is "skill-only" when:
-    #   1. It appears in at least one skill's allowed-tools list (the skill already
-    #      owns it — the spec will be loaded into L2 context when that skill loads).
-    #   2. Its bare name does NOT appear in the agent's instructions: or guidelines:
-    #      text (the agent has no direct instruction to call it at L1).
+    # wxO platform behaviour: when a skill lists a tool in its allowed-tools, that
+    # tool is REMOVED from the agent's base tool set for the duration of that skill
+    # context. If the same tool also appears in agent tools:, the agent loses access
+    # to it whenever a skill is NOT active — a silent execution gap.
     #
-    # The double-spend problem:
-    #   A tool named in both agent tools: AND a skill's allowed-tools has its spec
-    #   loaded TWICE: once into L1 (every single turn, whether the skill is active
-    #   or not) and once into L2 (when the skill loads). The L1 copy is pure waste —
-    #   the tool cannot be called at L1 because it is skill-scoped, so the agent
-    #   pays the tokenization cost but gets no benefit from it.
+    # This is purely a RELIABILITY issue, not a token issue. The spec is counted once
+    # (at L1, from agent tools:). There is no double-spend.
     #
-    # Fix: remove the tool from agent tools: entirely. The skill's allowed-tools
-    #   entry is the correct and sufficient place for it. If the agent needs the
-    #   capability, it should invoke the skill — not call the tool directly.
-    skill_only_tools: List[str] = []     # double-spend: in skill allowed-tools, spec loaded at L1 for nothing
-    agent_callable_tools: List[str] = [] # legitimately at L1: either not skill-owned, or referenced in agent text
+    # Subclassification — "skill-only" (stricter):
+    #   A shadowed tool where the agent's instructions: and guidelines: text also
+    #   contain no direct reference to calling it. This confirms the agent author
+    #   did not intend to call it at the agent level — it belongs only in the skill.
+    #   These are the highest-confidence candidates to remove from agent tools:.
+    skill_only_tools: List[str] = []     # shadowed AND not referenced in agent text — safe to remove
+    agent_callable_tools: List[str] = [] # not skill-owned, or explicitly referenced in agent text
     for t in agent_tools:
         bare = _strip_namespace(t)
         in_skill = bare in skill_owned_tools or t in skill_owned_tools
@@ -803,31 +800,35 @@ def extract_agent_info(
     )
 
     # Agent-level tool list and spec costs.
-    # tool_list_est_tokens  — names of the agent's own tools, paid every turn so
-    #                         the LLM can decide which tool to invoke.
-    # tools_spec_est_tokens — spec bodies of the agent's own tools; also paid
-    #                         every turn (tool schemas are part of the prompt).
-    # SCOPE NOTE: skills carry their OWN allowed-tools list and specs.  Those
-    # tokens are paid only when the skill is loaded (skill-level cost), not here.
+    #
+    # wxO platform behaviour: any tool listed in a skill's allowed-tools is REMOVED
+    # from the agent's base tool set when that skill is active. This means tools that
+    # appear in skill_owned_tools are never actually present at L1 — the platform
+    # has taken them out. Only tools NOT in skill_owned_tools are truly active at
+    # the agent level and should be counted in the L1 floor.
+    #
+    # tool_list_est_tokens  — names of truly active agent-level tools only
+    # tools_spec_est_tokens — specs of truly active agent-level tools only
+    # shadowed tools are still reported for the reliability diagnostic, but their
+    # token cost is NOT included in the L1 floor.
     resolved_agent_tools = _enrich_tools(agent_tools, tool_specs)
+    # Tag each resolved tool with whether it is shadowed by a skill.
+    for t in resolved_agent_tools:
+        t['shadowed'] = (
+            _strip_namespace(t['name']) in skill_owned_tools
+            or t['name'] in skill_owned_tools
+        )
+
+    active_resolved_tools   = [t for t in resolved_agent_tools if not t['shadowed']]
+    shadowed_resolved_tools = [t for t in resolved_agent_tools if t['shadowed']]
+
     agent_tools_spec_est_tokens: int = sum(
-        t['spec_est_tokens'] for t in resolved_agent_tools
+        t['spec_est_tokens'] for t in active_resolved_tools
     )
     tool_list_est_tokens: int = sum(
-        _estimate_tokens(name) for name in agent_tools
+        _estimate_tokens(t['name']) for t in active_resolved_tools
     )
 
-    # Corrected L1 floor: subtract the wasted tokens from skill_only_tools.
-    # These tools are listed at agent level but can never be called there —
-    # removing them from agent tools: would reduce L1 cost on every turn.
-    skill_only_tool_names_set = set(skill_only_tools)
-    skill_only_spec_tokens: int = sum(
-        t['spec_est_tokens'] for t in resolved_agent_tools
-        if t['name'] in skill_only_tool_names_set
-    )
-    skill_only_list_tokens: int = sum(
-        _estimate_tokens(name) for name in skill_only_tools
-    )
     agent_floor_est_tokens: int = (
         instructions_est_tokens
         + skill_catalog_est_tokens
@@ -835,10 +836,6 @@ def extract_agent_info(
         + tool_list_est_tokens
         + agent_tools_spec_est_tokens
     )
-    agent_floor_corrected_est_tokens: int = (
-        agent_floor_est_tokens - skill_only_spec_tokens - skill_only_list_tokens
-    )
-
     return {
         'name': agent_data.get('name', 'unknown'),
         'display_name': agent_data.get('display_name', agent_data.get('name', 'unknown')),
@@ -847,14 +844,13 @@ def extract_agent_info(
         'llm': agent_data.get('llm', 'unknown'),
         'tools': agent_tools,
         'resolved_tools': resolved_agent_tools,
+        'active_resolved_tools': active_resolved_tools,
+        'shadowed_resolved_tools': shadowed_resolved_tools,
         'tools_spec_est_tokens': agent_tools_spec_est_tokens,
         'tool_list_est_tokens': tool_list_est_tokens,
         'skill_only_tools': skill_only_tools,
         'agent_callable_tools': agent_callable_tools,
-        'skill_only_spec_tokens': skill_only_spec_tokens,
-        'skill_only_list_tokens': skill_only_list_tokens,
         'agent_floor_est_tokens': agent_floor_est_tokens,
-        'agent_floor_corrected_est_tokens': agent_floor_corrected_est_tokens,
         'collaborators': agent_data.get('collaborators', []),
         'resolved_collaborators': resolved_collaborators,
         'context_variables': agent_data.get('context_variables', []),
@@ -912,8 +908,8 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
         f"  Instructions:      ~{info.get('instructions_est_tokens', 0)} est. tokens",
         f"  Skill catalog:     ~{info.get('skill_catalog_est_tokens', 0)} est. tokens  (name+desc of all {len(info.get('skills', []))} skills — agent needs these to decide which skill to load)",
         f"  Collab routing:    ~{info.get('collaborator_routing_est_tokens', 0)} est. tokens  (name+desc of all {len(info.get('collaborators', []))} collaborators — routing only; collab internals run in their own context)",
-        f"  Agent tool list:   ~{info.get('tool_list_est_tokens', 0)} est. tokens  (names of {len(info.get('tools', []))} agent-level tools)",
-        f"  Agent tool specs:  ~{info.get('tools_spec_est_tokens', 0)} est. tokens  (schemas of {len(info.get('tools', []))} agent-level tools)",
+        f"  Agent tool list:   ~{info.get('tool_list_est_tokens', 0)} est. tokens  ({len(info.get('active_resolved_tools', []))} active tools — {len(info.get('shadowed_resolved_tools', []))} excluded: shadowed by skill)",
+        f"  Agent tool specs:  ~{info.get('tools_spec_est_tokens', 0)} est. tokens  ({len(info.get('active_resolved_tools', []))} active tools — shadowed tools not counted, their spec is removed from base set)",
         f"  ─────────────────────────────────────────────────────────────────────────────────────────────",
         f"  Agent floor total: ~{info.get('agent_floor_est_tokens', 0)} est. tokens/turn",
         f"",
@@ -930,58 +926,69 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
     ]
 
     # --- Agent tools ---
-    resolved_tools = info.get('resolved_tools', [])
+    active_tools   = info.get('active_resolved_tools', [])
+    shadowed_tools = info.get('shadowed_resolved_tools', [])
+    all_tools      = info.get('resolved_tools', [])
     tools_spec_total = info.get('tools_spec_est_tokens', 0)
-    any_tool_resolved = any(t.get('resolved') for t in resolved_tools)
-    if resolved_tools:
+
+    if all_tools:
         lines.append(
-            f"Tools:               {len(resolved_tools)}  |  ~{tools_spec_total} est. tokens total spec"
-            + ("" if any_tool_resolved else "  (unresolved tools use ~200 token fallback)")
+            f"Tools:               {len(all_tools)} declared  |  "
+            f"{len(active_tools)} active at L1  |  "
+            f"{len(shadowed_tools)} shadowed (removed from base set by skill binding)"
         )
-        for t in resolved_tools:
-            if t.get('resolved'):
-                lines.append(
-                    f"  [{t['name']}]  ~{t['spec_est_tokens']} est. tokens  ({t['spec_chars']} chars)"
-                )
-            else:
-                lines.append(f"  [{t['name']}]  ~{t['spec_est_tokens']} est. tokens (fallback — definition not found)")
+        if active_tools:
+            lines.append(f"  Active tools ({len(active_tools)})  — counted in L1 floor  ~{tools_spec_total} est. tokens total spec")
+            for t in active_tools:
+                if t.get('resolved'):
+                    lines.append(f"    [{t['name']}]  ~{t['spec_est_tokens']} est. tokens  ({t['spec_chars']} chars)")
+                else:
+                    lines.append(f"    [{t['name']}]  ~{t['spec_est_tokens']} est. tokens (fallback — definition not found)")
+        if shadowed_tools:
+            lines.append(f"  Shadowed tools ({len(shadowed_tools)})  — NOT in L1 floor (removed from base set; only callable when owning skill is active)")
+            for t in shadowed_tools:
+                if t.get('resolved'):
+                    lines.append(f"    [{t['name']}]  ~{t['spec_est_tokens']} est. tokens  (spec exists but not loaded at L1)")
+                else:
+                    lines.append(f"    [{t['name']}]  ~{t['spec_est_tokens']} est. tokens (fallback — definition not found; not loaded at L1)")
     else:
         lines.append("Tools:               0")
 
-    # Skill-only tools: tool spec is loaded twice — once at L1 (every turn, wasted)
-    # and once at L2 (when the skill loads, correct). Fix: remove from agent tools:.
-    skill_only = info.get('skill_only_tools', [])
-    if skill_only:
-        wasted = info.get('skill_only_spec_tokens', 0) + info.get('skill_only_list_tokens', 0)
-        corrected = info.get('agent_floor_corrected_est_tokens', 0)
-        lines.append(
-            f"Skill-only tools:    {len(skill_only)} detected  ← spec loaded twice (L1+L2), L1 copy is pure waste  ~{wasted} tokens/turn"
-        )
-        for t in skill_only:
-            lines.append(
-                f"  [{t}]  ← remove from agent tools:  "
-                f"(already in a skill's allowed-tools; agent should invoke the skill, not the tool directly)"
-            )
-        lines.append(
-            f"  If removed → agent floor drops to ~{corrected} est. tokens/turn  (saving ~{wasted} tokens every turn)"
-        )
-    else:
-        lines.append("Skill-only tools:    none")
-
-    # Tool-binding shadows summary: tools in any skill's allowed-tools that also
-    # appear in the agent's top-level tools: list (SK-6 violation).
+    # Tool-binding shadows (SK-6 reliability risk).
+    # wxO platform behaviour: when a skill's allowed-tools lists a tool, that tool
+    # is removed from the agent's base tool set while a skill is active. If the same
+    # tool also appears in agent tools:, the agent silently loses it the moment any
+    # skill loads — it cannot call it again until the skill is unloaded.
+    # This is NOT a token issue (spec is counted once at L1). It is a reliability
+    # risk: the agent may attempt to call a tool it no longer has access to.
+    #
+    # Subclassification shown below:
+    #   "skill-only" = shadowed AND not referenced in agent instructions/guidelines
+    #     → highest-confidence fix: remove from agent tools: entirely
+    #   regular shadow = shadowed but IS referenced in agent text
+    #     → author likely intended agent-level access; moving tool out of the skill's
+    #       allowed-tools (or restructuring) may be needed
     all_shadows = [
         (s['name'], t)
         for s in info.get('skills', [])
         for t in s.get('tool_binding_shadows', [])
     ]
+    skill_only = info.get('skill_only_tools', [])
+    skill_only_set = set(skill_only)
+
     if all_shadows:
-        lines.append(f"Tool-binding shadows: {len(all_shadows)} detected  ← SK-6 violation")
+        lines.append(f"Tool-binding shadows: {len(all_shadows)} detected  ← SK-6 reliability risk (silent execution gap)")
         for skill_name, tool_name in all_shadows:
-            lines.append(
-                f"  [{tool_name}] in skill [{skill_name}].allowed-tools AND in agent tools: "
-                f"— agent cannot call it when no skill is active"
-            )
+            if tool_name in skill_only_set:
+                lines.append(
+                    f"  [{tool_name}] shadowed by skill [{skill_name}]  "
+                    f"← not referenced in agent text — safe to remove from agent tools:"
+                )
+            else:
+                lines.append(
+                    f"  [{tool_name}] shadowed by skill [{skill_name}]  "
+                    f"← referenced in agent text — review intent; agent loses this tool when any skill is active"
+                )
     else:
         lines.append("Tool-binding shadows: none")
 
