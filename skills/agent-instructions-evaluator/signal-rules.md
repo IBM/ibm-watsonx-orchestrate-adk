@@ -363,13 +363,13 @@ Build a directed graph using forward `load_skill` pointers: draw an edge A → B
 
 **Trigger 3 — Tool-binding shadow:** A tool that appears in any skill's `allowed-tools` is removed from the agent's base tool set. If that same tool is also bound at the agent's top-level `tools:`, the agent cannot call it when no skill is active — a silent execution gap. Check each skill's `allowed-tools` against the agent's `tools:` list and flag every match.
 
-**Trigger 3a — Skill-only tool / double-spend (SK-6 subset, deterministic signal):** A tool named in both the agent's `tools:` list AND a skill's `allowed-tools` has its spec loaded **twice**: once into L1 context on every single turn (whether the skill is active or not), and once into L2 context when the skill loads (which is correct and necessary). The L1 copy is pure waste — the tool is skill-scoped and cannot be called at the agent level, so the agent pays the tokenization cost every turn with zero benefit.
+**Trigger 3a — Skill-only shadow (SK-6 subset, deterministic reliability signal):** A stricter subclassification of Trigger 3. A shadowed tool is **skill-only** when its bare name also does not appear anywhere in the agent's `instructions:` or `guidelines:` text. This confirms the agent author did not write any instruction to call it at the agent level — it belongs exclusively in the skill context.
 
-This is detected when: (a) the tool appears in at least one skill's `allowed-tools`, AND (b) the tool's bare name does not appear in the agent's `instructions:` or `guidelines:` text (confirming there is no agent-level instruction to call it directly).
+**Token impact:** None. The tool spec appears once in L1 context (from `agent tools:`) and is not double-loaded. This is a **reliability-only** signal.
 
-**Fix:** Remove the tool from `agent tools:` entirely. The skill's `allowed-tools` entry is the correct and sufficient place. If the agent needs the capability, it should invoke the skill — not call the tool directly.
+**Reliability impact:** High confidence. The tool is listed in `agent tools:` but is unreachable there whenever any skill is active, and the agent instructions contain no evidence the author intended to call it at the agent level. The fix is straightforward: remove it from `agent tools:` entirely. The skill's `allowed-tools` is the correct and sufficient place.
 
-`extract_agent_info.py` reports these under `skill_only_tools` and computes the wasted tokens per turn (`skill_only_spec_tokens + skill_only_list_tokens`) and the corrected floor if removed (`agent_floor_corrected_est_tokens`). **Always flag as a high-priority token optimization** — the saving is proportional to the number of skill-owned tools and applies on every single agent turn.
+`extract_agent_info.py` reports these under `skill_only_tools`. The `agent_callable_tools` list contains the complement — tools legitimately at L1 (not skill-owned, or explicitly referenced in agent text).
 
 **Consolidation recommendation trigger:** If both skills exhibit SK-2 Moderate/High overlap AND cover intents likely to co-occur in a single turn, OR if one skill's body issues a mid-body `load_skill` call to the other, recommend consolidation.
 

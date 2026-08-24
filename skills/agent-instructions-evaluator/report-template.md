@@ -485,12 +485,12 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 | Agent instructions | [N] | ~[N] (`instructions_est_tokens`) | Always |
 | Skill catalog — names + descriptions (N skills) | [N] | ~[N] (`skill_catalog_est_tokens`) | Always — agent needs all skill descriptions to decide which skill to load |
 | Collaborator routing — names + descriptions (N collabs) | [N] | ~[N] (`collaborator_routing_est_tokens`) | Always — routing signal only; collaborator internals are in their own context |
-| Agent tool list — names only (N tools) | [N] | ~[N] (`tool_list_est_tokens`) | Always — present for tool routing decisions |
-| Agent tool specs — schemas (N tools) | [N] | ~[N] (`tools_spec_est_tokens`) | Always — tool schemas present every turn |
+| Agent tool list — names only (N active tools) | [N] | ~[N] (`tool_list_est_tokens`) | Active tools only — shadowed tools excluded (platform removes them from base set) |
+| Agent tool specs — schemas (N active tools) | [N] | ~[N] (`tools_spec_est_tokens`) | Active tools only — shadowed tools not loaded at L1 |
 | [Any mandatory pre-routing tool call] | — | ~[N] | Always / Conditional |
 | **Agent floor total** | | **~[N] (`agent_floor_est_tokens`)** | **Paid on every turn** |
 
-> **Double-spend tool waste (SK-6 Trigger 3a):** If `skill_only_tools` is non-empty, the agent is paying to tokenize each of those tool schemas **twice** — once at L1 (every turn, wasted because the tool cannot be called at the agent level) and once at L2 (when the owning skill loads, correct). The wasted tokens per turn equal `skill_only_spec_tokens + skill_only_list_tokens`. The corrected L1 floor if those tools are removed from `agent tools:` is `agent_floor_corrected_est_tokens`. **Fix: remove each tool from `agent tools:` — the skill's `allowed-tools` is the correct and sufficient place. If the agent needs the capability, it should invoke the skill, not the tool directly.** Always report both the current floor and the corrected floor.
+> **Tool-binding shadow — token scoping (SK-6):** When a skill lists a tool in its `allowed-tools`, the wxO platform removes that tool from the agent's base tool set. Its spec is therefore **not present in the L1 context** — `extract_agent_info.py` automatically excludes shadowed tools from `tool_list_est_tokens`, `tools_spec_est_tokens`, and `agent_floor_est_tokens`. The floor reflects only the tools that are truly active at the agent level. Shadowed tools are reported separately in `shadowed_resolved_tools` for the SK-6 reliability diagnostic (report in the reliability report, not the token optimization report).
 
 #### Level 2 — Skill context (added on top of Level 1 when a skill is loaded)
 

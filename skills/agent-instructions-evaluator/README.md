@@ -118,7 +118,7 @@ Key scoping rules:
 - **Tool list** (`tool_list_est_tokens`): agent-level tool names, present every turn for tool routing decisions — separate from tool spec bodies
 - **Allowed-tools** in skills: names and schemas are owned by the skill and injected **only when that skill loads** — not part of the agent L1 floor
 - Only one skill body is active at a time; sequential skill loads replace the previous body, not sum
-- **Skill-only tools** (`skill_only_tools`): agent-level tools that also appear in a skill's `allowed-tools` but are never referenced in the agent's own `instructions:` or `guidelines:`. Their schemas load at L1 on every turn despite being unreachable there. The wasted tokens = `skill_only_spec_tokens + skill_only_list_tokens`; the corrected floor if removed = `agent_floor_corrected_est_tokens`
+- **Shadowed tools excluded from L1 floor:** any tool in `agent tools:` that also appears in any skill's `allowed-tools` is removed from the agent's base tool set by the platform. Its spec is **not loaded at L1** and is excluded from `tool_list_est_tokens` and `tools_spec_est_tokens`. Only truly active (non-shadowed) tools are counted. Shadowed tools are still reported in `shadowed_resolved_tools` for the SK-6 reliability diagnostic.
 
 #### Unresolved tool fallback
 
@@ -137,12 +137,11 @@ When a tool definition cannot be found (file not in scan path, unsupported forma
 | `collaborator_routing_est_tokens` | Sum of (name + description) tokens for all collaborators — L1 routing cost |
 | `tool_list_est_tokens` | Sum of token cost of all agent-level tool names — L1 cost |
 | `tools_spec_est_tokens` | Sum of spec body tokens for all agent-level tools — L1 cost |
-| `agent_floor_est_tokens` | Total L1 floor (sum of all five components above) — paid every turn |
-| `skill_only_tools` | Tools in `agent tools:` that are also in a skill's `allowed-tools` and not referenced in agent instructions/guidelines. Their schemas load at L1 every turn despite being unreachable there — SK-6 Trigger 3a |
-| `agent_callable_tools` | Agent-level tools that are either not skill-owned or explicitly referenced in agent text — legitimately needed at L1 |
-| `skill_only_spec_tokens` | Sum of spec body tokens for `skill_only_tools` — wasted L1 tokens per turn |
-| `skill_only_list_tokens` | Sum of name tokens for `skill_only_tools` — wasted L1 tokens per turn |
-| `agent_floor_corrected_est_tokens` | `agent_floor_est_tokens` minus `skill_only_spec_tokens` minus `skill_only_list_tokens` — floor after removing skill-only tools from `agent tools:` |
+| `agent_floor_est_tokens` | Total L1 floor — excludes shadowed tools (removed from base set by platform) |
+| `active_resolved_tools` | Tools in `agent tools:` that are NOT in any skill's `allowed-tools` — truly present at L1; their tokens are counted |
+| `shadowed_resolved_tools` | Tools in `agent tools:` that ARE in a skill's `allowed-tools` — removed from base set; NOT counted in L1 floor; reported for SK-6 reliability diagnostic |
+| `skill_only_tools` | Subset of `shadowed_resolved_tools` where the tool is also not referenced in agent instructions/guidelines — highest-confidence candidates to remove from `agent tools:` |
+| `agent_callable_tools` | Complement of `skill_only_tools`: shadowed tools that ARE referenced in agent text, or tools not skill-owned at all |
 | `resolved_tools` | Each tool with `spec_chars`, `spec_est_tokens`, `resolved`, `file_path` |
 | `resolved_collaborators` | Each collaborator with `routing_est_tokens`, `instructions_est_tokens`, `collocated`, etc. |
 | `skills[].catalog_est_tokens` | L1 cost for this skill (name + description, paid every turn) |
