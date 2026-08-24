@@ -135,14 +135,19 @@ Common finding categories include:
 - **skill_single_responsibility_violation** (SK-1): Skill body covers multiple unrelated workflows or intent categories
 - **skill_scope_overlap** (SK-2): Two or more skills share coverage for the same user intent — appears in agent report only
 - **skill_routing_ambiguity** (SK-3): Skill name or description insufficient for the agent to reliably route to this skill
-- **skill_cross_dependency** (SK-4): Skill body assumes output or state from another skill
-- **skill_dependency_loop** (SK-4): Two or more skills form a dependency cycle — no valid first skill to load; report the full cycle (e.g. skill-A → skill-B → skill-A)
-- **skill_complexity_overload** (SK-5): Skill body exceeds Rule C/E/F complexity thresholds
-- **skill_correlation_co_load** (SK-6): Correlated skill pair likely to be loaded in the same turn — appears in agent report only
+- **skill_cross_dependency** (SK-4 Case 1): Skill body assumes output or state from another skill (backward dependency)
+- **skill_mid_body_load_skill** (SK-4 Case 2): Skill body issues a `load_skill` call before its own work is complete; subsequent steps are unreachable
+- **skill_terminal_handoff** (SK-4 Case 3): Skill body issues `load_skill` as its final action — document neutrally; note chain depth if > 1 hop
+- **skill_dependency_loop** (SK-4): Two or more skills form a cycle in the forward `load_skill` pointer graph — no valid load order; report the full cycle (e.g. skill-A → skill-B → skill-A)
+- **skill_complexity_overload** (SK-5): Skill body exceeds Rule C/E/F complexity thresholds; or script/reference misuse detected
+- **skill_sequential_load_risk** (SK-6): Skill pair requires sequential loads in the same turn — appears in agent report only
+- **skill_tool_binding_shadow** (SK-6): Tool listed in a skill's `allowed-tools` is also bound at agent level — agent cannot call it when no skill is active; appears in agent report only
 - **skill_architecture_overhead** (SK-7): Skill architecture performance surface is Medium or High — appears in agent report only
 - **skill_allowed_tools_gap**: Tool referenced in skill body but absent from `allowed-tools`
+- **skill_platform_duplication** (SK-8): Skill body or agent instructions contain content the platform already generates automatically
+- **skill_frontmatter_hard_limit** (SK-3): Name exceeds 64 chars, description exceeds 1024 chars, or unmatched `{{placeholder}}` — skill will not load
 
-Use these categories to organize your findings. Skill-level findings in skill reports reference the SKILL.md body content directly. Cross-skill findings (SK-2, SK-6, SK-7) belong only in the agent report.
+Use these categories to organize your findings. Skill-level findings (SK-4, SK-5, SK-8) belong in skill reports. Cross-skill and agent-routing findings (SK-2, SK-6, SK-7) belong only in the agent report. SK-3 hard-limit and SK-6 tool-binding shadow findings also appear in the agent report because they affect agent execution.
 
 ---
 

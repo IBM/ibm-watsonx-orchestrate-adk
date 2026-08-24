@@ -175,7 +175,7 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 
 **Why it matters:** Skills are not exempt from the complexity rules that govern agent instructions. A skill body is an instruction set — it is subject to attention drift (E), nested branch overload (C), active rule budget limits (F), hidden state failure (A), exact phrase brittleness (B), and tool underspecification (D). An unachievable skill degrades the whole agent's achievability.
 
-**Score bounds:** Apply the same bounds as Rules A–F to the skill body in isolation, then carry any bound reduction to the corresponding agent-level dimension.
+**Score bounds:** Apply the same bounds as Rules A–F to the skill body in isolation. These bounds apply to the **skill's own dimension scores** in the per-skill report. They do not automatically cap the agent's five dimension scores — skill body complexity is a per-skill finding, not an agent-level cap. The only skill findings that reach the agent's scorecard are SK-2 Exact/High overlap (→ agent Dimension 2), SK-3 hard-limit failures (→ agent Dimension 3), and SK-6 tool-binding shadows (→ agent Dimension 3).
 
 **Additional trigger:** A skill body that tracks retry counts or step state without an explicit state object (Rule A pattern) is doubly risky — the hidden state lives inside a dynamically loaded/unloaded module.
 
@@ -184,12 +184,14 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 ### Rule M — Skill correlation and consolidation signal (SK-6)
 **What it checks:** Whether two or more skills are so closely related in domain, tool coverage, or trigger conditions that they are likely to fire in the same turn or be loaded in immediate succession.
 
-**Triggers:**
-1. Two skills list one or more of the same tools in `allowed-tools`
-2. Two skills cover adjacent user intents that commonly occur in the same turn
-3. A skill's body references behavior or tools that belong to another skill
+**Note on shared tools:** Two skills listing the same tool in their `allowed-tools` is normal and expected — a tool is only visible while its skill is active. Shared tools alone are not a correlation signal and do not trigger this rule.
 
-**Consolidation trigger:** Two skills share ≥ 2 tools in `allowed-tools`, OR both have SK-2 Moderate/High overlap AND cover co-occurring intents.
+**Triggers:**
+1. **Adjacent trigger intents:** Two skills cover adjacent user intents that commonly occur in the same turn — each intent requires its own `load_skill` call; the first body is replaced when the second loads.
+2. **Mid-body `load_skill` reference:** A skill body instructs the agent to call `load_skill` for another skill before that body's own work is complete (SK-4 violation + coupling signal).
+3. **Tool-binding shadow:** A tool that appears in any skill's `allowed-tools` is also bound at the agent's top-level `tools:`. When the tool appears in `allowed-tools`, it is removed from the agent's base tool set — the agent cannot call it when no skill is active. This is a silent execution gap.
+
+**Consolidation trigger:** Both skills have SK-2 Moderate/High overlap AND cover intents likely to co-occur in a single turn, OR one skill's body issues a mid-body `load_skill` call to the other (inseparable sequential dependency).
 
 **Risk ratings:**
 - 1 correlated pair: skill-load overhead risk is **Medium**
@@ -206,9 +208,9 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 | Skill count | > 5 skills | > 10 skills |
 | Per-skill body size | > 100 lines/skill | > 150 lines/skill |
 | Routing ambiguity (plausible candidates/turn) | > 2 candidates | > 4 candidates |
-| Multi-skill turns (% of intents spanning ≥ 2 skills) | > 20% | > 40% |
-| Confirmed multi-load per turn | Any confirmed pattern | — |
-| Combined token cost (loadable in one turn) | > 2,000 tokens | > 4,000 tokens |
+| Load transitions per turn (sequential loads for multi-step intents) | > 1 per turn | > 2 per turn |
+| Same-skill reload within a single turn | Any confirmed | — |
+| Per-load token cost (largest body loaded in one turn) | > 2,000 tokens | > 4,000 tokens |
 
 **Overall rating:**
 - Any single component at High → skill-load overhead risk = **High**
@@ -218,11 +220,11 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 ---
 
 ### Rule O — Token consumption optimization
-**What it checks:** Whether the agent's main instructions and skill bodies together inflate per-turn token cost beyond what the functional requirements demand. **Both surfaces are assessed:** agent instructions (paid on every turn — highest leverage) and skill bodies (paid per intent load).
+**What it checks:** Whether the agent's main instructions, skill catalog, and skill bodies together inflate per-turn token cost beyond what the functional requirements demand. **Three surfaces are assessed:** agent instructions (paid on every turn — highest leverage), skill catalog (all skill names + descriptions, paid on every turn), and skill bodies (paid per intent load — one at a time).
 
 **Always produced** as part of every evaluation. If no issues are found, the report states that and records the current token budget as a baseline.
 
-**Severity per item:** High (exceeds a Rule threshold or confirmed co-load Fail) · Medium (present, below threshold) · Low (marginal) · **None found** (checked, not detected).
+**Severity per item:** High (exceeds a Rule threshold) · Medium (present, below threshold) · Low (marginal) · **None found** (checked, not detected).
 
 **Agent instruction optimization patterns (permanent cost — highest leverage):**
 | Pattern | Check | Action |
@@ -234,18 +236,28 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 | Redundant scope statements | Agent instructions restate per-skill boundaries already in skill `description` frontmatter | Remove; skill description is the authoritative scope |
 | Implicit state correction logic | LLM asked to review history to self-correct a missed step (Rule A) | Move to server-side counter surfaced as tool return field |
 
+**Knowledge base / retrieval token risk (any surface):**
+| Pattern | Check | Action |
+|---|---|---|
+| KB-like tool with no passage limit | Tool flagged as retrieval + no `top_k`/`max_results`/`limit` in instructions or tool definition | Add explicit passage limit ≤ 5; flag as High |
+| Unconstrained or large passage count | Limit > 5, or instruction says "all relevant" / "full context" | Lower limit; flag as High if > 5, Medium if 4–5 |
+| High KB call frequency | KB called unconditionally on every turn or most turns | Condition the call; flag as High |
+| Multiple KB calls per turn | Two or more retrieval calls in a single turn workflow | Merge or condition; flag as High |
+| KB in high-frequency skill | Retrieval tool in a skill body loaded on most turns | Flag as Medium; compound token risk |
+
 **Skill body optimization patterns (per-load cost):**
 | Pattern | Check | Action |
 |---|---|---|
-| Correlated co-load pairs | Confirmed SK-6 Fail | Consolidate skills; report token reduction |
+| Correlated sequential-load pairs | Confirmed SK-6 Trigger 1 or 2 | Consolidate skills; report token reduction per turn |
+| Overlong catalog descriptions | Description > ~200 chars with procedure detail | Trim to routing signal; move procedure to body |
 | Oversized skill bodies | >100 lines (Trigger 1) or >150 lines (Trigger 2) | Identify inflation source; move to tools or plugins |
-| Repeated base contract prose | Same relay/handoff rules in multiple bodies AND in agent instructions | Remove from skill bodies; rules stay in agent |
+| Repeated base contract prose | Same relay/handoff rules in multiple bodies AND in agent instructions | **Medium (not Low)** — duplication is a maintenance-driven conflict risk, not just token overhead: when skill bodies and agent instructions hold slightly different versions of the same rule, both are active in context simultaneously. Any edit that updates one copy and misses the others silently introduces an in-context contradiction. Remove from skill bodies; single authoritative version stays in agent instructions |
 | Exact-phrase rules tied to backend hooks | Prefix generation, verbatim relay, prohibited-phrase lists driving plugin behavior | Move to pre/post invoke plugin |
 | LLM-side classification | Free-text-to-enum inside skill body | Externalize to tool call |
 | Mandatory in-skill re-routing | Skill body re-calls a routing or classification tool for ambiguous inputs | Replace with inline decision rule after consolidation |
-| Shared protocol duplication | Multiple skills restate the same base relay or handoff protocol | Lift to agent instructions once |
+| Shared protocol duplication | Multiple skills restate the same base relay or handoff protocol | **Medium (not Low)** — each per-skill copy is an independent maintenance surface: a future edit that updates the protocol in one skill but not the others creates in-context rule conflicts. Lift to agent instructions once; skill bodies keep only tool-specific detail (e.g., which named tool to call) |
 
-**Token estimation guidance:** Use ~7.5 tokens/line as a working approximation. State estimates as approximations.
+**Token estimation guidance:** Use **character count ÷ 4** (≈4 chars/token) rather than a lines-based estimate — line length varies too much for lines to be reliable. `extract_agent_info.py` computes `instructions_est_tokens`, `skill_catalog_est_tokens` (all skill names + descriptions, paid every turn), `collaborator_routing_est_tokens` (all collaborator names + descriptions, paid every supervisor turn), `body_est_tokens` per skill, and `routing_est_tokens` per collaborator. Use these values directly. State estimates as approximations.
 
 **This rule does NOT re-score the five dimensions.** It is a side report only. When no issues are found, the report still exists and states that.
 
@@ -267,6 +279,8 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 | LLM-side classification before tool call | Agent classifies free text before deciding which tool to call | Move to a classification tool or pre-invoke plugin |
 | Correlated tool sets | Same tool set always called together across multiple skill bodies | Compose into a single tool; reduce LLM call count per turn |
 | Tool failure handling in-prompt | LLM reasons about tool errors rather than using tool contract | Move to tool error return schema or agentic workflow retry policy |
+| KB / retrieval on high-frequency intents | KB tool called with no passage limit or on most/all turns | Condition the call; set `top_k` ≤ 5; each unconstrained retrieval call adds unknown token payload + one RTT + enlarged context processing latency on all subsequent inference passes in the turn |
+| Multiple KB calls per turn | Two or more retrieval calls in a single turn workflow | Merge into a single broader query or cache first result; each separate call is a separate RTT and widens the context further |
 
 **Orchestration depth patterns to check:**
 | Pattern | Check | Action |
@@ -284,7 +298,7 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 | High guideline count | ≥ 5 guidelines adding per-turn overhead | Merge into instructions or tool preconditions; target ≤ 3 execution-relevant guidelines |
 | Guidelines with complex conditions | Multi-clause if/then in guideline condition | Decompose into instruction rule with named state variable or tool precondition |
 
-**Latency model guidance:** Each LLM inference pass ≈ 500ms–2s; each tool-call RTT ≈ 50ms–500ms; skill/collaborator load adds one inference hop. State estimates as approximations — production profiling required for exact values.
+**Latency model guidance:** Each LLM inference pass ≈ 500ms–2s; each tool-call RTT ≈ 50ms–500ms; skill/collaborator load adds one inference hop. **Large retrieval payloads (5,000+ tokens injected) add a latency multiplier on top of inference hops** — input-token processing time scales with context size and cannot be modelled as a fixed hop. State estimates as approximations — production profiling required for exact values.
 
 **Relationship to Rule O:** Rule O reduces tokens (input processing). Rule P reduces hops (call-graph depth). Both compound latency. When a recommendation reduces both, flag the dual benefit in both reports.
 
