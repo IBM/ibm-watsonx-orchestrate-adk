@@ -96,18 +96,23 @@ Each report is saved to disk as soon as it is complete. Skill reports are produc
 | Skill count | [N] | [Low / Medium / High] |
 | Per-skill body size (max / avg lines) | [X / Y lines] | [Low / Medium / High] |
 | Routing ambiguity (plausible candidates/turn) | [N] | [Low / Medium / High] |
-| Multi-skill turns (% of intents spanning ≥2 skills) | [~N%] | [Low / Medium / High] |
-| Re-load frequency (confirmed multi-load per turn) | [Yes / No] | [Medium if Yes / Low if No] |
-| Combined token cost (tokens loadable in one turn) | [~N tokens] | [Low / Medium / High] |
+| Load transitions per turn (est. `load_skill` calls for multi-step intents) | [N] | [Low / Medium / High] |
+| Re-load frequency (confirmed same-skill reload in one turn) | [Yes / No] | [Medium if Yes / Low if No] |
+| Per-load token cost (largest skill body likely loaded) | [~N tokens] | [Low / Medium / High] |
 | **Overall skill-load overhead** | | **[Low / Medium / High]** |
 
 ### Correlated skill pairs (omit if none found)
 | Skill A | Skill B | Correlation type | Consolidation recommended? |
 |---|---|---|---|
-| [skill-name] | [skill-name] | [Shared tools: X, Y / Adjacent intents / Cross-body reference] | [Yes — reason / No] |
+| [skill-name] | [skill-name] | [Adjacent intents / Mid-body load_skill reference] | [Yes — reason / No] |
+
+### Tool-binding shadows (omit if none found)
+| Tool | Skill listing it in allowed-tools | Also in agent tools:? | Impact |
+|---|---|---|---|
+| [tool-name] | [skill-name] | Yes | Agent cannot call [tool-name] when no skill is active — silent execution gap |
 
 ### Performance interpretation
-[Short paragraph explaining whether instruction complexity is likely to increase runtime cost, latency, tool-call count, or response variance. Distinguish deterministic evidence from judgment-based conclusions. When skills are present, include: expected per-turn skill-load cost, whether correlated pairs are likely to co-load, and whether the skill architecture as a whole adds measurable latency overhead.]
+[Short paragraph explaining whether instruction complexity is likely to increase runtime cost, latency, tool-call count, or response variance. Distinguish deterministic evidence from judgment-based conclusions. When skills are present, include: expected per-turn skill-load cost, whether any skill pairs require sequential loads in the same turn, and whether the skill architecture as a whole adds measurable latency overhead.]
 
 ## Dimension Analysis
 
@@ -158,17 +163,27 @@ Each report is saved to disk as soon as it is complete. Skill reports are produc
 > - [Continue for each resolved skill]
 > Unresolved skills (SKILL.md not found): [list, or "none"]
 
-## Skill Health Assessment (omit section if no skills)
+## Skill Health Summary (omit section if no skills)
 
-### Skill Health Table
-| Skill | SK-1 Single Resp. | SK-2 Non-Overlap | SK-3 Routing Clarity | SK-4 No Cross-Dep. | SK-5 Complexity | SK-6 Correlation | SK-7 Perf. Surface |
-|---|---|---|---|---|---|---|---|
-| [skill-name] | [Pass/Warn/Fail — note] | [Pass/Warn/Fail — note] | [Pass/Warn/Fail — note] | [Pass/Warn/Fail — note] | [Pass/Warn/Fail — note] | [Pass/Warn/Fail — note] | [Pass/Warn/Fail — note] |
+> Per-skill dimension scores and deep analysis appear in individual skill reports. This table is a cross-skill health overview. Only SK-2 (overlap), SK-3 hard-limit failures, and SK-6 tool-binding shadows have direct impact on the agent's five dimension scores. All other SK findings are contained in the per-skill reports.
+
+### Skill Health Summary Table
+| Skill | SK-1 | SK-2 | SK-3 | SK-4 | SK-5 | SK-6 | SK-7 | SK-8 |
+|---|---|---|---|---|---|---|---|---|
+| [skill-name] | [P/W/F] | [P/W/F] | [P/W/F — incl. hard-limit] | [P/W/F] | [P/W/F] | [P/W/F — incl. shadow] | [P/W/F] | [P/W/F] |
+
+> P = Pass, W = Warn, F = Fail. Hard-limit failures in SK-3 and tool-binding shadows in SK-6 are marked F and noted in agent Dimension 3. SK-2 Exact/High failures are marked F and noted in agent Dimension 2.
 
 **Rating guide:**
 - **Pass**: No issue detected
 - **Warn**: Potential issue; monitor or improve before production scale
 - **Fail**: Definite issue that will cause reliability or performance problems at production load
+
+**Agent dimension impact from skill findings:**
+- **SK-2 Exact/High** → lowers agent Dimension 2 (Scope & Applicability): ambiguous routing
+- **SK-3 Fail (hard limit)** → lowers agent Dimension 3 (Execution & Tool Grounding): skill is unreachable
+- **SK-6 tool-binding shadow** → lowers agent Dimension 3 (Execution & Tool Grounding): tool silently unavailable
+- **All other SK Fails** → contained in per-skill reports; do not affect agent dimension scores
 
 ### Cross-skill overlap pairs (SK-2)
 | Skill A | Skill B | Overlap rating | Evidence |
@@ -176,15 +191,15 @@ Each report is saved to disk as soon as it is complete. Skill reports are produc
 | [skill-name] | [skill-name] | [Exact/High/Moderate/Low] | [quoted text from both descriptions] |
 
 ### Consolidation recommendations (SK-6)
-For each pair meeting the consolidation trigger threshold:
+For each pair meeting the consolidation trigger threshold (SK-2 Moderate/High overlap + co-occurring intents, OR mid-body `load_skill` creating sequential dependency):
 
 **[Skill A] + [Skill B] → consolidate into [suggested-name]**
-- **Why**: [shared tools / overlapping intents / cross-body references — cite evidence]
-- **Performance implication**: Loading both skills adds ~[N] lines of instruction and [N] tokens to the active context. For a workload of [N] turns/hour where [X%] require both skills, this adds [estimate] overhead per hour.
-- **How to consolidate**: [Describe the merge strategy: keep the stricter `allowed-tools` union, merge the body sections, deduplicate rules, update the `description` to cover both intent sets and their combined boundary conditions]
+- **Why**: [overlapping intents / mid-body load_skill reference — cite evidence]
+- **Performance implication**: Sequential loads (A then B) add one extra `load_skill` call per turn — each call replaces the active body. For a workload of [N] turns/hour where [X%] require both, this adds [estimate] overhead per hour.
+- **How to consolidate**: [Merge strategy: union the `allowed-tools` lists, merge the body sections, deduplicate rules, update the `description` to cover both intent sets and their combined boundary conditions]
 
-### Skill health findings
-[For any Warn or Fail rating, produce a full finding using the standard finding structure: Evidence, Why it matters, Deterministic or judgment-based, Score impact, Recommended change. Link each finding back to its SK criterion and Rule letter.]
+### Skill health findings (agent-visible issues only)
+[For SK-2, SK-3 hard-limit, or SK-6 tool-binding shadow Fail ratings, produce a full finding: Evidence, Why it matters, Deterministic or judgment-based, Agent dimension impact, Recommended change. For all other Warn/Fail ratings, note: "See [skill_X_report.md] for full analysis."]
 
 ## Findings
 
@@ -247,7 +262,10 @@ Use this structure for `skill_<skill-name>_report.md`. The instruction content b
 
 ## Artifact Summary
 - Artifact type: skill body (watsonx Orchestrate SKILL.md)
-- Skill name: [name from frontmatter]
+- Skill name: [name from frontmatter] ([N chars] — [✓ within 64-char limit / ⚠ EXCEEDS 64-char limit — skill will not import])
+- Skill description: [text from frontmatter description field]
+- Description length: [N chars] — [✓ within 1024-char limit / ⚠ EXCEEDS 1024-char limit — skill will not load]
+- Unmatched placeholders: [none / list of {{identifier}} tokens with no matching param — hard failure]
 - Skill file: [relative path to SKILL.md]
 - Agent: [agent name]
 - Evaluation scope: [full | partial]
@@ -256,10 +274,9 @@ Use this structure for `skill_<skill-name>_report.md`. The instruction content b
 
 ## Extraction and Tool Summary
 - Skill body length: [line count] lines
-- allowed-tools count: [N]
+- allowed-tools count: [N] — [list of tool names]
 - scripts/ files: [list or "none"]
 - references/ files: [list or "none"]
-- WXO.yaml present: [Yes / No]
 - Confidence impact: [explanation]
 
 ## Dimension Scorecard
@@ -286,7 +303,11 @@ Use this structure for `skill_<skill-name>_report.md`. The instruction content b
 
 - **SK-1 Single Responsibility**: [Pass / Warn / Fail] — [evidence: N distinct workflows / tool categories]
 - **SK-3 Routing Clarity**: [Pass / Warn / Fail] — [evidence: does description state intents + boundary conditions?]
-- **SK-4 No Cross-Skill Dependencies**: [Pass / Warn / Fail] — [evidence: any references to prior skill state or exclusively-owned tools of another skill?]; dependency loop detected: [Yes — cycle: skill-A → skill-B → skill-A / No]
+- **SK-4 Cross-Skill Dependencies / Handoffs**:
+  - Case 1 Backward assumptions: [Pass / Fail] — [evidence: any references to prior skill state, prior skill outputs, or tools exclusively owned by another skill?]
+  - Case 2 Mid-body `load_skill`: [Pass / Fail] — [evidence: any `load_skill` call before terminal step with subsequent steps that depend on returning?]
+  - Case 3 Terminal handoffs: [documented] — [list: skill-A → skill-B; chain depth if chain exists]
+  - Dependency loop: [None detected / Cycle found: skill-A → skill-B → skill-A]
 - **SK-5 Complexity Budget**: [Pass / Warn / Fail] — [evidence: Rule C/E/F signal counts]
 
 ## Overall Interpretation
@@ -409,9 +430,10 @@ Legend: P = Pass · W = Warn · F = Fail
 
 Use this structure for `token_optimization_report.md`. This report is **always produced** as part of every evaluation — it does not re-score the five evaluation dimensions.
 
-**Coverage:** This report covers **both optimization surfaces**:
+**Coverage:** This report covers **three optimization surfaces**:
 - **Agent instructions** — loaded on every turn; reductions here save tokens universally
-- **Skill bodies** — loaded per intent; reductions here save tokens on the affected turn types
+- **Skill catalog** (all skill names + descriptions) — loaded on every turn regardless of which skill is active; overlong descriptions waste catalog tokens for detail that is only useful after loading
+- **Skill bodies** — loaded per intent, one at a time; reductions here save tokens on the affected turn types
 
 **When no issues are found:** still produce the full report. Use "None found" for each checklist item, include the current token budget table as a baseline, omit the OPT-N inventory section (or include it with a single "No opportunities identified" note), and close the report with the standard baseline statement.
 
@@ -420,6 +442,7 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 ## [Agent Name]
 
 > Side report to: [agent_<name>_report.md](agent_<name>_report.md)
+> See also: [performance_optimization_report.md](performance_optimization_report.md) · [reliability_optimization_report.md](reliability_optimization_report.md)
 > Generated: [date]
 > Scope: Token and reasoning overhead across agent instructions + [N] skill bodies
 
@@ -431,20 +454,32 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 
 ---
 
-## Current Token Budget (per turn, estimated)
+## Current State Baseline
 
-| Component | Lines | Est. Tokens | Loaded every turn? |
+### Token Budget (per turn, estimated)
+
+> Token estimates use **character count ÷ 4** (≈4 chars/token). `extract_agent_info.py` computes these automatically — use the reported `instructions_est_tokens`, `skill_catalog_est_tokens`, `collaborator_routing_est_tokens`, per-skill `catalog_est_tokens` and `body_est_tokens`, and per-collaborator `routing_est_tokens` directly.
+
+| Component | Chars | Est. Tokens | Loaded every turn? |
 |---|---:|---:|---|
-| Agent instructions | [N] | ~[N] | ✓ Always — paid on every turn |
+| Agent instructions | [N] | ~[N] (`instructions_est_tokens`) | ✓ Always |
+| Skill catalog — names + descriptions (N skills) | [N] | ~[N] (`skill_catalog_est_tokens`) | ✓ Always — paid every turn regardless of which skill is loaded |
+| Collaborator routing — names + descriptions (N collabs) | [N] | ~[N] (`collaborator_routing_est_tokens`) | ✓ Always — paid every supervisor turn for routing decisions |
 | [Any mandatory pre-routing tool call] | — | ~[N] | ✓ / Conditional |
-| Loaded skill body (avg) | [N] | ~[N] | ✓ On every intent turn |
+| Loaded skill body (avg) | [N] | ~[N] (`body_est_tokens` avg) | On every intent turn where a skill is loaded |
 | Loaded skill body (max — [skill-name]) | [N] | ~[N] | On [intent type] turns |
-| Co-loaded second skill ([A+B pair]) | [N+N] | ~[N] | On ~[N]% of turns |
-| **Typical turn (agent + 1 avg skill)** | | **~[N]** | |
-| **Complex turn (agent + max skill)** | | **~[N]** | |
-| **Co-load turn (agent + [A] + [B])** | | **~[N]** | |
+| KB / retrieval tool output ([tool-name], [N] passages est.) | — | ~[N] | On [intent type] turns — see passage count note |
+| **Typical turn (instructions + catalogs + 1 avg skill)** | | **~[N]** | |
+| **Complex turn (instructions + catalogs + max skill + KB)** | | **~[N]** | |
+| **Multi-step turn ([A] then [B] sequentially)** | | **~[N] per load** | On ~[N]% of turns — each load replaces the previous body |
 
-> Agent instructions contribute ~[N]% of the typical per-turn token cost. Skill bodies contribute the remaining ~[N]%. Optimizations to agent instructions have universal leverage; optimizations to skill bodies affect only the turns where that skill loads.
+> Note: only one skill body is active at a time. A turn that requires two sequential skill loads pays for each body separately (the first is replaced when the second loads) — not both simultaneously.
+>
+> **Skill + collaborator routing tokens are permanent overhead** — these are paid on every turn regardless of which skill is active or which collaborator is dispatched. A large skill catalog or many verbose collaborator descriptions inflate every single turn. Optimizations here (trimming descriptions) have the same universal leverage as optimizing agent instructions.
+>
+> **KB / retrieval note:** Retrieved passages are injected into context at runtime and are **not visible to static analysis** — passage token cost cannot be fully verified without running the agent. Use ≥500 tokens/passage as a conservative lower-bound estimate (typical retrieval chunks are 500–1,500 tokens depending on chunk size configuration). The row above is based on the passage count limit found in the instructions or tool definition. If no limit is stated, the payload is unknown and potentially unbounded — flag as High risk. Always state this estimate as an approximation and note that exact values require runtime inspection.
+>
+> Agent instructions + skill catalog + collaborator routing catalog together form the fixed per-turn token floor. The loaded skill body and any KB output are the variable component. Reducing the fixed floor saves tokens universally; reducing skill bodies and retrieval scope saves tokens only on the affected turns.
 
 ---
 
@@ -456,20 +491,21 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 
 #### OPT-1 — [Short title]
 
-**Location:** Agent instructions
-**Current cost:** ~[N] lines / ~[N] tokens in agent instructions (paid on every turn)
-**Contribution to overhead:** ~[N] extra tokens × every turn in production
+**Category:** Agent instructions
+**Severity:** [High / Medium / Low]
+**Current cost:** [N] lines / ~[N] tokens (paid on every turn)
+**Removable:** ~[N] lines (~[X]% of current [total]-line agent instructions)
 
 **Evidence:**
 > [Direct quote or section reference from agent instructions]
 
-**Root cause:** [Why does this section exist in agent instructions? missing tool schema / missing plugin hook / missing server-side state / copy-paste from prior version]
+**Root cause:** [missing tool schema / missing plugin hook / missing server-side state / copy-paste from prior version]
 
 **Recommendation:** [Move to tool schema / move to plugin / move to server-side state / remove as redundant]
 - **Target:** [What the agent instructions look like after: e.g., "reduce the tool-call contract section from 12 lines to a 2-line trigger + relay rule"]
-- **Estimated saving:** ~[N] lines removed from agent instructions; ~[N] tokens saved on every turn
+- **Estimated saving:** ~[N] lines removed (~[X]% of current [total]-line agent instructions) → ~[Z] tokens saved on **every turn**
 
-**Reliability benefit:** [Whether this also resolves a Rule A/B/C/E/F signal — or "None beyond token reduction"]
+**Cross-report:** [PERF-N — also eliminates N inference hop / REL-N — also resolves Rule A/B/C/E/F signal / No cross-report overlap]
 
 ---
 
@@ -483,22 +519,52 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 
 ### Skill Body Optimizations
 
+#### OPT-[N] — Knowledge base / retrieval token risk
+
+**Category:** KB / retrieval
+**Severity:** [High / Medium / Low]
+**Location:** [Agent instructions / Skill body — skill-name]
+**Retrieval surface:** [tool-name] — identified as KB/retrieval tool by [name pattern / kind: knowledge_base / description keyword]
+**Passage count:** [stated limit: N / no limit stated — unbounded]
+**Call frequency:** [Always / On [intent type] turns / Conditional on [condition]]
+**Estimated retrieval payload per call:** ~[N] passages × ≥500 tokens (lower bound) = ~[N] tokens
+> ⚠ Passage token cost is a **runtime variable** — chunk size is set in the knowledge base configuration, not in the agent instructions, and cannot be verified from static analysis. The estimate above uses ≥500 tokens/passage as a conservative lower bound. Actual cost may be significantly higher (typically 500–1,500 tokens/passage). Verify with runtime tracing for an accurate figure.
+
+**Evidence:**
+> [Quote from instructions or tool definition showing KB reference; quote any passage count or limit; quote any condition or absence of condition]
+
+**Risk assessment:**
+- Passage count risk: [High — no limit / High — limit > 5 / Medium — limit 4–5 / Low — limit ≤ 3]
+- Call frequency risk: [High — every turn / Medium — most turns / Low — conditional, infrequent]
+- **Latency risk:** [High — unconstrained payload / Medium — bounded but large / Low — small bounded payload]
+- Combined: [High / Medium / Low]
+
+**Recommendation:** [Add or lower `top_k`/`max_results` to ≤ 3–5 / Condition the KB call on intent type / Restrict query scope / Merge with a prior tool call]
+- **Target:** [e.g., "limit to top_k=3 on billing intent turns; remove KB call entirely on account-status turns"]
+- **Estimated saving (token):** ~[N] lines removed (~[X]% of [component] current size) → ~[Z] tokens per [intent type] turn; ~[N]% of all turns affected
+- **Estimated saving (latency):** [qualitative — "measurable latency reduction on [intent type] turns" — exact figures require runtime profiling]
+
+**Cross-report:** PERF-N — this finding also applies to the performance optimization report (Rule P); cross-reference both. [REL-N — also resolves Rule X signal / No additional overlap]
+
+---
+
 #### OPT-[N] — [Short title]
 
-**Location:** Skill body — [skill-name]
-**Current cost:** ~[N] lines / ~[N] tokens in this skill body (paid when [intent type] is loaded)
-**Contribution to overhead:** ~[N] extra tokens per [intent type] turn
+**Category:** Skill body
+**Severity:** [High / Medium / Low]
+**Current cost:** [N] lines / ~[N] tokens in this skill body (paid when [intent type] is loaded)
+**Removable:** ~[N] lines (~[X]% of current [total]-line skill body)
 
 **Evidence:**
 > [Direct quote or structural evidence from SKILL.md body]
 
-**Root cause:** [copy-paste / coupling architecture / missing plugin / LLM-side classification / co-load pair]
+**Root cause:** [copy-paste / coupling architecture / missing plugin / LLM-side classification / sequential-load pair]
 
 **Recommendation:** [Consolidate skills / move to plugin / externalize to tool / remove repeated preamble]
 - **Target:** [Target body size or structural outcome]
-- **Estimated saving:** ~[N] tokens per [affected turn type]; ~[N]% of all turns affected
+- **Estimated saving:** ~[N] lines removed (~[X]% of current [total]-line skill body) → ~[Z] tokens per [affected turn type]; ~[N]% of all turns affected
 
-**Reliability benefit:** [Rule reduction or "None beyond token reduction"]
+**Cross-report:** [PERF-N — also eliminates N inference hop / REL-N — also resolves Rule X signal / No cross-report overlap]
 
 ---
 
@@ -506,33 +572,35 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 
 ---
 
-## Summary: Projected Token Budget After Optimizations
+## Summary: Projected Savings
 
-| Optimization | Location | Lines saved | Est. tokens saved per affected turn | Turns affected |
-|---|---|---:|---:|---|
-| OPT-1: [title] | Agent instructions | ~[N] | ~[N] — **every turn** | All turns |
-| OPT-2: [title] | Agent instructions | ~[N] | ~[N] — **every turn** | All turns |
-| OPT-[N]: [title] | Skill: [name] | ~[N] | ~[N] | [intent type] turns |
-| [Continue] | | | | |
-| **Total** | | **~[N] lines** | **~[N] (peak), ~[N] (typical avg)** | |
+> Savings are estimated as a percentage of the current component size (no rewrite assumed). Formula: removable lines ÷ total current lines × 100% → translate to tokens via `removable chars ÷ 4`.
+
+| Item | Category | Current size | Lines removable | % saving | Est. tokens saved/turn | Turns affected |
+|---|---|---:|---:|---:|---:|---|
+| OPT-1: [title] | Agent instructions | [N] lines | ~[N] | ~[X]% | ~[Z] — **every turn** | All turns |
+| OPT-2: [title] | Agent instructions | [N] lines | ~[N] | ~[X]% | ~[Z] — **every turn** | All turns |
+| OPT-[N]: [title] | Skill: [name] | [N] lines | ~[N] | ~[X]% | ~[Z] | [intent type] turns |
+| [Continue] | | | | | | |
+| **Total** | | | **~[N] lines** | | **~[Z] (peak), ~[Z] (avg)** | |
 
 ### Revised per-turn estimates (post-optimization)
 
 | Turn type | Current estimate | Post-opt estimate | Saving |
 |---|---:|---:|---:|
-| Typical turn (agent + avg skill) | ~[N] tokens | ~[N] tokens | ~[N]% |
-| Complex turn (agent + max skill) | ~[N] tokens | ~[N] tokens | ~[N]% |
-| Co-load turn ([A] + [B]) | ~[N] tokens | ~[N] tokens | ~[N]% |
+| Typical turn (agent + catalog + avg skill) | ~[N] tokens | ~[N] tokens | ~[N]% |
+| Complex turn (agent + catalog + max skill) | ~[N] tokens | ~[N] tokens | ~[N]% |
+| Multi-step turn (sequential [A] then [B]) | ~[N] tokens/load | ~[N] tokens/load | ~[N]% |
 | [Other key turn types] | ~[N] tokens | ~[N] tokens | ~[N]% |
 
 ---
 
 ## Implementation Priority
 
-| Priority | Optimization | Location | Effort | Token Impact | Reliability Benefit |
+| Priority | Item | Category | Effort | Impact | Cross-report |
 |---|---|---|---|---|---|
-| **P1** | OPT-[N]: [title] | Agent instr. / Skill: [name] | Low/Medium/High | High — every turn / [N]% of turns | [description or "None"] |
-| **P2** | OPT-[N]: [title] | Agent instr. / Skill: [name] | Low/Medium/High | Medium | [description or "None"] |
+| **P1** | OPT-[N]: [title] | Agent instr. / Skill / KB | Low/Med/High | High — every turn / [N]% of turns | OPT-N / PERF-N / None |
+| **P2** | OPT-[N]: [title] | Agent instr. / Skill / KB | Low/Med/High | Medium | OPT-N / PERF-N / None |
 | [Continue] | | | | | |
 
 > [1–2 sentences on suggested delivery sequence. Note that agent instruction optimizations (P1 candidates) should generally be delivered before skill body optimizations because their savings compound across all turns.]
@@ -557,7 +625,7 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 | [Continue for each skill] | | | | | |
 | **Total skill set** | **[N]** | **~[N]** | | **~[N]** | **−[N]% total skill token load** |
 
-> Note: Token estimates use ~7.5 tokens/line. Actual values depend on tokenizer and language model.
+> Note: Token estimates use **character count ÷ 4** (≈4 chars/token). `extract_agent_info.py` computes these automatically — use the reported `body_est_tokens` per skill and `instructions_est_tokens` per section directly. Actual values depend on the tokenizer and language model.
 
 ---
 
@@ -570,11 +638,9 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 
 ---
 
-*This report is a side companion to the main evaluation report set. It does not modify the achievability scores in the main reports.*
+*Side report — does not modify achievability scores in the main reports.*
 
-*[If issues were found]:* Implement the optimizations above and re-run the evaluation with the updated files.
-
-*[If no issues were found]:* No token optimization opportunities were identified by static analysis. Re-run this evaluation after any significant change to agent instructions, skill bodies, or tool schemas.
+*Issues found:* Implement the optimizations above and re-run the evaluation with the updated files. *No issues found:* No token optimization opportunities were identified by static analysis. Re-run this evaluation after any significant change to agent instructions, skill bodies, or tool schemas.
 ```
 
 ---
@@ -596,7 +662,7 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 ## [Agent Name]
 
 > Side report to: [agent_<name>_report.md](agent_<name>_report.md)
-> See also: [token_optimization_report.md](token_optimization_report.md)
+> See also: [token_optimization_report.md](token_optimization_report.md) · [reliability_optimization_report.md](reliability_optimization_report.md)
 > Generated: [date]
 > Scope: Execution architecture, tool call-graph depth, and orchestration overhead
 
@@ -608,13 +674,15 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 
 ---
 
-## Current Execution Profile (per turn, estimated)
+## Current State Baseline
+
+### Execution Profile (per turn, estimated)
 
 | Turn type | Inference hops | Tool-call RTTs | Skill loads | Notes |
 |---|---:|---:|---:|---|
 | Simple intent (no routing ambiguity) | [N] | [N] | [N] | [e.g. agent instr + 1 skill load + 1 tool call] |
 | Complex intent (routing + multi-step) | [N] | [N] | [N] | [e.g. classify → skill load → domain tool → next_action → second tool] |
-| Co-load turn ([A]+[B]) | [N] | [N] | [N] | [confirmed SK-6 Fail pair] |
+| Multi-step turn (sequential skill loads) | [N] | [N] | [N] | [e.g. load skill A → replace with skill B — each load is a separate inference pass] |
 | Multi-step completion turn | [N] | [N] | [N] | [e.g. domain tool + state tool + close tool] |
 | Special first-turn handling | [N] | [N] | [N] | [if applicable] |
 
@@ -631,7 +699,8 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 #### PERF-1 — [Short title]
 
 **Category:** Tool execution
-**Current cost:** [N] tool-call RTTs + [N] inference hops added on [turn type] turns
+**Severity:** [High / Medium / Low]
+**Current cost:** [N] tool-call RTTs + [N] inference hops on [turn type] turns
 **Frequency:** ~[N]% of all turns / every turn / [specific trigger condition]
 
 **Evidence:**
@@ -645,7 +714,7 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 
 **Estimated impact:** [RTTs eliminated per turn type]; [inference hops eliminated]; ~[N]% of all turns affected
 
-**Rule O dual benefit:** [Yes — also reduces ~N tokens per turn by moving classification prose to tool schema / No]
+**Cross-report:** [OPT-N — also reduces ~N tokens per turn / REL-N — also resolves reliability signal / No cross-report overlap]
 
 ---
 
@@ -662,6 +731,7 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 #### PERF-[N] — [Short title]
 
 **Category:** Orchestration depth — [skill routing / collaborator stack / in-skill re-routing]
+**Severity:** [High / Medium / Low]
 **Current cost:** [N] extra inference hops per turn from [routing pattern]
 **Frequency:** ~[N]% of turns / every intent turn
 
@@ -676,7 +746,7 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 
 **Estimated impact:** [hops eliminated]; [turn types affected]; [% of total volume]
 
-**Rule O dual benefit:** [Yes — also saves ~N tokens by eliminating redundant preamble / No]
+**Cross-report:** [OPT-N — also saves ~N tokens by eliminating redundant preamble / REL-N — also resolves reliability signal / No cross-report overlap]
 
 ---
 
@@ -689,8 +759,9 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 #### PERF-[N] — [Short title]
 
 **Category:** Guidelines overhead
+**Severity:** [High / Medium / Low]
 **Current cost:** [N] guidelines × 1 constraint-check pass overhead per turn = [N] extra constraint evaluations on every turn
-**Current guideline count:** [N]
+**Frequency:** Every turn
 
 **Evidence:**
 > [List guidelines that fall into the identified patterns — restating instructions, expressing tool-call logic, complex conditions]
@@ -703,19 +774,21 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 
 **Estimated impact:** [N] guidelines removed; constraint evaluation surface reduced from [N] to [N] per turn
 
+**Cross-report:** [OPT-N — also saves ~N tokens / REL-N — also resolves Rule F signal / No cross-report overlap]
+
 ---
 
 [Continue for all guidelines opportunities]
 
 ---
 
-## Summary: Projected Execution Profile After Optimizations
+## Summary: Projected Savings
 
-| PERF-N | Category | Hops eliminated | RTTs eliminated | Turns affected | Rule O dual? |
+| Item | Category | Hops eliminated | RTTs eliminated | Turns affected | Cross-report |
 |---|---|---:|---:|---|---|
-| PERF-1: [title] | Tool execution | [N] | [N] | [turn types / % volume] | Yes / No |
-| PERF-[N]: [title] | Orchestration | [N] | — | [turn types / % volume] | Yes / No |
-| PERF-[N]: [title] | Guidelines | — | — | Every turn | No |
+| PERF-1: [title] | Tool execution | [N] | [N] | [turn types / % volume] | OPT-N / None |
+| PERF-[N]: [title] | Orchestration | [N] | — | [turn types / % volume] | OPT-N / None |
+| PERF-[N]: [title] | Guidelines | — | — | Every turn | OPT-N / None |
 | **Total** | | **[N]** | **[N]** | | |
 
 ### Revised call-graph depth (post-optimization)
@@ -724,18 +797,18 @@ Use this structure for `performance_optimization_report.md`. This report is **al
 |---|---:|---:|---:|
 | Simple intent | [N] | [N] | [N] hops |
 | Complex intent | [N] | [N] | [N] hops |
-| Co-load turn | [N] | [N] | [N] hops |
+| Multi-step turn (sequential skill loads) | [N] | [N] | [N] hops |
 | [Other key turn types] | [N] | [N] | [N] hops |
 
 ---
 
 ## Implementation Priority
 
-| Priority | Item | Category | Mechanism | Effort | Latency Impact | Rule O dual? |
-|---|---|---|---|---|---|---|
-| **P1** | PERF-[N]: [title] | [category] | [1–2 word mechanism] | Low/Med/High | High — every turn / [N]% of turns | Yes / No |
-| **P2** | PERF-[N]: [title] | [category] | [1–2 word mechanism] | Low/Med/High | Medium | Yes / No |
-| [Continue] | | | | | | |
+| Priority | Item | Category | Effort | Impact | Cross-report |
+|---|---|---|---|---|---|
+| **P1** | PERF-[N]: [title] | [category] | Low/Med/High | High — every turn / [N]% of turns | OPT-N / REL-N / None |
+| **P2** | PERF-[N]: [title] | [category] | Low/Med/High | Medium | OPT-N / REL-N / None |
+| [Continue] | | | | | |
 
 > [1–2 sentences on delivery sequence. Note dependencies: tool composition changes (P1) typically need to be deployed before orchestration changes that depend on the composed tool's new return schema.]
 
@@ -754,18 +827,16 @@ List every tool chain that could be collapsed into a Python tool, flow tool, or 
 
 ## Anti-Patterns to Avoid in Future Iterations
 
-[List the specific anti-patterns found in this evaluation. For each, state what it is, where it appeared, and what latency overhead it created.]
+[List the specific anti-patterns found in this evaluation. For each, state what it is, where it appeared, and what latency overhead it created. If no anti-patterns were found, write: "No anti-patterns identified — the current design avoids all known execution overhead patterns."]
 
 1. **[Anti-pattern name]** — [What it is, where it appeared, and what overhead it created]
 2. [Continue for all found patterns]
 
 ---
 
-*This report is a side companion to the main evaluation report set. It does not modify the achievability scores in the main reports.*
+*Side report — does not modify achievability scores in the main reports.*
 
-*[If issues were found]:* Implement the optimizations above and re-run with production profiling to validate latency impact.
-
-*[If no issues were found]:* No runtime performance optimization opportunities were identified by static analysis. Re-run this evaluation after any significant change to tool schemas, skill architecture, or guidelines.
+*Issues found:* Implement the optimizations above and re-run with production profiling to validate latency impact. *No issues found:* No runtime performance optimization opportunities were identified by static analysis. Re-run this evaluation after any significant change to tool schemas, skill architecture, or guidelines.
 ```
 
 ---
@@ -797,7 +868,9 @@ Use this structure for `reliability_optimization_report.md`. This report is **al
 
 ---
 
-## Reliability Checklist Summary
+## Current State Baseline
+
+### Reliability Checklist
 
 > Full checklist — every pattern checked regardless of outcome. Severity: Critical · High · Medium · Low · None found.
 
@@ -825,15 +898,16 @@ Use this structure for `reliability_optimization_report.md`. This report is **al
 
 ---
 
-## Reliability Optimization Inventory
+## Optimization Opportunity Inventory
 
 > Items ordered by severity (Critical → High → Medium → Low). Omit this section entirely and replace with "No reliability optimization opportunities identified." if the checklist above shows all "None found".
 
 ### REL-1 — [Short title]
 
-**Category:** [Implicit state / Exact-phrase / Scope-routing / Conflicting rules / Tool underspecification / Skill body]
+**Category:** [Implicit state / Exact-phrase / Scope-routing / Conflicting rules / Tool underspecification / Skill body / Workflow encoding]
 **Severity:** [Critical / High / Medium / Low]
-**Failure mode:** [What goes wrong, under what specific conditions — e.g. "On every voice channel first turn, the LLM may omit or corrupt the required prefix, causing the post-invoke plugin to skip personalisation silently"]
+**Current cost:** [What goes wrong, under what specific conditions — e.g. "On every voice channel first turn, the LLM may omit or corrupt the required prefix, causing the post-invoke plugin to skip personalisation silently"]
+**Frequency:** [Fraction of production turns affected — e.g. "every voice call first turn", "~15% of cancellation turns", "rare — neutral-phrasing edge cases only"]
 
 **Evidence:**
 > [Direct quote from agent instructions or skill body] *(line N)*
@@ -843,11 +917,9 @@ Use this structure for `reliability_optimization_report.md`. This report is **al
 
 **Recommendation:** [Specific rewrite — what to change, where, and what the result looks like]
 
-**Reliability impact:** [Fraction of production turns affected — e.g. "every voice call first turn", "~15% of cancellation turns", "rare — only on neutral-phrasing edge cases"]
+**Estimated impact:** [Same as Frequency above — what fraction of turns this fix improves, and how]
 
-**Rule cross-reference:** [Dimension N (score impact) · Rule letter · Main report Finding N]
-
-**Cross-report:** [OPT-N from token report — also reduces ~N tokens / PERF-N from performance report — also eliminates N RTT / No cross-report overlap]
+**Cross-report:** [OPT-N — also reduces ~N tokens / PERF-N — also eliminates N RTT / No cross-report overlap]
 
 ---
 
@@ -859,30 +931,39 @@ Use this structure for `reliability_optimization_report.md`. This report is **al
 
 ---
 
-## Implementation Roadmap
+## Summary: Projected Savings
 
-> Items grouped into phases. Phase 1 = Critical + High severity; Phase 2 = Medium; Phase 3 = Low.
+> Ordered by severity — Critical and High items first. Phase 1 = Critical + High; Phase 2 = Medium; Phase 3 = Low.
 
-### Phase 1 — Critical and High (address before production scale)
+| Priority | Item | Category | Effort | Impact | Cross-report |
+|---|---|---|---|---|---|
+| **P1** | REL-[N]: [title] | [category] | Low/Med/High | Critical/High — [turns affected] | OPT-N / PERF-N / None |
+| **P2** | REL-[N]: [title] | [category] | Low/Med/High | Medium | OPT-N / PERF-N / None |
+| **P3** | REL-[N]: [title] | [category] | Low/Med/High | Low | None |
+| [Continue] | | | | | |
+
+> [1–2 sentences on sequencing. Note that Phase 1 plugin migrations and tool contract changes are usually independent of each other and can be parallelised. State which items have dependencies.]
+
+### Implementation Roadmap
+
+**Phase 1 — Critical and High** (address before production scale)
 
 | REL-N | Title | Change type | Effort | Cross-report |
 |---|---|---|---|---|
 | REL-[N] | [title] | [Plugin migration / Tool contract / Instruction rewrite / Skill split / State variable] | Low/Med/High | OPT-N / PERF-N / None |
 | [Continue] | | | | |
 
-### Phase 2 — Medium (address before high-throughput load)
+**Phase 2 — Medium** (address before high-throughput load)
 
 | REL-N | Title | Change type | Effort | Cross-report |
 |---|---|---|---|---|
 | REL-[N] | [title] | [change type] | Low/Med/High | OPT-N / PERF-N / None |
 
-### Phase 3 — Low (monitor; address in next iteration)
+**Phase 3 — Low** (monitor; address in next iteration)
 
 | REL-N | Title | Change type | Effort | Cross-report |
 |---|---|---|---|---|
 | REL-[N] | [title] | [change type] | Low/Med/High | OPT-N / PERF-N / None |
-
-> [1–2 sentences on sequencing. Note that Phase 1 plugin migrations and tool contract changes are usually independent of each other and can be parallelised. State which items have dependencies.]
 
 ---
 
@@ -895,11 +976,9 @@ Use this structure for `reliability_optimization_report.md`. This report is **al
 
 ---
 
-*This report is a side companion to the main evaluation report set. It does not modify the achievability scores in the main reports. Every REL-N item traces back to evidence in the main reports.*
+*Side report — does not modify achievability scores in the main reports. Every REL-N item traces back to evidence in the main reports.*
 
-*[If issues were found]:* Address Phase 1 items before production scale. Re-run the full evaluation after changes to confirm resolution.
-
-*[If no issues were found]:* No reliability optimization opportunities were identified by static analysis. The current design avoids all known systematic failure patterns. Re-run this evaluation after any significant change to agent instructions, skill bodies, or tool schemas.
+*Issues found:* Address Phase 1 items before production scale. Re-run the full evaluation after changes to confirm resolution. *No issues found:* No reliability optimization opportunities were identified by static analysis. Re-run this evaluation after any significant change to agent instructions, skill bodies, or tool schemas.
 ```
 
 ---
@@ -1093,8 +1172,8 @@ For skill reports, the Runtime Performance Risk section covers only the cost of 
 ### Skill Health — This Skill (skill reports only)
 SK-2, SK-6, and SK-7 are cross-skill checks and belong in the agent report only. Skill reports contain SK-1, SK-3, SK-4, and SK-5 for the skill in question. Do not attempt to assess SK-2/SK-6/SK-7 in isolation inside a skill report — they require the full skill set to be meaningful.
 
-### Skill Health Assessment (agent report only)
-Place this section immediately after Dimension Analysis and before Findings in the agent report. Each row in the Skill Health Table must have a brief but specific evidence note — do not write "N/A" without explanation. Consolidation recommendations must include a concrete merge strategy: which `allowed-tools` to carry forward, how to combine the body sections, what to do with the `description` frontmatter.
+### Skill Health Summary (agent report only)
+Place this section immediately after Dimension Analysis and before Findings in the agent report. The summary table uses P/W/F codes — full analysis is in per-skill reports. Agent dimension adjustments apply only for SK-2 Exact/High overlap, SK-3 hard-limit failures, and SK-6 tool-binding shadows. Consolidation recommendations must include a concrete merge strategy: which `allowed-tools` to carry forward, how to combine the body sections, what to do with the `description` frontmatter.
 
 ### Token Optimization Report
 This report is always produced — it synthesizes evidence gathered across the agent report and all skill reports. Produce it after all individual reports are written. Run the full Rule O checklist and record a severity (High / Medium / Low / None found) for each pattern. When no issues are found, record the current token budget as a verified baseline and close with the standard baseline statement; do not produce an empty file. Follow Template 4.

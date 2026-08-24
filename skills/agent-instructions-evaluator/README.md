@@ -62,12 +62,12 @@ When the agent YAML contains a `skills:` list, each skill is evaluated against s
 | **SK-1** Single Responsibility | Does the skill do exactly one thing? | Dimension 4 |
 | **SK-2** Non-Overlapping Scope | Do any two skills share the same user intent? | Dimension 2 |
 | **SK-3** Routing Clarity | Is the name + description specific enough for the agent to route deterministically? | Dimension 2 |
-| **SK-4** No Cross-Skill Dependencies (+ loop detection) | Does the skill assume another skill has already run? Are there dependency cycles? | Dimension 5 |
+| **SK-4** Cross-Skill Dependencies, Handoffs, Loop Detection | Does the skill assume another skill ran? Does it `load_skill` mid-workflow (unreachable steps)? Terminal handoff? Dependency cycle? | Dimension 5 (skill report) |
 | **SK-5** Complexity Budget | Does the skill body exceed Rule C/E/F complexity thresholds independently? | Dimensions 3, 4 |
-| **SK-6** Correlation & Consolidation | Are two skills likely to co-load in the same turn? Should they be merged? | Runtime Performance Risk |
+| **SK-6** Correlation & Consolidation | Do two skills require sequential loads in the same turn? Is there a tool-binding shadow? Should they be merged? | Runtime Performance Risk |
 | **SK-7** Architecture Performance Surface | What is the aggregate context-load overhead of the skill architecture? | Runtime Performance Risk |
 
-Each criterion is rated **Pass / Warn / Fail** per skill. SK-4 includes dependency loop detection: a directed graph is built across all skills and checked for cycles — any cycle is a **dependency deadlock** and reported as a separate finding.
+Each criterion is rated **Pass / Warn / Fail** per skill. SK-4 covers three cases: backward assumptions (violation), mid-body `load_skill` (violation — steps after it are unreachable), and terminal handoffs (document neutrally, note chain depth). Loop detection builds a directed graph from forward `load_skill` pointers — any cycle is a **routing deadlock** and reported as a separate finding.
 
 ## Utility Scripts
 
@@ -90,7 +90,7 @@ python scripts/extract_agent_info.py path/to/agent.yaml --search-root /path/to/p
 python scripts/extract_agent_info.py path/to/agent.yaml --field skills
 ```
 
-**Extracted fields:** `name`, `display_name`, `kind`, `llm`, `tools`, `collaborators`, `context_variables`, `instructions_length`, `guidelines_count`, and for each resolved skill: `description`, `allowed_tools`, `scripts/`, `references/`, `has_wxo_yaml`, `skill_file`.
+**Extracted fields:** `name`, `display_name`, `kind`, `llm`, `tools`, `collaborators`, `context_variables`, `instructions_length`, `guidelines_count`, and for each resolved skill: `description`, `name_length`, `description_length`, `name_too_long`, `description_too_long`, `unmatched_placeholders`, `allowed_tools`, `scripts/`, `references/`, `skill_file`.
 
 **Skill discovery:** searches recursively from `--search-root` (default: agent YAML directory) for `SKILL.md` files whose frontmatter `name` matches the skill name. Falls back to parent directory name matching.
 
@@ -98,7 +98,6 @@ python scripts/extract_agent_info.py path/to/agent.yaml --field skills
 ```
 <skill-name>/
 ├── SKILL.md           # frontmatter: name, description, allowed-tools
-├── WXO.yaml           # optional: server-side skill config
 ├── scripts/           # optional: Python scripts available at runtime
 │   └── *.py
 └── references/        # optional: reference files available at runtime
@@ -202,7 +201,7 @@ All findings quote the original text directly. Two conventions apply regardless 
 | Cross-skill dependency (unidirectional) | K T1 | SK-4 | Hidden sequencing contract |
 | Dependency loop (cycle in dependency graph) | K T2 | SK-4 | Routing deadlock — score 0 for primary skills |
 | Skill body exceeds Rule C/E/F thresholds | L | SK-5 | Per-skill achievability failure |
-| Correlated skill pair likely to co-load | M | SK-6 | Per-turn latency overhead |
+| Sequential skill-load pair (same-turn) | M | SK-6 | Per-turn latency overhead |
 | Skill architecture surface (count, size, ambiguity) | N | SK-7 | Aggregate context-load overhead |
 
 ## Files in This Skill

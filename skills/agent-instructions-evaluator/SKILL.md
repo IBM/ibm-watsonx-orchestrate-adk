@@ -41,10 +41,11 @@ Before beginning analysis, collect all available metadata and context.
 1. **Extract agent metadata** (if evaluating a YAML file):
    ```bash
    python scripts/extract_agent_info.py <agent.yaml> --json
-   # If SKILL.md files live outside the agent's directory, point at the project root:
+   # If SKILL.md / collaborator YAML files live outside the agent's directory, point at the project root:
    python scripts/extract_agent_info.py <agent.yaml> --search-root /path/to/project --json
    ```
-   This provides: name, display_name, kind, llm, collaborators, tools, context variables, instructions length, guidelines count, and the full **skills list** with each skill resolved.
+   This provides: name, display_name, kind, llm, collaborators (**with each collaborator resolved**), tools, context variables, instructions length, guidelines count, and the full **skills list** with each skill resolved.
+   - Co-located collaborator YAML files (same directory as the agent) are found automatically; remote files require `--search-root`.
    - Tool: [`extract_agent_info.py`](scripts/extract_agent_info.py)
 
 2. **Extract tool metadata** for each referenced tool or agent collaborator:
@@ -59,6 +60,11 @@ Before beginning analysis, collect all available metadata and context.
    This provides: tool signatures, parameters, return types, descriptions
    - Tool: [`extract_tool_info.py`](scripts/extract_tool_info.py)
 
+   **When reviewing tool metadata, flag any tool as a potential retrieval surface if:**
+   - Its `kind` is `knowledge_base`, OR
+   - Its name or description contains any of: `search`, `query`, `retrieve`, `lookup`, `knowledge`, `kb`, `rag`, `find`, `fetch`, `document`, `semantic`
+   - For flagged tools: note any `top_k`, `max_results`, `limit`, or `num_passages` parameter and its default value. If none exists, record the passage count as **unbounded**.
+
 3. **Identify missing tool definitions**: Note which tools/collaborators are referenced but not available for inspection
 
 4. **Organize the data**: Create a complete picture of:
@@ -68,6 +74,7 @@ Before beginning analysis, collect all available metadata and context.
    - What context variables exist
    - What guidelines constrain behavior
    - What skills are attached and what each skill brings (allowed-tools, scripts, references)
+   - Which tools are retrieval/knowledge-base surfaces, their passage-count limits, and where they are referenced (agent instructions, collaborator, or skill body)
 
 **Only after gathering all data**, proceed to analysis. This ensures:
 - Tool grounding assessment is based on actual tool signatures, not assumptions
@@ -97,7 +104,60 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
    - 1+ critical constraints if the action contains MUST/NEVER/ALWAYS language
    - Potential tool triggers if the action specifies calling a tool/collaborator
 
-3. **Collaborators list** (`collaborators:`): Count the number of collaborators referenced. Each collaborator represents a tool-required behavior that needs trigger conditions, parameter specifications, and result handling.
+3. **Collaborators list** (`collaborators:`): Each entry names a subordinate agent the supervisor can delegate to. The script now resolves each name to its YAML file (co-located first, then `--search-root`) and extracts: `display_name`, `description`, `kind`, `llm`, `tools`, nested `collaborators`, `skills`, `instructions_length`, `guidelines_count`, and `collocated` flag.
+
+   For each resolved collaborator, apply the **Collaborator Health** checks (**CO-1 through CO-7**) described below — these are the exact parallel of the SK-1 through SK-7 skill checks, applied to the collaborator's agent YAML instead of a SKILL.md body.
+
+   **CO-1 — Single Responsibility**: Does the collaborator agent cover exactly one domain or capability? Count the distinct tool categories and top-level behavioral sections in its `instructions:`. More than one primary workflow is a smell; three or more is a violation.
+
+   **CO-2 — Distinct, Non-Overlapping Scope**: Do any two collaborators share coverage for the same user intent, topic, or trigger condition? Compare each collaborator's `description` field and `instructions:` scope statements against every other collaborator in the parent agent's `collaborators:` list. Overlapping descriptions force the supervisor to make an ambiguous routing decision — this is a systematic reliability failure, not an edge case. Flag every pair with detectable overlap, quote the overlapping text, and rate the overlap: *Exact*, *High*, *Moderate*, or *Low*.
+
+   **CO-3 — Routing Clarity (Name + Description)**: Is the collaborator `name` specific enough to be meaningfully different from all other collaborator names? Is the `description` field clear, specific, and complete enough that the supervisor — without reading the instructions body — can decide whether to route to this collaborator for a given user turn? Check: does the description explicitly state what intents it covers AND what intents it does NOT cover (boundary conditions)?
+
+   **CO-4 — No Cross-Collaborator Dependencies (including dependency loops)**: Does the collaborator's instructions assume that another collaborator has already run, set state, or returned a value? Look for references to "after X agent", "the result from the previous agent", or implicit state assumptions that could only come from a prior collaborator execution. Collaborators must be independently invocable.
+
+   **Additionally, check for dependency loops across the full collaborator set.** A dependency loop exists when collaborator A depends on state from collaborator B, and collaborator B depends on state from collaborator A — or any longer chain. Use the same directed-graph / cycle-detection approach as SK-4.
+
+   **Signals that indicate a dependency edge from collaborator A to collaborator B:**
+   - Collaborator A's instructions reference a tool exclusively available in collaborator B's `tools:` list
+   - Collaborator A's instructions reference state or outputs that can only be produced by collaborator B's execution path
+   - Collaborator A's instructions contain phrases implying B must have already acted (e.g., "once the account is selected", "after authentication")
+   - Collaborator A's `collaborators:` list nests collaborator B (creating a direct dispatch dependency)
+
+   **CO-5 — Instruction Complexity Budget**: Apply the same complexity analysis used for agent instructions to each collaborator's `instructions:` and `guidelines:`. Collaborators are just agents with their own instruction surface — the same rules apply:
+   - Count lines of instruction content (apply Rule E thresholds)
+   - Count nested if/then branches (apply Rule C thresholds)
+   - Count active operational rules per turn (apply Rule F budget)
+   - Count MUST/NEVER/ALWAYS/EXACTLY constraints (apply Rule B)
+   - Count implicit state variables (apply Rule A)
+   Report each collaborator's complexity signals separately from agent-level counts.
+
+   **CO-6 — Collaborator Correlation and Consolidation**: Are any two collaborators so closely related in domain or trigger conditions that they are likely to be dispatched in the same turn or in immediate succession? Assess each collaborator pair for:
+   - **Adjacent trigger intents**: Intents that users commonly express together may span two collaborators, forcing multi-hop dispatch per turn.
+   - **Cross-instruction tool references**: A collaborator's instructions that reference tools exclusively available in another collaborator's `tools:` create coupling that requires co-dispatch.
+
+   **Note on shared tools:** Two collaborators sharing tools is common and expected — it is not itself a consolidation signal. Do not recommend merging collaborators solely because they share tools.
+
+   **Consolidation recommendation rule**: Recommend merging two collaborators into one when:
+   - They have CO-2 Moderate or High overlap AND their intents plausibly co-occur in a single user turn, OR
+   - One collaborator's instructions explicitly require tools available only in another collaborator's context.
+
+   **CO-7 — Collaborator Architecture Performance Surface**: Assess the aggregate runtime cost of the collaborator architecture as a whole (see Rule N thresholds):
+   - **Collaborator count**: total number of collaborators (>5: Medium; >10: High)
+   - **Per-collaborator instructions size**: lines per collaborator (>100: Medium; >150: High)
+   - **Routing ambiguity**: average number of plausible collaborator candidates per typical user turn (>2: Medium; >4: High)
+   - **Multi-collaborator turns**: estimated proportion of user intents that plausibly require ≥2 collaborator calls (>20%: Medium; >40%: High)
+   - **Re-dispatch frequency**: evidence of multiple collaborator hops per turn in the supervisor's instructions (any confirmed: Medium)
+   - **Nested collaborator depth**: any collaborator that itself has collaborators (depth > 1: Medium; depth > 2: High)
+   - **Combined instruction cost**: estimated tokens across all collaborator instruction bodies that could be involved in one turn (>2,000: Medium; >4,000: High)
+   Report each component with its measured value and risk rating, then produce an overall collaborator dispatch overhead rating (Low / Medium / High).
+
+   **Structural checks for each resolved collaborator:**
+   - **`description`**: Does it give the supervisor enough routing signal (CO-3)? Vague descriptions cause misdirected dispatch.
+   - **`tools:`**: The tool list available to the collaborator. Check whether every tool referenced in its instructions is present. Missing tools are execution gaps (feeds CO-1 and CO-5).
+   - **`collaborators:`**: Nested collaborators. Each nested entry adds another dispatch hop and potential CO-4 dependency edge.
+   - **`instructions_length` / `guidelines_count`**: Directly feeds CO-5 complexity budget.
+   - **`collocated`**: Whether the YAML was found co-located with the parent agent or resolved via `--search-root`. Remote collaborators may not be available for inspection in all environments.
 
 4. **Tools list** (`tools:`): Count the number of tools referenced. Add these to the tool-required behaviors count.
 
@@ -109,7 +169,6 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
    ```
    <skill-name>/
    ├── SKILL.md           # frontmatter: name, description, allowed-tools
-   ├── WXO.yaml           # optional: server-side skill config
    ├── scripts/           # optional: Python scripts (.py) available to the skill at runtime
    │   └── *.py
    └── references/        # optional: reference files (any extension) loaded at runtime
@@ -124,20 +183,32 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
 
    **SK-3 — Routing Clarity (Name + Description)**: Is the skill `name` specific enough to be meaningfully different from all other skill names? Is the `description` frontmatter clear, specific, and complete enough that the agent — without reading the body — can decide whether this skill applies to a given user turn? A description that requires the agent to already know the domain details to understand it is circular. A description that is vague enough to match multiple domains is ambiguous. Check: does the description explicitly state what intents it covers AND what intents it does NOT cover (boundary conditions)?
 
-   **SK-4 — No Cross-Skill Dependencies (including dependency loops)**: Does the skill body assume that another skill has already run, set state, or returned a value? Look for references to "after X skill", "the result from the previous skill", "the intent identified earlier", or implicit assumptions about state that could only come from a previous skill execution. Skills must be independently executable — a skill that requires a prior skill to have run cannot be reliably activated in all valid routing paths.
+   **SK-3 — Frontmatter validation (hard limits that prevent the skill from loading):**
+   - **Name length**: The `name` field must be ≤ 64 characters. A name exceeding 64 characters will prevent the skill from importing. Flag immediately as a hard failure — the skill will not be reachable at all.
+   - **Description length**: The `description` field must be ≤ 1024 characters. Past this limit the skill will not load. Flag immediately as a hard failure.
+   - **Unmatched `{{placeholder}}` tokens**: Any `{{identifier}}` in the description or body with no matching `param` entry quietly becomes a hole — the model reads a sentence with a gap in it. Scan both the description and the body for `{{...}}` patterns and verify each has a matching `param`. Flag unmatched placeholders as a hard failure.
 
-   **Additionally, check for dependency loops across the full skill set.** A dependency loop exists when skill A depends on state from skill B, and skill B depends on state from skill A — or any longer chain (A → B → C → A). Loops make it impossible to determine which skill can legitimately be loaded first, creating a deadlock in routing logic that no amount of agent reasoning can resolve.
+   **SK-4 — Cross-Skill Dependencies, Mid-Body Handoffs, and Dependency Loops**: This check covers three distinct cases. Assess each independently.
+
+   **Case 1 — Backward assumption (violation):** Does the skill body assume that another skill has already run, set state, or returned a value? Look for references like "after X skill", "the result from the previous skill", "the intent identified earlier", or implicit state assumptions that could only come from a prior skill's execution. Skills must be independently executable — a skill that requires a prior skill to have run cannot be reliably activated in all valid routing paths.
+
+   **Case 2 — Mid-body `load_skill` (violation):** Does the skill body issue a `load_skill` call before its own work is complete, and then expect to resume its own steps after? When the new skill loads, the current skill's instructions are **gone** — there is no returning. Any steps written after a mid-body `load_skill` are unreachable. Detect this by checking whether the `load_skill` call appears before the skill's terminal step and whether subsequent steps depend on coming back to this body.
+
+   **Case 3 — Terminal handoff (document, do not flag as violation):** A skill body may issue a `load_skill` call as its **last action**, after all of its own steps are complete. This is a valid one-way handoff — the skill has finished its work, and the next skill picks up from the conversation state. Document these handoffs neutrally in the report (note the target skill). If a chain of terminal handoffs exists (A → B → C → …), note the chain depth — multiple hops mean each skill's instructions are replaced in sequence, which is a "telephone game" risk worth flagging for the author to assess. Document; do not penalise.
+
+   **Dependency loop check (violation):** Build a directed graph using **forward `load_skill` pointers**: draw an edge A → B if skill A's body contains a `load_skill` call to skill B (mid-body or terminal). Check this graph for cycles. A cycle means whichever skill loads second erases the one that loaded first — neither finishes. Any cycle is a violation regardless of where in the body the `load_skill` call appears.
 
    **How to detect loops:**
-   1. Build a directed dependency graph: for each skill, draw an edge to every other skill whose prior execution it assumes (explicitly or implicitly).
-   2. Check for cycles in that graph. A cycle of length 2 (A ↔ B) is the most common; longer cycles (A → B → C → A) are possible in larger skill sets.
-   3. Any cycle, regardless of length, is a **loop violation** — report it as a separate finding.
+   1. For each skill, find every `load_skill` call in its body — note both mid-body and terminal calls.
+   2. Draw a directed edge for each: skill A → skill B.
+   3. Check the full graph for cycles of any length (A → B → A, or A → B → C → A, etc.).
+   4. Any cycle is a **loop violation** — report it as a separate finding, naming all skills in the cycle.
 
    **Signals that indicate a dependency edge from skill A to skill B:**
-   - Skill A's body references a tool that is exclusively in skill B's `allowed-tools` (and not in A's own `allowed-tools` or the agent's top-level `tools:`)
+   - Skill A's body contains an explicit `load_skill` call targeting skill B (mid-body: violation; terminal: document)
    - Skill A's body references state, context variables, or outputs that can only be set by skill B's execution path
    - Skill A's body contains phrases like "after selecting the product" or "once the account is identified" where the selection/identification is the job of another named skill
-   - Skill A's body instructs a `load_skill` call to skill B as a prerequisite before proceeding
+   - Skill A's body references a tool that is exclusively in skill B's `allowed-tools` (and not in A's own `allowed-tools` or the agent's top-level `tools:`)
 
    **SK-5 — Instruction Complexity Budget**: Apply the same complexity analysis used for agent instructions to each skill's `SKILL.md` body. Skills are just agent instructions scoped to a domain — the same rules apply:
    - Count lines of instruction content in the body (apply Rule E thresholds)
@@ -147,45 +218,74 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
    - Count implicit state variables (apply Rule A)
    A skill that individually exceeds any Rule C/E/F threshold is a complexity risk, regardless of how the agent-level instructions score. Report each skill's complexity signals separately.
 
-   **SK-6 — Skill Correlation and Consolidation**: Are any two skills so closely related that they are likely to be loaded in the same turn or in immediate succession? Assess each skill pair for:
-   - **Shared `allowed-tools`**: Skills that share ≥1 tool can both be candidates for the same user turn. Skills that share ≥2 tools are likely co-domain and should be evaluated for consolidation.
-   - **Adjacent trigger intents**: Intents that users commonly express together in one message (e.g. "show my balance and last transactions") may span two skills, forcing a multi-skill load per turn.
-   - **Cross-body tool references**: A skill body that instructs the agent to call a tool listed in another skill's `allowed-tools` creates a digression-based coupling — both instruction bodies will be in-context simultaneously.
+   **SK-6 — Skill Correlation and Consolidation**: Are any two skills so closely related in domain or trigger conditions that the agent will need to load them in immediate succession within a single user turn? Assess each skill pair for:
+   - **Adjacent trigger intents**: Intents that users commonly express together in one message (e.g. "show my balance and last transactions") may span two skills, forcing sequential `load_skill` calls. Each call replaces the active skill body — the first skill's instructions are gone by the time the second loads.
+   - **Cross-body `load_skill` references**: A skill body that instructs the agent to `load_skill` another skill before the first body's own work is complete creates an instruction-loss risk (see SK-4). This is a coupling signal, not just a performance signal.
+   - **Tool-binding shadow**: If a tool appears in any skill's `allowed-tools`, it is removed from the agent's base tool set. Check whether any tool is listed in a skill's `allowed-tools` AND also bound at the agent's top-level `tools:`. If so, the agent cannot call that tool when no skill is active — a silent execution gap.
 
-   **Consolidation recommendation rule**: Recommend merging two skills into one when any of the following hold:
-   - They share ≥2 tools in `allowed-tools`, OR
+   **Consolidation recommendation rule**: Recommend merging two skills into one when:
    - They have SK-2 Moderate or High overlap AND their intents plausibly co-occur in a single user turn, OR
-   - One skill's body explicitly triggers a tool owned by the other skill.
+   - One skill's body issues a `load_skill` call to the other mid-workflow (indicating inseparable sequential dependency).
 
-   **SK-7 — Skill Architecture Performance Surface**: Assess the aggregate runtime cost of the skill architecture as a whole using these components (see Rule N in [`signal-rules.md`](signal-rules.md) for thresholds):
+   **SK-7 — Skill Architecture Performance Surface**: Assess the aggregate runtime cost of the skill architecture as a whole using these components (see Rule N in [`signal-rules.md`](signal-rules.md) for thresholds). Because only one skill body is in the prompt at a time, the cost is per-load, not per-turn-sum.
    - **Skill count**: total number of skills (>5: Medium; >10: High)
    - **Per-skill body size**: lines of instruction per skill body (>100: Medium; >150: High)
    - **Routing ambiguity**: average number of plausible skill candidates per typical user turn (>2: Medium; >4: High)
-   - **Multi-skill turns**: estimated proportion of user intents that plausibly span ≥2 skills (>20%: Medium; >40%: High)
-   - **Re-load frequency**: evidence of multiple `load_skill` calls per turn in the agent's instructions (any confirmed: Medium)
-   - **Combined token cost**: estimated tokens across all skill bodies that could plausibly be loaded in one turn (>2,000: Medium; >4,000: High)
+   - **Load transitions per turn**: estimated number of `load_skill` calls per turn for multi-step intents (>1 per turn: Medium; >2 per turn: High)
+   - **Re-load frequency**: evidence that the agent reloads the same skill within a single turn (any confirmed: Medium)
+   - **Per-load token cost**: estimated tokens for the largest skill body likely to be loaded in one turn (>2,000: Medium; >4,000: High)
    Report each component with its measured value and risk rating, then produce an overall skill load overhead rating (Low / Medium / High).
+
+   **SK-8 — No Platform-Duplicated Content**: Does the skill body or the agent instructions repeat content that the platform already writes automatically? Platform-generated content appearing in author-written text wastes tokens on every turn and creates two places for the same information to drift apart.
+
+   **Content the platform already provides — never write these in a skill body or agent instructions:**
+   - When to call `load_skill`, and instructions not to reload the skill that is already active
+   - That loading a skill replaces the previous one
+   - How to invoke a skill's scripts and what arguments they take
+   - How to read a reference file, and instructions not to read one twice
+   - The skill's own name and purpose as a header at the top of the body
+   - Routing trigger phrases — these belong in the `description` frontmatter only; repeating them in agent instructions pays catalog tokens twice and creates drift
+
+   **Signals to check:**
+   - Agent instructions that document `load_skill` mechanics (when to load, that loading replaces the previous skill, how to call the platform back) → flag as redundant platform documentation
+   - Skill body that opens with the skill's name or a restatement of its purpose → flag as redundant preamble
+   - Agent instructions that repeat verbatim phrases already present in skill `description` frontmatter → flag as duplicated routing signal
+
+   **Effect:** Flag as token waste and drift risk. Recommend removing the duplicated content from the author-written file.
 
    **Structural checks for each skill:**
    - **`description`** (frontmatter): Does it give the agent enough signal to decide when to load this skill (SK-3)? Vague descriptions cause misdirected routing.
    - **`allowed-tools`**: The explicit tool allowlist for this skill context. Check whether every tool the SKILL.md body instructs the agent to call is present here. Tools referenced in SKILL.md body but absent from `allowed-tools` cannot be called — this is an execution gap (feeds SK-1 and SK-5).
-   - **`scripts/`**: Python scripts uploaded to the skill and available for the agent to invoke as tools within that skill context. Each `.py` file exposes callable functionality — treat these like tools when assessing execution feasibility (SK-5).
-   - **`references/`**: Reference files (lookup tables, policy docs, etc.) available to the skill at runtime. Their presence may explain otherwise-invisible data sources referenced in SKILL.md body.
-   - **`WXO.yaml`**: Server-side skill configuration. Note its presence but treat its contents as infrastructure-level.
-
+   - **`scripts/`**: Python scripts uploaded to the skill and available for the agent to invoke as sandboxed compute — **no network access, no file-system access**. Check all of the following:
+     - Does the body instruct the script to call an external API or read a file? Flag as an execution gap — that work must move to a tool.
+     - Does the body reference the exact script path (e.g., `scripts/calculate_fee.py`)? If not, the invocation may fail silently.
+     - Do the argument names in the body match the script's declared parameters exactly? Mismatches are silent failures.
+     - Does the body reproduce the script's logic in prose (e.g., re-stating the fee formula in text)? Flag — the model may do the math itself instead of calling the script, producing inconsistent results.
+   - **`references/`**: Reference files (lookup tables, policy docs, etc.) available to the skill at runtime. They are read on demand and stay in context until the skill changes. Check all of the following:
+     - Is each reference pointer conditional (e.g., "read X if the customer is on a legacy plan")? A bare pointer with no condition either gets read every turn or never — flag as ambiguous.
+     - Does the body ever instruct reading the same reference twice? Flag — it is already in context.
+     - Does the body put lookup tables or policy detail inline instead of in a reference? Flag — inline detail inflates the body size permanently; the detail should live in the reference and be read on demand.
+     - Does the body use the exact reference path? Vague pointer names can fail silently.
+     - Is the workflow logic in the body and the detail/lookup tables in the references? If the split is reversed, correct it.
 **Counting rules for YAML:**
 - **Prompt length**: Count only the lines in the `instructions:` field (exclude YAML structure, metadata, and guidelines)
 - **Critical constraints**: Count MUST/NEVER/ALWAYS/EXACTLY in both `instructions:` and `guidelines:` sections
 - **Nested conditionals**: Count if/then branches in `instructions:` plus each guideline's condition→action pair
-- **Tool-required behaviors**: Sum of collaborators + tools (e.g., 12 collaborators + 1 tool = 13 tool-required behaviors)
+- **Tool-required behaviors**: Sum of collaborators + tools (e.g., 14 collaborators + 1 tool = 15 tool-required behaviors)
 - **Exact phrases**: Count "Respond exactly:", "Say:", and similar requirements in `instructions:` and `guidelines:`
+- **Collaborator routing behaviors**: Each collaborator adds at least 1 conditional routing decision (when to dispatch) plus the full instruction surface of that collaborator's own agent YAML
+- **Per-collaborator complexity**: Count lines, nested branches, active rules, and implicit state for each collaborator's `instructions:` independently — report these separately from agent-level counts (CO-5)
+- **Collaborator overlap pairs**: Count the number of collaborator description pairs with detectable scope overlap (CO-2)
+- **Correlated collaborator pairs**: Count pairs where shared tools or adjacent intents make co-dispatch likely (CO-6)
+- **Collaborator performance surface**: Compute the seven CO-7 components and their aggregate risk rating
 - **Skill routing behaviors**: Each skill listed adds at least 1 conditional routing decision (when to `load_skill`) plus the full instruction surface of that skill's `SKILL.md` body
 - **Per-skill complexity**: Count lines, nested branches, active rules, and implicit state for each skill's `SKILL.md` body independently — report these separately from agent-level counts (SK-5)
 - **Skill overlap pairs**: Count the number of skill description pairs with detectable scope overlap (SK-2)
-- **Correlated skill pairs**: Count pairs where shared `allowed-tools` or adjacent intents make co-loading likely (SK-6)
-- **Skill performance surface**: Compute the seven SK-7 components and their aggregate risk rating
+- **Correlated skill pairs**: Count pairs where adjacent intents make sequential loading likely, or where a mid-body `load_skill` creates inseparable coupling (SK-6)
+- **Tool-binding shadows**: Count tools that appear in any skill's `allowed-tools` AND also in the agent's top-level `tools:` (SK-6)
+- **Skill performance surface**: Compute the six SK-7 components and their aggregate risk rating
 
-**Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_tool_info.py`](scripts/extract_tool_info.py)) to extract tool and skill metadata before scoring the "Execution & Tool Grounding" dimension. Both scripts live under `scripts/` relative to this skill file — not the top-level workspace. `extract_agent_info.py` now includes full skill resolution: pass `--search-root` pointing at the project root if SKILL.md files are not co-located with the agent YAML. If tools/collaborators/skills are referenced but their formal definitions cannot be extracted (file not found, unsupported format), note this as a limitation. The evaluation can proceed, but recommend that the user provide definitions and re-run the evaluation for a complete assessment.
+**Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_tool_info.py`](scripts/extract_tool_info.py)) to extract tool, collaborator, and skill metadata before scoring the "Execution & Tool Grounding" dimension. Both scripts live under `scripts/` relative to this skill file — not the top-level workspace. `extract_agent_info.py` now resolves both collaborator agent YAMLs (co-located first, then `--search-root`) and skills (SKILL.md). Pass `--search-root` pointing at the project root when collaborator YAMLs or SKILL.md files are not co-located with the agent YAML. If collaborators, tools, or skills are referenced but their formal definitions cannot be extracted, note this as a limitation and proceed — recommend that the user provide definitions and re-run for a complete assessment.
 </Step>
 
 <Step>
@@ -199,19 +299,35 @@ Use the gathered data to identify and count:
 - Subjective classifiers
 - Tool-required behaviors
 - Hard conflicts between rules
+- **Knowledge base / retrieval surfaces** — for each tool identified as a retrieval surface in Step 1:
+  - **Passage count limit**: stated `top_k`/`max_results`/`limit` value, or "unbounded" if none
+  - **Call condition**: is the tool called unconditionally on every turn, on most turns, or conditionally? Quote the trigger phrase from the instructions.
+  - **Number of KB calls per turn**: count how many times the tool (or different retrieval tools) appear in a single turn's workflow
+  - **Location**: agent instructions, collaborator instructions, or skill body (note the skill name and its estimated load frequency from SK-7)
+  - **Estimated payload**: stated passage count × ≥500 tokens (conservative lower bound; actual chunk size is a runtime variable not visible from static analysis — state this as an approximation and flag the exact value as unverifiable without runtime inspection), or flag as unknown if unbounded
+
+For each resolved collaborator, additionally extract:
+- **CO-1**: Number of distinct tool categories / top-level behavioral workflows in the collaborator's instructions
+- **CO-2**: Any overlap with other collaborators — pairs, quoted evidence, overlap rating
+- **CO-3**: Whether the `description` explicitly states covered intents AND boundary conditions (what it does NOT cover)
+- **CO-4**: Any cross-collaborator state assumptions — explicit references to another collaborator's output or implicit state; **plus**: build the dependency graph across all collaborators and check for cycles — list any loop found with all collaborators in the cycle named
+- **CO-5**: Per-collaborator Rule A/B/C/E/F signal counts (lines, branches, active rules, exact phrases, implicit state)
+- **CO-6**: Correlated collaborator pairs — shared tools, adjacent intent co-occurrence, cross-instruction tool references; consolidation recommendation (yes/no with justification)
+- **CO-7**: Collaborator architecture performance surface — all seven components with measured values and risk ratings; overall collaborator dispatch overhead rating
 
 For each resolved skill, additionally extract:
 - **SK-1**: Number of distinct tool calls / primary workflows in the skill body
 - **SK-2**: Any overlap with other skills — pairs, quoted evidence, overlap rating
 - **SK-3**: Whether the `description` explicitly states covered intents AND boundary conditions (what it does NOT cover)
-- **SK-4**: Any cross-skill state assumptions — explicit references to another skill's output or implicit state that could only come from a prior skill; **plus**: build the dependency graph across all skills and check for cycles — list any loop found as a separate item with all skills in the cycle named
+- **SK-4**: Case 1 — backward state assumptions (explicit or implicit references to another skill's prior execution). Case 2 — mid-body `load_skill` calls (note position: before or at terminal step; flag if before). Case 3 — terminal `load_skill` handoffs (document neutrally, note chain depth if > 1 hop). **Plus**: build the forward-pointer graph across all skills and check for cycles — report any loop as a separate finding with all skills in the cycle named.
 - **SK-5**: Per-skill Rule A/B/C/E/F signal counts (lines, branches, active rules, exact phrases, implicit state)
-- **SK-6**: Correlated skill pairs — shared `allowed-tools`, adjacent intent co-occurrence, cross-body tool references; consolidation recommendation (yes/no with justification)
-- **SK-7**: Skill architecture performance surface — all seven components with measured values and risk ratings; overall skill-load overhead rating
+- **SK-6**: Correlated skill pairs — adjacent intent co-occurrence, cross-body `load_skill` references; any tool-binding shadows (tool in skill `allowed-tools` also bound at agent level); consolidation recommendation (yes/no with justification)
+- **SK-7**: Skill architecture performance surface — all six components with measured values and risk ratings; overall skill-load overhead rating
 
 Document the analysis mode in the report:
-- **Enhanced Mode**: Used utility scripts to extract agent and tool metadata; SKILL.md bodies read and analyzed for Skill Health (SK-1 through SK-5)
+- **Enhanced Mode**: Used utility scripts to extract agent and tool metadata; collaborator YAMLs and SKILL.md bodies read and analyzed for Collaborator Health (CO-1 through CO-7) and Skill Health (SK-1 through SK-7)
 - **Direct Analysis Mode**: Manual analysis only (no tool metadata available)
+- **Partial Collaborator Mode**: Agent has a `collaborators:` list but some collaborator YAMLs could not be resolved — Collaborator Health assessment is limited to the name/description visible in the parent agent's instructions
 - **Partial Skill Mode**: Agent has a `skills:` list but SKILL.md files could not be resolved — Skill Health assessment is limited to description frontmatter only
 </Step>
 
@@ -227,14 +343,30 @@ Evaluate the artifact across these dimensions using the scoring rubrics in [`dim
 
 Apply the deterministic signal rules from [`signal-rules.md`](signal-rules.md) to bound your judgment.
 
-**When skills are present, also produce a Skill Health assessment** for each skill using the SK-1 through SK-7 criteria. Skill Health is reported per-skill with a Pass / Warn / Fail rating for each criterion — it does not produce a single numeric score but feeds directly into the five agent dimensions and the Runtime Performance Risk section:
-- SK-1 violations raise complexity in Dimension 4 (Instruction Followability) — a bloated skill body inflates the effective instruction surface
-- SK-2 violations lower Dimension 2 (Scope & Applicability) — overlapping skills mean the agent cannot reliably determine when each applies
-- SK-3 failures lower Dimension 2 (Scope & Applicability) — unclear routing descriptions produce misdirected skill loads
-- SK-4 violations lower Dimension 5 (State & Conflict Manageability) — cross-skill dependencies create hidden state coupling
-- SK-5 failures lower Dimension 4 (Instruction Followability) and Dimension 3 (Execution & Tool Grounding) — complexity inside a skill degrades its own reliability independently of the agent instructions
-- SK-6 triggers raise `skill_load_overhead_risk` in the Runtime Performance Risk section — correlated skills that co-load per turn add measurable latency and instruction interference; paired with a consolidation recommendation when the trigger threshold is met
-- SK-7 surface assessment populates the full skill performance surface table in Runtime Performance Risk — the aggregate overhead rating (Low/Medium/High) is a deterministic output, not a judgment call
+**When collaborators are present, also produce a Collaborator Health assessment** for each resolved collaborator using the CO-1 through CO-7 criteria. Collaborator Health is reported per-collaborator with a Pass / Warn / Fail rating for each criterion — it does not produce a single numeric score but feeds directly into the five agent dimensions and the Runtime Performance Risk section:
+- CO-1 violations raise complexity in Dimension 4 (Instruction Followability) — a collaborator doing too much inflates the effective dispatch surface
+- CO-2 violations lower Dimension 2 (Scope & Applicability) — overlapping collaborators mean the supervisor cannot reliably determine which to call
+- CO-3 failures lower Dimension 2 (Scope & Applicability) — unclear collaborator descriptions produce misdirected dispatch
+- CO-4 violations lower Dimension 5 (State & Conflict Manageability) — cross-collaborator dependencies create hidden state coupling and can deadlock dispatch chains
+- CO-5 failures lower Dimension 4 (Instruction Followability) and Dimension 3 (Execution & Tool Grounding) — a complex collaborator is itself unreliable, degrading end-to-end reliability even if the supervisor instructions are clean
+- CO-6 triggers raise `collaborator_dispatch_overhead_risk` in the Runtime Performance Risk section — correlated collaborators that are co-dispatched per turn add measurable latency and instruction interference; paired with a consolidation recommendation when the trigger threshold is met
+- CO-7 surface assessment populates the collaborator architecture performance surface table in Runtime Performance Risk — the aggregate overhead rating (Low/Medium/High) is a deterministic output, not a judgment call
+
+**When skills are present, also produce a Skill Health assessment** for each skill using the SK-1 through SK-8 criteria. Skill Health is reported per-skill with a Pass / Warn / Fail rating for each criterion.
+
+**Important: skill health findings are reported in the per-skill reports, not as caps on the agent's five dimension scores.** A single bad skill does not make the whole agent unachievable — it only affects the achievability of that skill's own domain. The agent report shows a **Skill Health Summary table** (pass/warn/fail per SK criterion per skill) as context, but the agent's five dimension scores reflect only the agent's own instructions, guidelines, tools, and collaborators.
+
+**The one exception** is where a skill defect directly affects the agent's routing behavior (SK-2 overlap, SK-3 description failures, SK-6 tool-binding shadow) — these affect the agent's Dimension 2 (Scope & Applicability) and Dimension 3 (Execution & Tool Grounding) because they degrade the agent's ability to route and call tools correctly, not because of the skill's internal complexity:
+- SK-2 Exact or High overlap findings: lower agent Dimension 2 — the agent cannot reliably determine which skill to load
+- SK-3 hard-limit failures (name too long, description too long, unmatched placeholders): lower agent Dimension 3 — the skill is unreachable
+- SK-6 tool-binding shadow: lower agent Dimension 3 — a tool the agent expects to call is silently unavailable outside that skill
+
+All other SK findings (SK-1, SK-4, SK-5, SK-7, SK-8) stay in the per-skill report only:
+- SK-1 violations are noted in the skill's own report; they do not cap agent Dimension 4
+- SK-4 violations are noted in the skill's own report; they do not cap agent Dimension 5
+- SK-5 failures are noted in the skill's own report; they do not cap agent Dimensions 3 or 4
+- SK-7 surface assessment populates the skill performance surface table in Runtime Performance Risk — the aggregate overhead rating (Low/Medium/High) is a deterministic output added to the agent report's performance section, not to its five dimension scores
+- SK-8 (platform-duplicated content) is reported per skill and at agent level; it surfaces via Rule O (token optimization), not as a dimension cap
 </Step>
 
 <Step>
@@ -285,32 +417,49 @@ instructions_eval/
 
 **What goes in each report:**
 
-| Content | Agent report | Skill report |
-|---|---|---|
-| Agent-level instructions analysis (all 5 dimensions) | ✓ | — |
-| Agent-level Runtime Performance Risk | ✓ | — |
-| Skill Health Assessment table (all skills, cross-skill SK-2/SK-6/SK-7) | ✓ | — |
-| Consolidation recommendations (SK-6) | ✓ | — |
-| Skill architecture performance surface (SK-7) | ✓ | — |
-| Skill body analysis (5 dimensions applied to skill body) | — | ✓ |
-| SK-1, SK-3, SK-4, SK-5 deep analysis for this skill | — | ✓ |
-| Runtime Performance Risk for this skill body | — | ✓ |
-| Back-reference to agent report | — | ✓ |
-| Forward-references to all skill reports | ✓ | — |
+| Content | Agent report | Collaborator report | Skill report |
+|---|---|---|---|
+| Agent-level instructions analysis (all 5 dimensions) | ✓ | — | — |
+| Agent-level Runtime Performance Risk | ✓ | — | — |
+| Collaborator Health Assessment table (all collaborators, cross-collaborator CO-2/CO-6/CO-7) | ✓ | — | — |
+| Collaborator consolidation recommendations (CO-6) | ✓ | — | — |
+| Collaborator architecture performance surface (CO-7) | ✓ | — | — |
+| Skill Health Assessment table (all skills, cross-skill SK-2/SK-6/SK-7) | ✓ | — | — |
+| Skill consolidation recommendations (SK-6) | ✓ | — | — |
+| Skill architecture performance surface (SK-7) | ✓ | — | — |
+| Collaborator instructions analysis (5 dimensions applied to collaborator body) | — | ✓ | — |
+| CO-1, CO-3, CO-4, CO-5 deep analysis for this collaborator | — | ✓ | — |
+| Runtime Performance Risk for this collaborator body | — | ✓ | — |
+| Back-reference to agent report | — | ✓ | ✓ |
+| Forward-references to all collaborator and skill reports | ✓ | — | — |
+| Skill body analysis (5 dimensions applied to skill body) | — | — | ✓ |
+| SK-1, SK-3, SK-4, SK-5 deep analysis for this skill | — | — | ✓ |
+| Runtime Performance Risk for this skill body | — | — | ✓ |
+
+**Filename conventions (extended):**
+- Collaborator report: `collaborator_<name>_report.md` / `collaborator_<name>_report_harness.json`
+  - `<name>` = the collaborator's `name` field from its agent YAML (snake_case, no spaces)
 
 **Evaluation order and save-as-you-go:**
+
+> ⚠️ **Three mandatory side reports** — `token_optimization_report.md`, `performance_optimization_report.md`, and `reliability_optimization_report.md` — must ALL be written before the index. Set up your todo list to track all three explicitly and do not mark any of them complete until the file exists on disk. Missing any one of them is a hard omission failure.
+
 1. Extract all metadata (Step 1) — this is fast and must complete before any analysis
 2. Copy `rules-summary.md` from the skill directory into the output `eval/` directory — do this once, before writing any reports
-3. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-skill context
-4. Evaluate and save skill reports in **batches of at most 2 at a time** — analyse and write 2 skills, save both, then proceed to the next 2. Do not evaluate all skills simultaneously; batching limits context load and reduces the risk of analysis cross-contamination between skills
-5. Evaluate and save the **token optimization side report** after all skill reports are complete — always
-6. Evaluate and save the **performance optimization side report** after the token report — always; cross-references Rule O items for dual-benefit opportunities
-7. Evaluate and save the **reliability optimization side report** last among the three side reports — always; synthesises findings from all main reports and cross-references OPT-N and PERF-N items
-8. Write the **index file** last, after all reports are complete
+3. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-collaborator and cross-skill context
+4. Evaluate and save **collaborator reports** in **batches of at most 2 at a time** — analyse and write 2 collaborators, save both, then proceed to the next 2. Batching limits context load and reduces analysis cross-contamination
+5. Evaluate and save **skill reports** in **batches of at most 2 at a time** — same batching rule as collaborators
+6. Evaluate and save the **token optimization side report** after all collaborator and skill reports are complete — always; runs Rule O checklist
+7. Evaluate and save the **performance optimization side report** after the token report — always; runs Rule P checklist; cross-references OPT-N items for dual-benefit opportunities
+8. Evaluate and save the **reliability optimization side report** after the performance report — always; runs Rule Q checklist; synthesises findings from all main reports and cross-references OPT-N and PERF-N items
+9. **Gate check before writing the index:** confirm all three side reports (`token_optimization_report.md`, `performance_optimization_report.md`, `reliability_optimization_report.md`) exist in the output directory. If any is missing, write it now before proceeding.
+10. Write the **index file** last, after all reports are complete — include links to all three side reports in the Reference Documents section
+
+**When collaborator YAMLs cannot be resolved:** produce the agent report with a "Partial Collaborator Mode" note; omit collaborator reports for unresolved collaborators; list them in the index as `unresolved`. Still produce all three side reports — note partial mode as a limitation on collaborator-body coverage.
 
 **When SKILL.md files cannot be resolved:** produce the agent report with a "Partial Skill Mode" note; omit skill reports for unresolved skills; list them in the index as `unresolved`. Produce all three side reports — note partial mode as a limitation on skill-body coverage.
 
-**When there are no skills:** produce all reports including all three side reports. Reports will note the reduced surface (agent instructions only) and may be brief if no issues are found.
+**When there are no collaborators and no skills:** produce all reports including all three side reports. Reports will note the reduced surface (agent instructions only) and may be brief if no issues are found.
 </Step>
 </Steps>
 
@@ -364,9 +513,22 @@ Refer to these files for detailed guidance:
 4. Runtime Performance Risk (agent-level)
 5. At least 3-5 findings with evidence and recommendations
 6. Key risks and high-impact changes
-7. **Skill Health table** (when skills are present): one row per skill, SK-1 through SK-7 ratings with evidence notes
-8. Cross-skill overlap summary (SK-2), consolidation recommendations (SK-6), skill architecture performance surface (SK-7)
-9. Forward-links to each skill report: `See skill report: [skill-<name>_report.md](skill-<name>_report.md)`
+7. **Collaborator Health table** (when collaborators are present): one row per collaborator, CO-1 through CO-7 ratings with evidence notes
+8. Cross-collaborator overlap summary (CO-2), consolidation recommendations (CO-6), collaborator architecture performance surface (CO-7)
+9. **Skill Health table** (when skills are present): one row per skill, SK-1 through SK-7 ratings with evidence notes
+10. Cross-skill overlap summary (SK-2), consolidation recommendations (SK-6), skill architecture performance surface (SK-7)
+11. Forward-links to each collaborator report: `See collaborator report: [collaborator_<name>_report.md](collaborator_<name>_report.md)`
+12. Forward-links to each skill report: `See skill report: [skill-<name>_report.md](skill-<name>_report.md)`
+
+*Per-collaborator report* (`collaborator_<name>_report.md` + harness JSON), one per resolved collaborator:
+1. Full 5-dimension analysis of the collaborator's `instructions:` and `guidelines:` (treated as the instruction content)
+2. CO-1, CO-3, CO-4, CO-5 deep analysis sections
+3. Per-dimension scores with confidence levels
+4. Deterministic signal summary for this collaborator
+5. Runtime Performance Risk for this collaborator
+6. At least 2-4 findings specific to this collaborator
+7. Key risks and high-impact changes for this collaborator
+8. Back-link to agent report: `Part of agent evaluation: [agent_<name>_report.md](agent_<name>_report.md)`
 
 *Per-skill report* (`skill_<skill-name>_report.md` + harness JSON), one per resolved skill:
 1. Full 5-dimension analysis of the skill's `SKILL.md` body (treated as the instruction content)
@@ -380,7 +542,7 @@ Refer to these files for detailed guidance:
 
 *Token optimization report* (`token_optimization_report.md`) — always produced:
 1. Current per-turn token budget table: component, lines, estimated tokens, loaded every turn?
-2. Optimization inventory: one OPT-N entry per identified opportunity, with current cost, root cause, recommendation, and projected saving
+2. Optimization inventory: one OPT-N entry per identified opportunity, with current cost, removable lines as a **% of current component size**, root cause, recommendation, and projected saving expressed as `~X lines (~Y% of current size) → ~Z tokens saved per [turn type]`
 3. Post-optimization token budget estimates (before/after table per turn type)
 4. Implementation priority table (effort × token impact × reliability benefit)
 5. Per-skill token footprint reference (current lines, current tokens, target after optimizations)
@@ -407,10 +569,12 @@ Refer to these files for detailed guidance:
 *Index file* (`index.md`) + `rules-summary.md` (copied from skill directory):
 1. Table listing every report, its artifact type, and its overall verdict/band
 2. Agent-level scorecard summary (one row per dimension)
-3. Skill Health summary table (collapsed SK-1–SK-7 ratings per skill)
-4. List of any unresolved skills (SKILL.md not found)
-5. Links to all three side reports in Reference Documents, each with a one-line summary (issues found or baseline recorded)
-6. `rules-summary.md` present in the same `eval/` directory (copied, not regenerated)
+3. Collaborator Health summary table (collapsed CO-1–CO-7 ratings per collaborator)
+4. List of any unresolved collaborators (YAML not found)
+5. Skill Health summary table (collapsed SK-1–SK-7 ratings per skill)
+6. List of any unresolved skills (SKILL.md not found)
+7. Links to all three side reports in Reference Documents, each with a one-line summary (issues found or baseline recorded)
+8. `rules-summary.md` present in the same `eval/` directory (copied, not regenerated)
 
 **The markdown report must be:**
 - Specific and evidence-backed
