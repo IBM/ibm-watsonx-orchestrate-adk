@@ -751,6 +751,13 @@ class TestPollKnowledgeBaseStatus:
             assert mock_client.status.call_count >= 1
 
 class TestContentSourceKnowledgeBase:
+    @pytest.fixture(autouse=True)
+    def enable_knowledge_connectors(self, monkeypatch):
+        monkeypatch.setattr(
+            "ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KNOWLEDGE_CONNECTORS_ENABLED",
+            True,
+        )
+
     def test_import_content_source_knowledge_base_polls_sync_state(self, content_source_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
@@ -839,8 +846,8 @@ class TestContentSourceKnowledgeBase:
         mock_client.sync.assert_called_once_with('test-kb-id')
         poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
 
-    def test_import_content_source_skips_sync_when_local_without_flag(self, caplog, content_source_knowledge_base_content):
-        """Import of content_source KB in local env without the flag: sync must not be triggered."""
+    def test_import_content_source_skips_sync_when_local_without_flight_svc(self, caplog, content_source_knowledge_base_content):
+        """Import of content_source KB in local env without the Flight container: sync must not be triggered."""
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"12345": Mock(connection_id="conn-12345")}), \
@@ -861,8 +868,8 @@ class TestContentSourceKnowledgeBase:
             mock_client_instance.sync.assert_not_called()
             assert "--with-ingestion-from-external-source" in caplog.text
 
-    def test_update_content_source_skips_sync_when_local_without_flag(self, caplog, content_source_knowledge_base_content):
-        """Update of content_source KB in local env without the flag: sync must not be triggered."""
+    def test_update_content_source_skips_sync_when_local_without_flight_svc(self, caplog, content_source_knowledge_base_content):
+        """Update of content_source KB in local env without the Flight container: sync must not be triggered."""
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
              patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=False), \
@@ -880,8 +887,59 @@ class TestContentSourceKnowledgeBase:
 
             mock_client_instance.sync.assert_not_called()
             assert "--with-ingestion-from-external-source" in caplog.text
-        
-        
+
+
+class TestKnowledgeConnectorsDisabled:
+    """Tests for behaviour when KNOWLEDGE_CONNECTORS_ENABLED=False (the default)."""
+
+    def test_import_content_source_errors_when_connectors_disabled(self, caplog, content_source_knowledge_base_content):
+        """Importing a content_source KB while connectors are disabled must log an error and skip."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"12345": Mock(connection_id="conn-12345")}), \
+             caplog.at_level("ERROR"):
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
+
+            mock_client_instance = MockClient()
+            mock_client_instance.create_without_files = Mock()
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            knowledge_base_controller.import_knowledge_base("test.json", None)
+
+            mock_client_instance.create_without_files.assert_not_called()
+            mock_client_instance.sync.assert_not_called()
+            assert "not currently supported" in caplog.text
+
+    def test_update_content_source_errors_when_connectors_disabled(self, caplog, content_source_knowledge_base_content):
+        """Updating a content_source KB while connectors are disabled must log an error and return."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             caplog.at_level("ERROR"):
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            expected_id = uuid.uuid4()
+            mock_client_instance = MockClient(expected_id=expected_id)
+            mock_client_instance.update_without_files = Mock()
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            controller = KnowledgeBaseController()
+            controller.update_knowledge_base(expected_id, knowledge_base, Path('.'), sync=True)
+
+            mock_client_instance.update_without_files.assert_not_called()
+            mock_client_instance.sync.assert_not_called()
+            assert "not currently supported" in caplog.text
+
+
+class TestContentSourceMultiKBImport:
+    @pytest.fixture(autouse=True)
+    def enable_knowledge_connectors(self, monkeypatch):
+        monkeypatch.setattr(
+            "ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KNOWLEDGE_CONNECTORS_ENABLED",
+            True,
+        )
 
     def test_multi_kb_import_cli_app_id_not_mutated_across_iterations(self, content_source_knowledge_base_content):
         """cli_app_id must stay None across iterations so KB-2 falls back to its own app_id."""
@@ -938,6 +996,13 @@ class TestContentSourceKnowledgeBase:
 
 class TestConnectorKBExport:
     """Tests for knowledge_base_export() with connector (content_source) KBs."""
+
+    @pytest.fixture(autouse=True)
+    def enable_knowledge_connectors(self, monkeypatch):
+        monkeypatch.setattr(
+            "ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KNOWLEDGE_CONNECTORS_ENABLED",
+            True,
+        )
 
     def _make_kb(self, connection_id: str) -> KnowledgeBase:
         """Return a minimal connector KB whose content_source has a resolved connection_id."""

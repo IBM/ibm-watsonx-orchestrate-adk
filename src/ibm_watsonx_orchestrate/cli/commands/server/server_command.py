@@ -1,5 +1,6 @@
 import logging
 import os
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
 import platform
 import re
 import shutil
@@ -540,7 +541,8 @@ def server_start(
     with_ingestion_from_external_source: bool = typer.Option(
         False,
         '--with-ingestion-from-external-source', '-g',
-        help='Enable Apache Arrow Flight service for ingestion from external sources'
+        help='Enable Apache Arrow Flight service for ingestion from external sources',
+        hidden=not KNOWLEDGE_CONNECTORS_ENABLED,
     ),
     sequential_image_pull: bool = typer.Option(
         False,

@@ -25,6 +25,7 @@ from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown, check_safe_mode_and_prompt
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion, KnowledgeBaseSyncJob  # KnowledgeBaseSyncJob: DEFERRED (sync_job scheduling)
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
 # DEFERRED: format_cron_pattern_human, format_next_occurrence_relative unused until scheduling is re-enabled
 # from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.utils import format_cron_pattern_human, format_next_occurrence_relative
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
@@ -260,6 +261,13 @@ class KnowledgeBaseController:
                     continue
 
                 kb.validate_documents_or_index_exists()
+
+                if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
+                    logger.error(
+                        f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported."
+                    )
+                    continue
+
                 response = None
                 kb_id = None
                 if kb.content_source:
@@ -635,6 +643,12 @@ class KnowledgeBaseController:
 
         client = self.get_client()
         
+        if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
+            logger.error(
+                f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported."
+            )
+            return
+
         if kb.content_source:
             # content_source KB: PATCH /knowledge-bases/<id> with JSON body (no /documents multipart)
             kb.prioritize_built_in_index = True
