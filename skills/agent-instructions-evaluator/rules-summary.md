@@ -229,7 +229,7 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 **Agent instruction optimization patterns (permanent cost — highest leverage):**
 | Pattern | Check | Action |
 |---|---|---|
-| Procedure steps that belong in tools | Step-by-step workflow / retry / error handling logic in agent instructions | Move to tool contract; reduce to trigger + relay rule. For deterministic multi-step sequences: use **`nextTool` chaining** (`_meta.nextTool`) for straight-line ≤5-step Python sequences with no branches and single MCP server; use **Agentic Workflow** (`@flow` / WxO Agentic Workflow JSON) for chains with conditional branches, parallel steps, cross-server tools, or >5 steps. Both remove the sequence prose from agent instructions entirely. |
+| Procedure steps that belong in tools | Step-by-step workflow / retry / error handling logic in agent instructions | Move to tool contract; reduce to trigger + relay rule. For deterministic multi-step sequences: use **`nextTool` chaining** (`_meta.nextTool`) if ≤5 steps, single Python MCP server, branching (if any) is stable to hardcode, simple Q&A interaction only, no transaction audit; use **Agentic Workflow** (`@flow` / WxO Agentic Workflow JSON) if branch logic may evolve, multi-step user confirmation, cross-server tools, >5 steps, or transaction audit required. Both remove the sequence prose from agent instructions entirely. |
 | Stateful protocol sections | Inline counter, session flag, or multi-turn state machine (Rule A) | Move to server-side variable or tool return field |
 | Overcrowded tool-call contract sections | Per-tool parameter prose duplicating what a tool schema already specifies | Reduce to trigger + relay rule only |
 | Exact-phrase rules tied to backend hooks | Prefix generation, sentinel detection, verbatim relay rules driving plugin hooks | Move to pre/post invoke plugin |
@@ -272,21 +272,25 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 
 **Deterministic sequence offload — two mechanisms:**
 
-When instructions encode a deterministic tool sequence (no LLM branching between steps), move it out of the LLM reasoning path using the right mechanism:
+When instructions encode a deterministic tool sequence, move it out of the LLM reasoning path using the right mechanism. **This is not solely a performance optimisation:** when a confirmation step or high-stakes gate is expressed only in agent instructions, it is prompt-injectable — adversarial user messages can convince the LLM to skip it. Moving the sequence server-side makes every gate structurally mandatory and bypasses LLM reasoning entirely.
 
-| Mechanism | When to choose | Token saving | Latency saving |
-|---|---|---|---|
-| **`nextTool` chaining** (`_meta.nextTool`) | ≤5 steps, no branches, single Python MCP server | Removes step prose from instructions | Eliminates 1 LLM inference pass per chained step |
-| **Agentic Workflow** (`@flow` / WxO Agentic Workflow JSON) | >5 steps, conditional branches, parallel paths, cross-server tools, or future editability needed | Same | Same — each transition becomes a deterministic flow edge |
+| Mechanism | Branching | User interaction | When to choose | Token saving | Latency saving |
+|---|---|---|---|---|---|
+| **`nextTool` chaining** (`_meta.nextTool`) | Supported — but branch logic is hardcoded inside the tool; changes require modifying and redeploying the tool | Simple Q&A only | ≤5 steps, single Python MCP server, branching (if any) is stable and acceptable to hardcode, user interaction is simple Q&A at most, no transaction audit required | Removes step prose from instructions | Eliminates 1 LLM inference pass per chained step |
+| **Agentic Workflow** (`@flow` / WxO Agentic Workflow JSON) | Supported with externalised logic — branch edges in the flow graph; business logic changes without touching tool code | Full multi-step confirmations | Branch logic may evolve; multi-step user confirmation; cross-server tools; >5 steps; transaction audit/observability required; or future editability needed | Same | Same — each transition becomes a deterministic flow edge |
 
-**Decision rule:** Count steps and check for branches: ≤5 steps, no branches, single Python server → `nextTool`. Any of: >5 steps, branches, cross-server, parallel paths → Agentic Workflow. When in doubt, choose Agentic Workflow — it is more general.
+**Decision rule:**
+- **Security check first:** if the sequence contains any high-stakes gate (payment, transfer, account change, data deletion, authorisation check), it **must** be offloaded to either mechanism — keeping it in instructions makes it prompt-injectable.
+- **Prefer Agentic Workflow** when any of: branch logic likely to change; multi-step user confirmation needed; cross-server tools; >5 steps; transaction audit/observability required.
+- **`nextTool` chaining** is appropriate when all of: ≤5 steps; single Python MCP server; branching (if any) is stable and acceptable to hardcode in the tool; user interaction (if any) is simple Q&A; no transaction audit requirement.
+- When in doubt, choose Agentic Workflow — it externalises control flow from tool code, supports richer user interaction, and provides built-in observability at no extra instrumentation cost.
 
 **Tool execution patterns to check:**
 | Pattern | Check | Action |
 |---|---|---|
 | Mandatory unconditional tool calls | Tool called on every turn regardless of intent | Absorb output into prior tool response or pre-invoke plugin |
-| Fixed sequential tool chains | Tool A always followed by Tool B with no branch | Use **`nextTool` chaining** for ≤5-step, no-branch, single-server Python sequences; use **Agentic Workflow** for longer chains, conditional branches, or cross-server composition |
-| `next_action` multi-hop dispatch | Tool returns field causing agent to call another tool in same turn | Apply the decision rule above: `nextTool` if straight-line ≤5 steps, single server; Agentic Workflow if branching, multi-server, or >5 steps |
+| Fixed sequential tool chains | Tool A always followed by Tool B | Use **`nextTool` chaining** if ≤5 steps, single Python server, stable branching, simple interaction, no audit. Use **Agentic Workflow** if branch logic may evolve, multi-step user confirmation, cross-server, >5 steps, or audit required |
+| `next_action` multi-hop dispatch | Tool returns field causing agent to call another tool in same turn | Apply the decision rule above: `nextTool` if stable-branch ≤5 steps, single server, no audit; Agentic Workflow if evolving-branch, multi-step interaction, multi-server, >5 steps, or audit required |
 | LLM-side classification before tool call | Agent classifies free text before deciding which tool to call | Move to a classification tool or pre-invoke plugin |
 | Correlated tool sets | Same tool set always called together across multiple skill bodies | Compose into a single tool; reduce LLM call count per turn |
 | Tool failure handling in-prompt | LLM reasons about tool errors rather than using tool contract | Move to tool error return schema or agentic workflow retry policy |
@@ -366,10 +370,11 @@ When instructions encode a deterministic tool sequence (no LLM branching between
 | Multi-workflow skill (SK-1 Warn/Fail) | Two distinct output contracts in one skill body | Split into two skills, one contract each |
 | Cross-skill state assumption (SK-4 Warn/Fail) | Skill assumes state from another skill's prior execution | Remove assumption; make skill independently executable |
 
-**Workflow encoding (Rule C/F):**
+**Workflow encoding and instruction-layer security (Rule C/F):**
 | Pattern | Check | Action |
 |---|---|---|
-| LLM-orchestrated multi-step chain | `next_action` dispatch table (or equivalent) drives sequential tool calls with known transitions and known exits | Apply the Rule P mechanism decision: **`nextTool` chaining** for straight-line ≤5-step sequences (single Python MCP server, no branches); **Agentic Workflow** (`@flow`) for chains with conditional branches, parallel paths, cross-server tools, or >5 steps. LLM calls entry point once, receives final result; all transitions become deterministic. |
+| LLM-orchestrated multi-step chain | `next_action` dispatch table (or equivalent) drives sequential tool calls with known transitions and known exits | Apply the Rule P mechanism decision. **`nextTool` chaining** if: ≤5 steps, single Python MCP server, branching (if any) is stable and acceptable to hardcode, simple Q&A interaction only, no transaction audit. **Agentic Workflow** (`@flow`) if: branch logic may evolve, multi-step user confirmation, cross-server tools, >5 steps, or transaction audit/observability required. LLM calls entry point once, receives final result; all transitions become deterministic. |
+| **Instruction-only confirmation gate on high-stakes operation** | Confirmation step, authorisation check, or mandatory approval before payment / transfer / account change / data deletion is expressed only in agent instructions or a skill body | **Severity: Critical.** Instruction-layer gates are prompt-injectable — adversarial prompting can bypass them under specific context. Move into the tool chain (`nextTool` or Agentic Workflow node); platform enforces it structurally. Cross-report: PERF-N (removes deliberation pass) + OPT-N (removes confirmation prose from instruction surface). |
 
 **Cross-references:** Rule Q findings that also reduce token cost should note `OPT-N` from Rule O; findings that also reduce hops should note `PERF-N` from Rule P.
 
