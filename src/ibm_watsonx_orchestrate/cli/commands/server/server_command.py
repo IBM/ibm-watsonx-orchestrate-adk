@@ -649,6 +649,8 @@ def server_start(
     if with_ingestion_from_external_source:
         merged_env_dict['INGESTION_FROM_EXTERNAL_SOURCE_ENABLED'] = 'true'
 
+    merged_env_dict['ENABLE_KB_SOURCE_SYNC'] = 'true' if KNOWLEDGE_CONNECTORS_ENABLED else 'false'
+
     if cert_bundle_path:
         cert_path: Path = Path(cert_bundle_path)
         if not cert_path.exists() or not cert_path.is_file():
