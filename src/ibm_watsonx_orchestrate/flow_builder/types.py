@@ -385,6 +385,7 @@ class DocClassifierConfig(BaseModel):
     llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",title="LLM")
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
     classes: list[DocClassifierClass] = Field(default=[], max_length=30, description="Classes which are needed to classify provided by user", title="Classes")
+    page_range: PageRange | None = Field(description="Optional page range for document classification. When specified, only pages within the specified range are used for classification.", default=None)
 
 class DocProcCommonNodeSpec(NodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)

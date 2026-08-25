@@ -1091,13 +1091,14 @@ class Flow(Node):
             min_confidence: float = 0.0,
             enable_hw: bool = False,
             enable_review: bool = False,
+            page_range: PageRange | None = None,
             language: LanguageCode | None = None,
             error_handler_config: NodeErrorHandlerConfig | None = None) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
         
-        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence, input_classes=classes)
+        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence, input_classes=classes, page_range=page_range)
 
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentProcessingCommonInput)
         output_schema_obj = _get_json_schema_obj(parameter_name = "output", type_def = DocumentClassificationResponse)
