@@ -25,6 +25,9 @@ def knowledge_base_import(
             help="Enable safe mode: prompt for confirmation before updating existing knowledge bases"
         )
     ] = False,
+    # NOTE: KNOWLEDGE_CONNECTORS_ENABLED is evaluated at import time; hidden is
+    # frozen when the CLI process starts and cannot be changed by patching the
+    # flag after import.
     sync: Annotated[
         bool,
         typer.Option(
@@ -81,6 +84,8 @@ def knowledge_base_status(
     controller.knowledge_base_status(id=id, name=name, verbose=verbose)
 
 
+# NOTE: KNOWLEDGE_CONNECTORS_ENABLED is evaluated at import time.
+# The sync command is registered (or not) once when the CLI starts.
 if KNOWLEDGE_CONNECTORS_ENABLED:
     @knowledge_bases_app.command(name="sync", help="Trigger an on-demand sync for a connector-backed (content_source) knowledge base and wait for completion")
     def knowledge_base_sync(
@@ -95,6 +100,7 @@ if KNOWLEDGE_CONNECTORS_ENABLED:
     ):
         controller = KnowledgeBaseController()
         controller.sync_knowledge_base(id=id, name=name)
+
 
 @knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml')
 def knowledge_base_export(
