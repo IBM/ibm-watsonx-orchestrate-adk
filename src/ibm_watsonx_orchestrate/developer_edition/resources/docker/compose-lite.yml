@@ -750,7 +750,7 @@ services:
       WDP_FLIGHT_URL: grpc+tls://${FLIGHT_SERVICE_HOST:-wdpflight-svc}:${FLIGHT_SERVICE_PORT:-9443}
       FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
       FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
-      ENABLE_KB_SOURCE_SYNC: ${ENABLE_KB_SOURCE_SYNC:-true}
+      ENABLE_KB_SOURCE_SYNC: ${ENABLE_KB_SOURCE_SYNC:-false}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -1927,3 +1927,4 @@ configs:
           username: "elastic"
           password: "${ES_PASSWORD}"
           index_prefix: "default"
+
