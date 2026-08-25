@@ -197,6 +197,14 @@ class KnowledgeBaseController:
         existing_knowledge_bases = client.get_by_names([kb.name for kb in knowledge_bases])
 
         for kb in knowledge_bases:
+            # Early exit: connectors not enabled — skip before any network calls
+            if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
+                logger.error(
+                    f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported. "
+                    "To enable them, set KNOWLEDGE_CONNECTORS_ENABLED=true."
+                )
+                continue
+
             resolved_app_id = cli_app_id if cli_app_id else get_kb_app_id(kb)
             if resolved_app_id:
                 if not connections_map:
@@ -221,12 +229,6 @@ class KnowledgeBaseController:
                 except ValueError as e:
                     logger.error(str(e))
                     continue
-
-            if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
-                logger.error(
-                    f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported."
-                )
-                continue
 
             # Ensure these values are None to prevent issues with datetime not being JSON serializable
             kb.updated_at = None
@@ -632,6 +634,14 @@ class KnowledgeBaseController:
         if isinstance(file_dir, str):
             file_dir = Path(file_dir)
 
+        # Early exit: connectors not enabled — skip before any network calls
+        if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
+            logger.error(
+                f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported. "
+                "To enable them, set KNOWLEDGE_CONNECTORS_ENABLED=true."
+            )
+            return
+
         # Validate connection credentials before updating
         index_config = get_index_config(kb)
         if index_config:
@@ -642,12 +652,6 @@ class KnowledgeBaseController:
                 return
 
         client = self.get_client()
-
-        if kb.content_source and not KNOWLEDGE_CONNECTORS_ENABLED:
-            logger.error(
-                f"Knowledge base '{kb.name}' uses a content_source connector, but knowledge connectors are not currently supported."
-            )
-            return
 
         if kb.content_source:
             # content_source KB: PATCH /knowledge-bases/<id> with JSON body (no /documents multipart)
