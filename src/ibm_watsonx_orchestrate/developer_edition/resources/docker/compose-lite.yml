@@ -1927,3 +1927,4 @@ configs:
           username: "elastic"
           password: "${ES_PASSWORD}"
           index_prefix: "default"
+
