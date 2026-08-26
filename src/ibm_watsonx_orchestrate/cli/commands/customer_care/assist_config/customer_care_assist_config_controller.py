@@ -42,7 +42,7 @@ def coerce_value(raw: str) -> Union[bool, int, float, str]:
 def list_assist_config() -> None:
     client = get_customer_care_config_client()
     overrides = client.get()
-    if overrides is None:
+    if not overrides:
         logger.info("No configuration overrides are set.")
         return
 

@@ -64,6 +64,8 @@ class CustomerCareConfigClient(BaseWXOClient):
         If removing the property leaves the dict empty the entire row is
         deleted (clean state). No-op if the property is not present or no
         row exists.
+
+        Performs a GET then PATCH/DELETE (read-merge-write; same pattern as set()).
         """
         existing = self.get()
         if existing is None or property_name not in existing:
@@ -89,8 +91,7 @@ class CustomerCareConfigClient(BaseWXOClient):
                 return
             raise
 
-    # BaseAPIClient declares these as abstract; provide no-op stubs so
-    # Python does not refuse to instantiate this class.
+    # These abstract methods from BaseAPIClient are not applicable to this client.
     def create(self, *args, **kwargs):
         raise NotImplementedError
 
