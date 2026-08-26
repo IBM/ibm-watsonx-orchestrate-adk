@@ -11,11 +11,13 @@ def runner():
 
 def test_assist_config_hidden_from_customer_care_help(runner):
     result = runner.invoke(customer_care_app, ["--help"])
+    assert result.exit_code == 0
     assert "platform" in result.output
     assert "assist-config" not in result.output
 
 
 def test_assist_config_subcommands_visible(runner):
     result = runner.invoke(customer_care_app, ["assist-config", "--help"])
+    assert result.exit_code == 0
     for cmd in ["list", "set", "remove", "reset"]:
         assert cmd in result.output
