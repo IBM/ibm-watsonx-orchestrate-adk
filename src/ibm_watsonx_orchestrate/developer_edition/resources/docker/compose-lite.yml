@@ -464,7 +464,6 @@ services:
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
       POSTGRES_ARCHITECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/architect
       WXO_SERVER_BASE_URL: http://wxo-server:4321
-      ENABLE_A2A_AND_TOOL_FLOW_LISTENERS: ${ENABLE_A2A_AND_TOOL_FLOW_LISTENERS:-false}
 
   wxo-server-minio:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest

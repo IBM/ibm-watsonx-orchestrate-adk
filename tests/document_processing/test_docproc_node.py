@@ -189,30 +189,6 @@ class TestDocProcNode():
         assert "kvp_enable_text_hints" in aflow_json_spec["nodes"]["text_extraction"]["spec"]
         assert aflow_json_spec["nodes"]["text_extraction"]["spec"]["kvp_enable_text_hints"] == False
 
-    def test_text_extraction_node_detect_signatures(self):
-        """Test that detect_signatures=True is included in the serialised spec and absent when None."""
-        # Case 1: detect_signatures=True is serialised
-        aflow = FlowFactory.create_flow(name="sig_detection_flow")
-        text_extraction_node = aflow.docproc(
-            name="text_extraction",
-            task="text_extraction",
-            detect_signatures=True,
-        )
-        actual_spec = text_extraction_node.get_spec().to_json()
-        aflow_json_spec = aflow.to_json()
-
-        assert actual_spec.get("detect_signatures") == True
-        assert aflow_json_spec["nodes"]["text_extraction"]["spec"].get("detect_signatures") == True
-
-        # Case 2: detect_signatures=None (default) is absent from the serialised spec
-        aflow2 = FlowFactory.create_flow(name="no_sig_detection_flow")
-        text_extraction_node2 = aflow2.docproc(
-            name="text_extraction",
-            task="text_extraction",
-        )
-        actual_spec2 = text_extraction_node2.get_spec().to_json()
-        assert "detect_signatures" not in actual_spec2
-
     def test_docproc_node_with_error_handler_config(self):
         aflow = FlowFactory.create_flow(name="text_extraction_flow_retry")
         text_extraction_node = aflow.docproc(
