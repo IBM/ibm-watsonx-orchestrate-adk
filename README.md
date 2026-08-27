@@ -101,10 +101,9 @@ $ orchestrate --help
 │ evaluations       Evaluate the performance of your agents in your active env                                                                                                                                            │
 │ settings          Configure the settings for your active env                                                                                                                                                            │
 │ partners          Generate a well-structured, submission-ready agent artifact package for partner-built agents                                                                                                          │
-│ observability     Search and export trace data from the observability platform for analysis in third-party tools                                                                                                        │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+│ observability     Search and export trace data from the observability platform for analysis in third-party tools                                         │
+│ controls          Configure controls to protect and manage your AI assets                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## watsonx Orchestrate Developer Edition

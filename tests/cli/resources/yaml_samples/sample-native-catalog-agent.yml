@@ -1,0 +1,55 @@
+spec_version: v1
+kind: native
+name: personal_banking_agent
+display_name: Personal Banking Agent
+description: >
+  Personal banking agent that handles money transfers between accounts
+  and manages the user contact information.
+instructions: >
+  You are a helpful banking assistant. Use the transfer_money tool to
+  process money transfers and the list_accounts tool to show account balances.
+llm: groq/openai/gpt-oss-120b
+style: default
+hidden: false
+restrictions: editable
+category: agent
+agent_role: manager
+publisher: Acme Corp
+language_support:
+  - English
+tags:
+  - Finance
+  - Banking
+version: "1.0.0"
+change_log:
+  - Initial release
+delete_by: null
+bundled: false
+icon: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z'/></svg>"
+part_number:
+  aws: null
+  ibmcloud: null
+  cp4d: null
+scope:
+  form_factor:
+    aws: free
+    ibmcloud: free
+    cp4d: free
+channels: []
+related_links:
+  - key: Support
+    value: https://support.example.com
+    type: hyperlink
+  - key: Documentation
+    value: https://docs.example.com
+    type: hyperlink
+  - key: Terms and Conditions
+    value: https://terms.example.com
+    type: hyperlink
+billing:
+  metered: false
+supported_apps: []
+tools:
+  - transfer_money
+  - list_accounts
+collaborators: []

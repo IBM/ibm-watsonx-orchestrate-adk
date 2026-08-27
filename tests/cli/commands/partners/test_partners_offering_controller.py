@@ -1,0 +1,689 @@
+"""
+Unit tests for partners/offering controller:
+  - _patch_agent_yamls writes all catalog fields into agent YAML
+  - _validate_agent_placeholders warns on placeholder values
+  - package() writes agent config.json to ZIP with all required catalog fields
+  - NATIVE_TOOL_CATALOG_FIELDS allowlist / tool field stripping
+  - _validate_tool_placeholders warns on placeholder tool values
+  - _create_applications_entry produces schema-valid entries
+"""
+import json
+import yaml
+import zipfile
+import logging
+import pytest
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+
+from ibm_watsonx_orchestrate.cli.commands.partners.offering.partners_offering_controller import (
+    _normalize_icon,
+    _patch_agent_yamls,
+    _validate_agent_placeholders,
+    _validate_tool_placeholders,
+    _create_applications_entry,
+    NATIVE_AGENT_CATALOG_FIELDS,
+    NATIVE_TOOL_CATALOG_FIELDS,
+    NATIVE_TOOL_PYTHON_BINDING_FIELDS,
+    _AGENT_ADK_INTERNAL_FIELDS,
+    _TOOL_ADK_INTERNAL_FIELDS,
+)
+from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentSpec
+from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
+from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import (
+    AGENT_CATALOG_ONLY_PLACEHOLDERS,
+    TOOL_CATALOG_ONLY_PLACEHOLDERS,
+    ToolCatalogExtras,
+)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+MINIMAL_AGENT_YAML = {
+    "spec_version": "v1",
+    "kind": "native",
+    "name": "test_agent",
+    "description": "A test agent",
+    "instructions": "You are a test agent.",
+    "llm": "groq/openai/gpt-oss-120b",
+    "style": "default",
+    "tools": [],
+    "collaborators": [],
+}
+
+CATALOG_REQUIRED_FIELDS = [
+    "publisher",
+    "category",
+    "agent_role",
+    "language_support",
+    "icon",
+    "part_number",
+    "scope",
+    "related_links",
+    "billing",
+    "channels",
+    "tags",
+    "change_log",
+    "bundled",
+    "version",
+    "delete_by",
+]
+
+
+# ---------------------------------------------------------------------------
+# Tests for _patch_agent_yamls
+# ---------------------------------------------------------------------------
+
+class TestPatchAgentYamls:
+    """Tests for :func:`_patch_agent_yamls` — enriches agent YAML files with catalog-required fields."""
+
+    def test_adds_all_catalog_fields(self, tmp_path):
+        """_patch_agent_yamls should write all required catalog fields into the YAML."""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        agent_file = agents_dir / "test_agent.yaml"
+        with open(agent_file, "w") as f:
+            yaml.safe_dump(MINIMAL_AGENT_YAML, f)
+
+        _patch_agent_yamls(tmp_path, publisher_name="TestCorp", parent_agent_name="test_agent")
+
+        with open(agent_file) as f:
+            patched = yaml.safe_load(f)
+
+        for field in CATALOG_REQUIRED_FIELDS:
+            assert field in patched, f"Expected catalog field '{field}' to be in patched YAML"
+
+    def test_does_not_overwrite_existing_fields(self, tmp_path):
+        """_patch_agent_yamls must not overwrite fields already present in the YAML."""
+        agent_with_extras = {
+            **MINIMAL_AGENT_YAML,
+            "publisher": "ExistingPublisher",
+            "change_log": ["v2.0 release"],
+            "version": "2.0.0",
+        }
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        agent_file = agents_dir / "test_agent.yaml"
+        with open(agent_file, "w") as f:
+            yaml.safe_dump(agent_with_extras, f)
+
+        _patch_agent_yamls(tmp_path, publisher_name="ShouldNotOverwrite", parent_agent_name="test_agent")
+
+        with open(agent_file) as f:
+            patched = yaml.safe_load(f)
+
+        assert patched["publisher"] == "ExistingPublisher"
+        assert patched["change_log"] == ["v2.0 release"]
+        assert patched["version"] == "2.0.0"
+
+    def test_ibmcloud_key_in_part_number(self, tmp_path):
+        """After patching, part_number must use 'ibmcloud' key, not 'ibm_cloud', and default to null."""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        agent_file = agents_dir / "test_agent.yaml"
+        with open(agent_file, "w") as f:
+            yaml.safe_dump(MINIMAL_AGENT_YAML, f)
+
+        _patch_agent_yamls(tmp_path, publisher_name="TestCorp", parent_agent_name="test_agent")
+
+        with open(agent_file) as f:
+            patched = yaml.safe_load(f)
+
+        assert "part_number" in patched
+        assert "ibmcloud" in patched["part_number"]
+        assert "ibm_cloud" not in patched["part_number"]
+        # Default is all-null (free agent) — consistent with scope.form_factor = free
+        assert patched["part_number"]["ibmcloud"] is None
+        assert patched["part_number"]["aws"] is None
+
+    def test_ibmcloud_key_in_scope(self, tmp_path):
+        """After patching, scope.form_factor must use 'ibmcloud' key, not 'ibm_cloud'."""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        agent_file = agents_dir / "test_agent.yaml"
+        with open(agent_file, "w") as f:
+            yaml.safe_dump(MINIMAL_AGENT_YAML, f)
+
+        _patch_agent_yamls(tmp_path, publisher_name="TestCorp", parent_agent_name="test_agent")
+
+        with open(agent_file) as f:
+            patched = yaml.safe_load(f)
+
+        assert "scope" in patched
+        assert "form_factor" in patched["scope"]
+        assert "ibmcloud" in patched["scope"]["form_factor"]
+        assert "ibm_cloud" not in patched["scope"]["form_factor"]
+
+    def test_change_log_is_list(self, tmp_path):
+        """Scaffolded change_log must be a list."""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        agent_file = agents_dir / "test_agent.yaml"
+        with open(agent_file, "w") as f:
+            yaml.safe_dump(MINIMAL_AGENT_YAML, f)
+
+        _patch_agent_yamls(tmp_path, publisher_name="TestCorp", parent_agent_name="test_agent")
+
+        with open(agent_file) as f:
+            patched = yaml.safe_load(f)
+
+        assert isinstance(patched["change_log"], list)
+
+    def test_bundled_is_bool(self, tmp_path):
+        """Scaffolded bundled must be a boolean."""
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        agent_file = agents_dir / "test_agent.yaml"
+        with open(agent_file, "w") as f:
+            yaml.safe_dump(MINIMAL_AGENT_YAML, f)
+
+        _patch_agent_yamls(tmp_path, publisher_name="TestCorp", parent_agent_name="test_agent")
+
+        with open(agent_file) as f:
+            patched = yaml.safe_load(f)
+
+        assert isinstance(patched["bundled"], bool)
+
+
+# ---------------------------------------------------------------------------
+# Tests for _validate_agent_placeholders
+# ---------------------------------------------------------------------------
+
+class TestValidateAgentPlaceholders:
+    """Tests for :func:`_validate_agent_placeholders` — warns when scaffold placeholders are still present."""
+
+    def test_warns_on_icon_placeholder(self, caplog):
+        agent_data = {"icon": AGENT_CATALOG_ONLY_PLACEHOLDERS["icon"]}
+        with caplog.at_level(logging.WARNING):
+            _validate_agent_placeholders(agent_data, "test_agent")
+        assert "icon" in caplog.text
+
+    def test_warns_on_change_log_placeholder(self, caplog):
+        agent_data = {"change_log": AGENT_CATALOG_ONLY_PLACEHOLDERS["change_log"]}
+        with caplog.at_level(logging.WARNING):
+            _validate_agent_placeholders(agent_data, "test_agent")
+        assert "change_log" in caplog.text
+
+    def test_warns_on_version_placeholder(self, caplog):
+        agent_data = {"version": AGENT_CATALOG_ONLY_PLACEHOLDERS["version"]}
+        with caplog.at_level(logging.WARNING):
+            _validate_agent_placeholders(agent_data, "test_agent")
+        assert "version" in caplog.text
+
+    def test_warns_on_scope_placeholder(self, caplog):
+        """scope at its all-free default must warn — a partner with non-null part_number
+        and scope still at 'free' will fail the catalog schema's allOf business rule."""
+        agent_data = {"scope": AGENT_CATALOG_ONLY_PLACEHOLDERS["scope"].model_dump()}
+        with caplog.at_level(logging.WARNING):
+            _validate_agent_placeholders(agent_data, "test_agent")
+        assert "scope" in caplog.text
+
+    def test_no_warning_when_fields_are_customized(self, caplog):
+        agent_data = {
+            "icon": "<svg>real icon</svg>",
+            "change_log": ["Actual release notes"],
+            "version": "2.1.0",
+        }
+        with caplog.at_level(logging.WARNING):
+            _validate_agent_placeholders(agent_data, "test_agent")
+        # None of the non-placeholder values should trigger warnings
+        assert "icon" not in caplog.text
+        assert "change_log" not in caplog.text
+        assert "version" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Tests for derived allowlist construction
+# ---------------------------------------------------------------------------
+
+class TestAllowlistDerivation:
+    """Verify that NATIVE_AGENT_CATALOG_FIELDS and NATIVE_TOOL_CATALOG_FIELDS are
+    correctly derived from the live AgentSpec / ToolSpec Pydantic models at import
+    time, and that the internal-field denylists are applied accurately."""
+
+    def test_agent_allowlist_is_subset_of_agent_spec_fields(self):
+        """NATIVE_AGENT_CATALOG_FIELDS must only contain fields that exist on AgentSpec."""
+        agent_spec_fields = set(AgentSpec.model_json_schema().get('properties', {}).keys())
+        extra = NATIVE_AGENT_CATALOG_FIELDS - agent_spec_fields
+        assert not extra, (
+            f"NATIVE_AGENT_CATALOG_FIELDS contains fields not present in AgentSpec: {extra}"
+        )
+
+    def test_tool_allowlist_is_subset_of_tool_spec_fields(self):
+        """NATIVE_TOOL_CATALOG_FIELDS must only contain fields that exist on ToolSpec."""
+        tool_spec_fields = set(ToolSpec.model_json_schema().get('properties', {}).keys())
+        extra = NATIVE_TOOL_CATALOG_FIELDS - tool_spec_fields
+        assert not extra, (
+            f"NATIVE_TOOL_CATALOG_FIELDS contains fields not present in ToolSpec: {extra}"
+        )
+
+    def test_agent_internal_fields_excluded_from_allowlist(self):
+        """Every field in _AGENT_ADK_INTERNAL_FIELDS must be absent from NATIVE_AGENT_CATALOG_FIELDS."""
+        leaked = _AGENT_ADK_INTERNAL_FIELDS & NATIVE_AGENT_CATALOG_FIELDS
+        assert not leaked, (
+            f"Internal ADK agent fields leaked into catalog allowlist: {leaked}"
+        )
+
+    def test_tool_internal_fields_excluded_from_allowlist(self):
+        """Every field in _TOOL_ADK_INTERNAL_FIELDS must be absent from NATIVE_TOOL_CATALOG_FIELDS."""
+        leaked = _TOOL_ADK_INTERNAL_FIELDS & NATIVE_TOOL_CATALOG_FIELDS
+        assert not leaked, (
+            f"Internal ADK tool fields leaked into catalog allowlist: {leaked}"
+        )
+
+    def test_agent_allowlist_equals_spec_minus_internal(self):
+        """NATIVE_AGENT_CATALOG_FIELDS must equal AgentSpec fields minus the internal denylist exactly."""
+        expected = (
+            set(AgentSpec.model_json_schema().get('properties', {}).keys())
+            - _AGENT_ADK_INTERNAL_FIELDS
+        )
+        assert NATIVE_AGENT_CATALOG_FIELDS == expected, (
+            f"Allowlist mismatch.\n"
+            f"  Extra (in allowlist, not expected): {NATIVE_AGENT_CATALOG_FIELDS - expected}\n"
+            f"  Missing (expected, not in allowlist): {expected - NATIVE_AGENT_CATALOG_FIELDS}"
+        )
+
+    def test_tool_allowlist_equals_spec_minus_internal(self):
+        """NATIVE_TOOL_CATALOG_FIELDS must equal ToolSpec fields minus the internal denylist exactly."""
+        expected = (
+            set(ToolSpec.model_json_schema().get('properties', {}).keys())
+            - _TOOL_ADK_INTERNAL_FIELDS
+        )
+        assert NATIVE_TOOL_CATALOG_FIELDS == expected, (
+            f"Allowlist mismatch.\n"
+            f"  Extra (in allowlist, not expected): {NATIVE_TOOL_CATALOG_FIELDS - expected}\n"
+            f"  Missing (expected, not in allowlist): {expected - NATIVE_TOOL_CATALOG_FIELDS}"
+        )
+
+    def test_new_agent_spec_field_auto_included(self):
+        """Simulate a new field added to AgentSpec — it must appear in the derived allowlist
+        without any manual update, as long as it is not in the internal denylist."""
+        agent_spec_fields = set(AgentSpec.model_json_schema().get('properties', {}).keys())
+        # Every field in AgentSpec that is not internal should be in the allowlist
+        expected_passthrough = agent_spec_fields - _AGENT_ADK_INTERNAL_FIELDS
+        missing = expected_passthrough - NATIVE_AGENT_CATALOG_FIELDS
+        assert not missing, (
+            f"Non-internal AgentSpec fields not in allowlist (would be silently dropped): {missing}"
+        )
+
+    def test_new_tool_spec_field_auto_included(self):
+        """Simulate a new field added to ToolSpec — it must appear in the derived allowlist
+        without any manual update, as long as it is not in the internal denylist."""
+        tool_spec_fields = set(ToolSpec.model_json_schema().get('properties', {}).keys())
+        expected_passthrough = tool_spec_fields - _TOOL_ADK_INTERNAL_FIELDS
+        missing = expected_passthrough - NATIVE_TOOL_CATALOG_FIELDS
+        assert not missing, (
+            f"Non-internal ToolSpec fields not in allowlist (would be silently dropped): {missing}"
+        )
+
+    def test_agent_internal_denylist_fields_exist_on_agent_spec(self):
+        """Every field in _AGENT_ADK_INTERNAL_FIELDS must actually exist on AgentSpec.
+        If a field is removed from AgentSpec the denylist entry is dead and should be cleaned up."""
+        agent_spec_fields = set(AgentSpec.model_json_schema().get('properties', {}).keys())
+        phantom = _AGENT_ADK_INTERNAL_FIELDS - agent_spec_fields
+        assert not phantom, (
+            f"_AGENT_ADK_INTERNAL_FIELDS contains fields no longer in AgentSpec (stale): {phantom}"
+        )
+
+    def test_tool_internal_denylist_fields_exist_on_tool_spec(self):
+        """Every field in _TOOL_ADK_INTERNAL_FIELDS must actually exist on ToolSpec.
+        If a field is removed from ToolSpec the denylist entry is dead and should be cleaned up."""
+        tool_spec_fields = set(ToolSpec.model_json_schema().get('properties', {}).keys())
+        phantom = _TOOL_ADK_INTERNAL_FIELDS - tool_spec_fields
+        assert not phantom, (
+            f"_TOOL_ADK_INTERNAL_FIELDS contains fields no longer in ToolSpec (stale): {phantom}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Tests for NATIVE_AGENT_CATALOG_FIELDS field-stripping
+# ---------------------------------------------------------------------------
+
+class TestNativeAgentCatalogFields:
+    """Verify ``NATIVE_AGENT_CATALOG_FIELDS`` is correct, complete, and excludes internal ADK fields."""
+
+    # Fields that live on AgentSpec itself (not injected by OfferingAgentExtras) and
+    # must pass through to the catalog package.
+    SCHEMA_REQUIRED = {
+        "name", "display_name", "description", "category", "kind",
+        "llm", "version", "change_log", "publisher", "instructions", "hidden",
+        "style", "delete_by", "language_support", "icon", "bundled", "restrictions",
+        "collaborators", "tools",
+    }
+
+    # Fields present in AgentSpec that must NOT appear in the catalog package
+    INTERNAL_ADK_FIELDS = {
+        "is_schedulable", "memory_enabled", "plugins", "skills",
+        "spec_version", "sync_tool_flow_interactions", "toolkits",
+    }
+
+    def test_all_required_schema_fields_are_allowed(self):
+        """Every field the catalog schema requires (and that lives on AgentSpec) must be
+        in NATIVE_AGENT_CATALOG_FIELDS.  Catalog-only fields injected by OfferingAgentExtras
+        (agent_role, part_number, scope, channels, related_links, tags) are not on AgentSpec
+        and are therefore not expected here."""
+        missing = self.SCHEMA_REQUIRED - NATIVE_AGENT_CATALOG_FIELDS
+        assert not missing, f"Required schema fields missing from allowlist: {missing}"
+
+    def test_internal_adk_fields_are_excluded(self):
+        """Internal ADK platform fields must NOT be in NATIVE_AGENT_CATALOG_FIELDS."""
+        leaked = self.INTERNAL_ADK_FIELDS & NATIVE_AGENT_CATALOG_FIELDS
+        assert not leaked, f"Internal ADK fields leaked into catalog allowlist: {leaked}"
+
+    def test_hidden_always_present_after_strip(self, tmp_path):
+        """hidden must be injected as False when absent from the YAML (agent export omits it)."""
+        # Simulate an agent_data dict that lacks 'hidden' (as produced by exclude_unset export)
+        agent_data_no_hidden = {
+            k: v for k, v in {
+                "kind": "native",
+                "name": "test_agent",
+                "description": "desc",
+                "instructions": "instr",
+                "llm": "groq/openai/gpt-oss-120b",
+                "style": "default",
+                "collaborators": [],
+                "tools": [],
+            }.items()
+        }
+        assert "hidden" not in agent_data_no_hidden
+
+        catalog_data = {k: v for k, v in agent_data_no_hidden.items() if k in NATIVE_AGENT_CATALOG_FIELDS}
+        if "hidden" not in catalog_data:
+            catalog_data["hidden"] = False
+
+        assert "hidden" in catalog_data
+        assert catalog_data["hidden"] is False
+
+    def test_strip_removes_internal_fields(self, tmp_path):
+        """Filtering by NATIVE_AGENT_CATALOG_FIELDS must remove all internal ADK fields."""
+        agent_data = {
+            "kind": "native",
+            "name": "test_agent",
+            "description": "desc",
+            "instructions": "instr",
+            "llm": "groq/openai/gpt-oss-120b",
+            "style": "default",
+            "collaborators": [],
+            "tools": [],
+            # Internal fields that must be stripped
+            "is_schedulable": False,
+            "memory_enabled": False,
+            "plugins": {"agent_pre_invoke": [], "agent_post_invoke": []},
+            "skills": [],
+            "spec_version": "v1",
+            "sync_tool_flow_interactions": True,
+            "toolkits": [],
+        }
+        catalog_data = {k: v for k, v in agent_data.items() if k in NATIVE_AGENT_CATALOG_FIELDS}
+        for internal_field in self.INTERNAL_ADK_FIELDS:
+            assert internal_field not in catalog_data, (
+                f"Internal field '{internal_field}' was not stripped from catalog output"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Tests for NATIVE_TOOL_CATALOG_FIELDS field-stripping
+# ---------------------------------------------------------------------------
+
+class TestNativeToolCatalogFields:
+    """Verify ``NATIVE_TOOL_CATALOG_FIELDS`` is correct, complete, and strips internal ADK fields."""
+
+    SCHEMA_REQUIRED = {
+        "name", "display_name", "description", "permission", "version", "is_async",
+        "category", "delete_by", "publisher", "bundled", "binding", "language_support",
+        "tags", "input_schema", "output_schema", "applications", "icon", "change_log",
+        "kind",
+    }
+
+    INTERNAL_TOOL_FIELDS = {
+        "id", "response_format", "workspace",
+    }
+
+    INTERNAL_BINDING_FIELDS = {
+        "connections", "type", "agent_run_paramater", "is_async",
+    }
+
+    def test_all_required_schema_fields_are_allowed(self):
+        """Every field the catalog tool schema requires must be in NATIVE_TOOL_CATALOG_FIELDS."""
+        missing = self.SCHEMA_REQUIRED - NATIVE_TOOL_CATALOG_FIELDS
+        assert not missing, f"Required tool schema fields missing from allowlist: {missing}"
+
+    def test_internal_tool_fields_are_excluded(self):
+        """Internal ADK ToolSpec fields must NOT appear in NATIVE_TOOL_CATALOG_FIELDS."""
+        leaked = self.INTERNAL_TOOL_FIELDS & NATIVE_TOOL_CATALOG_FIELDS
+        assert not leaked, f"Internal tool fields leaked into catalog allowlist: {leaked}"
+
+    def test_strip_removes_internal_tool_fields(self):
+        """Filtering by NATIVE_TOOL_CATALOG_FIELDS must remove id, response_format, workspace."""
+        tool_data = {
+            "name": "my_tool",
+            "description": "desc",
+            "permission": "read_only",
+            "is_async": False,
+            "binding": {"python": {"function": "fn", "requirements": []}},
+            # Internal fields
+            "id": "some-uuid",
+            "response_format": "content",
+            "workspace": "my_workspace",
+        }
+        catalog_data = {k: v for k, v in tool_data.items() if k in NATIVE_TOOL_CATALOG_FIELDS}
+        for field in self.INTERNAL_TOOL_FIELDS:
+            assert field not in catalog_data, f"Internal field '{field}' was not stripped"
+
+    def test_strip_binding_python_internal_fields(self):
+        """binding.python must only retain 'function' and 'requirements'."""
+        binding_python = {
+            "function": "my_function",
+            "requirements": ["requests"],
+            "connections": {"svc": "conn-id"},
+            "type": "tool",
+            "agent_run_paramater": None,
+            "is_async": False,
+        }
+        filtered = {k: v for k, v in binding_python.items() if k in NATIVE_TOOL_PYTHON_BINDING_FIELDS}
+        assert set(filtered.keys()) == {"function", "requirements"}
+        for field in self.INTERNAL_BINDING_FIELDS:
+            assert field not in filtered, f"Internal binding field '{field}' was not stripped"
+
+
+# ---------------------------------------------------------------------------
+# Tests for ToolCatalogExtras scaffolding
+# ---------------------------------------------------------------------------
+
+class TestToolCatalogExtras:
+    """Tests for :class:`ToolCatalogExtras` — scaffolds missing catalog fields for tools."""
+
+    BASE_TOOL = {"name": "my_tool", "description": "A tool"}
+
+    def test_scaffolds_category_as_tool(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.category == "tool"
+
+    def test_scaffolds_kind_as_native(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.kind == "native"
+
+    def test_scaffolds_publisher(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.publisher == "TestCorp"
+
+    def test_scaffolds_language_support(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.language_support == ["English"]
+
+    def test_scaffolds_tags_as_empty_list(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.tags == []
+
+    def test_scaffolds_bundled_false(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.bundled is False
+
+    def test_scaffolds_version(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.version == TOOL_CATALOG_ONLY_PLACEHOLDERS["version"]
+
+    def test_scaffolds_change_log(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.change_log == TOOL_CATALOG_ONLY_PLACEHOLDERS["change_log"]
+
+    def test_scaffolds_delete_by_as_none(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.delete_by is None
+
+    def test_scaffolds_hidden_false(self):
+        extras = ToolCatalogExtras.from_tool_details(self.BASE_TOOL, "TestCorp")
+        assert extras.hidden is False
+
+    def test_does_not_overwrite_existing_fields(self):
+        tool = {**self.BASE_TOOL, "category": "custom", "version": "2.0.0", "publisher": "Other"}
+        extras = ToolCatalogExtras.from_tool_details(tool, "TestCorp")
+        assert extras.category is None
+        assert extras.version is None
+        assert extras.publisher is None
+
+
+# ---------------------------------------------------------------------------
+# Tests for _validate_tool_placeholders
+# ---------------------------------------------------------------------------
+
+class TestValidateToolPlaceholders:
+    """Tests for :func:`_validate_tool_placeholders` — warns when scaffold placeholders are still present."""
+
+    def test_warns_on_icon_placeholder(self, caplog):
+        tool_data = {"icon": TOOL_CATALOG_ONLY_PLACEHOLDERS["icon"]}
+        with caplog.at_level(logging.WARNING):
+            _validate_tool_placeholders(tool_data, "my_tool")
+        assert "icon" in caplog.text
+
+    def test_warns_on_version_placeholder(self, caplog):
+        tool_data = {"version": TOOL_CATALOG_ONLY_PLACEHOLDERS["version"]}
+        with caplog.at_level(logging.WARNING):
+            _validate_tool_placeholders(tool_data, "my_tool")
+        assert "version" in caplog.text
+
+    def test_warns_on_change_log_placeholder(self, caplog):
+        tool_data = {"change_log": TOOL_CATALOG_ONLY_PLACEHOLDERS["change_log"]}
+        with caplog.at_level(logging.WARNING):
+            _validate_tool_placeholders(tool_data, "my_tool")
+        assert "change_log" in caplog.text
+
+    def test_no_warning_when_fields_are_customized(self, caplog):
+        tool_data = {
+            "icon": "<svg>real icon</svg>",
+            "version": "2.1.0",
+            "change_log": ["Actual release notes"],
+        }
+        with caplog.at_level(logging.WARNING):
+            _validate_tool_placeholders(tool_data, "my_tool")
+        assert "icon" not in caplog.text
+        assert "version" not in caplog.text
+        assert "change_log" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Tests for _create_applications_entry
+# ---------------------------------------------------------------------------
+
+class TestCreateApplicationsEntry:
+    """Tests for :func:`_create_applications_entry` — builds applications entries conforming to the catalog schema."""
+
+    def test_includes_required_schema_fields(self):
+        """Entry must include all fields required by partner-applications.schema.json."""
+        connection_config = {
+            "app_id": "servicenow_app",
+            "catalog": {
+                "name": "ServiceNow",
+                "description": "ServiceNow integration",
+                "icon": "<svg/>",
+                "security_schema": {"basic_auth": {}},
+                "documentation_link": "https://docs.example.com",
+            }
+        }
+        entry = _create_applications_entry(connection_config)
+        for field in ("app_id", "name", "icon", "security_schema", "documentation_link"):
+            assert field in entry, f"Required field '{field}' missing from applications entry"
+
+    def test_defaults_security_schema_when_absent(self):
+        """When catalog.security_schema is missing, a bearer_token stub must be used."""
+        connection_config = {
+            "app_id": "my_app",
+            "catalog": {"name": "My App", "icon": "<svg/>"}
+        }
+        entry = _create_applications_entry(connection_config)
+        assert "security_schema" in entry
+        assert entry["security_schema"] == {"bearer_token": {}}
+
+    def test_name_falls_back_to_app_id(self):
+        """When catalog.name is absent, name should fall back to app_id."""
+        connection_config = {"app_id": "fallback_app", "catalog": {}}
+        entry = _create_applications_entry(connection_config)
+        assert entry["name"] == "fallback_app"
+
+    def test_uses_provided_security_schema(self):
+        """When catalog.security_schema is present it must be preserved as-is."""
+        schema = {"oauth2_client_creds": {}}
+        connection_config = {
+            "app_id": "oauth_app",
+            "catalog": {"name": "OAuth App", "security_schema": schema}
+        }
+        entry = _create_applications_entry(connection_config)
+        assert entry["security_schema"] == schema
+
+
+# ---------------------------------------------------------------------------
+# Tests for _normalize_icon
+# ---------------------------------------------------------------------------
+
+class TestNormalizeIcon:
+    """Tests for :func:`_normalize_icon` — normalizes SVG icon values for catalog submission."""
+
+    def test_returns_none_for_none(self):
+        """None input must return None."""
+        assert _normalize_icon(None) is None
+
+    def test_returns_none_for_empty_string(self):
+        """Empty string must return None."""
+        assert _normalize_icon("") is None
+
+    def test_plain_svg_is_returned_unchanged_except_quotes(self):
+        """A plain SVG string should be returned with double-quotes replaced by single-quotes."""
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><circle/></svg>'
+        result = _normalize_icon(svg)
+        assert result is not None
+        assert '"' not in result
+        assert "'" in result
+
+    def test_svg_without_quotes_is_returned_as_is(self):
+        """An SVG with no double-quotes should be returned unchanged."""
+        svg = "<svg><circle/></svg>"
+        assert _normalize_icon(svg) == svg
+
+    def test_extracts_svg_fragment_from_svg_starting_string(self):
+        """When the input starts with ``<svg``, only the ``<svg>…</svg>`` portion is returned."""
+        raw = "<svg><path/></svg> trailing content"
+        result = _normalize_icon(raw)
+        assert result == "<svg><path/></svg>"
+
+    def test_base64_encoded_svg_is_decoded_and_normalized(self):
+        """A base64-encoded SVG must be decoded and normalized."""
+        import base64
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'
+        encoded = base64.b64encode(svg.encode()).decode()
+        result = _normalize_icon(encoded)
+        assert result is not None
+        assert '"' not in result
+        assert "<svg" in result
+
+    def test_base64_non_svg_returns_original(self):
+        """A base64 payload that decodes to non-SVG content must be returned as-is."""
+        import base64
+        non_svg = base64.b64encode(b"just some plain text").decode()
+        result = _normalize_icon(non_svg)
+        assert result == non_svg
+
+    def test_non_base64_non_svg_string_returns_original(self):
+        """A non-SVG, non-base64 string must be returned unchanged."""
+        value = "not-an-svg-or-b64"
+        assert _normalize_icon(value) == value

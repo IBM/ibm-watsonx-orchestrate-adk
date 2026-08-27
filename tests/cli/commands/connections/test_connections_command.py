@@ -123,7 +123,8 @@ class TestConnectionsConfigure:
         "idp_token_type": "token_type",
         "idp_token_header": "token_header",
         "app_token_header": "token_header",
-        "custom_config_entries_list": []
+        "custom_config_entries_list": [],
+        "name": None
     }
 
     def test_configure_connection_command(self):
@@ -140,7 +141,8 @@ class TestConnectionsConfigure:
             ("idp_token_type", None),
             ("idp_token_header", None),
             ("app_token_header", None),
-            ("custom_config_entries_list", None)
+            ("custom_config_entries_list", None),
+            ("name", None)
         ]
     )
     def test_configure_connection_command_missing_optional_parms(self, missing_param, default_value):
@@ -178,6 +180,7 @@ class TestConnectionsSetCredentials:
         "app_id": "Testing_App_ID",
         "environment": "draft",
         "username": "test_username",
+        "server_cert": None,
         "password": "test_password",
         "token": "test_token",
         "api_key": "test_api_key",
@@ -190,7 +193,16 @@ class TestConnectionsSetCredentials:
         "grant_type": "test_grant_type",
         "entries": ["testentry1=testentry"],
         "token_entries": [],
-        "auth_entries": []
+        "auth_entries": [],
+        "alg": "test_alg",
+        "private_key": "test_pkey",
+        "kid": "test_kid",
+        "private_key_password": "test_pk_password",
+        "iss": "test_issuer",
+        "aud": "https://test.example.com/token",
+        "exp": "test_exp",
+        "include_jti": False,
+        "claims": ["test_claims=claim1"],
     }
 
     def test_set_credentials_connection_command(self):
@@ -202,6 +214,7 @@ class TestConnectionsSetCredentials:
         ("missing_param", "default_value"),
         [
             ("username", None),
+            ("server_cert", None),
             ("password", None),
             ("token", None),
             ("api_key", None),

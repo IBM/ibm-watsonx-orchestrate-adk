@@ -1,0 +1,8 @@
+spec_version: v1
+kind: knowledge_base
+name: box_hr_knowledge_base
+description: HR health benefits documentation synced from Box
+content_source:
+  type: box
+documents:
+  - ask_hr_demo_health_benefits.pdf

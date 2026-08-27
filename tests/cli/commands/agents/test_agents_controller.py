@@ -335,7 +335,8 @@ def agent_spec_with_welcome_content():
         "welcome_content":{
             "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
             "description" : "This is not default",
-            "is_default_message" : False
+            "is_default_message" : False,
+            "is_user_barge_in_disabled" : False
         }
     }
 
@@ -367,7 +368,8 @@ def agent_spec_with_webchat_customizations():
         "welcome_content":{
             "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
             "description" : "This is not default",
-            "is_default_message" : False
+            "is_default_message" : False,
+            "is_user_barge_in_disabled" : False
         }
     }
 
@@ -608,6 +610,54 @@ class TestParseCreateNativeArgs:
         assert parsed_args["collaborators"] == ["agent1"]
         assert parsed_args["tools"] == ["tool1", "tool2"]
 
+    def test_parse_create_native_args_forwards_hidden(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc",
+            hidden=True
+        )
+        assert "hidden" in parsed_args
+        assert parsed_args["hidden"] is True
+
+    def test_parse_create_native_args_hidden_defaults_to_false(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc"
+        )
+        assert "hidden" in parsed_args
+        assert parsed_args["hidden"] is False
+
+    def test_parse_create_native_args_forwards_restrictions(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc",
+            restrictions="non_editable"
+        )
+        assert "restrictions" in parsed_args
+        assert parsed_args["restrictions"] == "non_editable"
+
+    def test_parse_create_native_args_restrictions_defaults_to_editable(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc"
+        )
+        assert "restrictions" in parsed_args
+        assert parsed_args["restrictions"] == "editable"
+
+    def test_parse_create_native_args_forwards_custom_agents_metadata(self):
+        metadata = {"feature_flag": True, "owner": "team-a"}
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc",
+            custom_agents_metadata=metadata,
+        )
+        assert parsed_args["custom_agents_metadata"] == metadata
+
 
 class TestParseCreateExternalArgs:
     def test_parse_create_external_args(self):
@@ -635,6 +685,18 @@ class TestParseCreateExternalArgs:
         assert parsed_args["nickname"] == "some_nickname"
         assert parsed_args["app_id"] == "some_app_id"
 
+    def test_parse_create_external_args_forwards_custom_agents_metadata(self):
+        metadata = {"feature_flag": True}
+        parsed_args = parse_create_external_args(
+            name="test_external_agent",
+            kind=AgentKind.EXTERNAL,
+            description="desc",
+            api_url="https://someurl.com",
+            custom_agents_metadata=metadata,
+        )
+        assert parsed_args["custom_agents_metadata"] == metadata
+
+
 class TestParseCreateAssistantArgs:
     def test_parse_create_assistant_args(self):
         parsed_args = parse_create_assistant_args(
@@ -654,6 +716,17 @@ class TestParseCreateAssistantArgs:
         assert parsed_args["tags"] == ["tag1", "tag2"]
         assert parsed_args["config"] == '{"api_version": "2021-11-27", "assistant_id": "test_id", "crn": "test_crn", "instance_url": "test_instance_url", "environment_id": "test_env", "app_id": "test_app_id"}'
         assert parsed_args["nickname"] == "some_nickname"
+
+    def test_parse_create_assistant_args_forwards_custom_agents_metadata(self):
+        metadata = {"feature_flag": True}
+        parsed_args = parse_create_assistant_args(
+            name="test_assistant_agent",
+            kind=AgentKind.ASSISTANT,
+            description="desc",
+            custom_agents_metadata=metadata,
+        )
+        assert parsed_args["custom_agents_metadata"] == metadata
+
 
 class TestGetConnIdFromAppId:
     mock_app_id = "test_app_id"
@@ -1974,3 +2047,185 @@ class TestAgentDeploy:
             assert "Error undeploying agent" in caplog.text
 
 
+
+class TestDereferenceSkills:
+    """dereference_skills converts skill names → skill IDs."""
+
+    def _make_agent(self, skill_names: list) -> Agent:
+        return Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=skill_names,
+        )
+
+    def test_dereference_skills_replaces_names_with_ids(self):
+        skill_records = [
+            {"id": "id-skill-1", "name": "skill-one"},
+            {"id": "id-skill-2", "name": "skill-two"},
+        ]
+        agent = self._make_agent(["skill-one", "skill-two"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        result = ac.dereference_skills(agent)
+
+        assert result.skills == ["id-skill-1", "id-skill-2"]
+        mock_sc.get_all_skills.assert_called_once_with()
+
+    def test_dereference_skills_missing_skill_exits(self, caplog):
+        agent = self._make_agent(["skill-missing"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = []
+        ac.skills_controller = mock_sc
+
+        with pytest.raises(SystemExit):
+            ac.dereference_skills(agent)
+
+        assert "No skill found with the name 'skill-missing'" in caplog.text
+
+    def test_dereference_skills_api_error_exits(self, caplog):
+        agent = self._make_agent(["skill-one"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.side_effect = SystemExit(1)
+        ac.skills_controller = mock_sc
+
+        with pytest.raises(SystemExit):
+            ac.dereference_skills(agent)
+
+class TestReferenceSkills:
+    """reference_skills converts skill IDs → skill names."""
+
+    def _make_agent(self, skill_ids: list) -> Agent:
+        return Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=skill_ids,
+        )
+
+    def test_reference_skills_replaces_ids_with_names(self):
+        skill_records = [
+            {"id": "id-skill-1", "name": "skill-one"},
+            {"id": "id-skill-2", "name": "skill-two"},
+        ]
+        agent = self._make_agent(["id-skill-1", "id-skill-2"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        result = ac.reference_skills(agent)
+
+        assert result.skills == ["skill-one", "skill-two"]
+        mock_sc.get_all_skills.assert_called_once_with(None)
+
+    def test_reference_skills_unknown_id_exits(self, caplog):
+        agent = self._make_agent(["id-skill-unknown"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = []
+        ac.skills_controller = mock_sc
+
+        with pytest.raises(SystemExit):
+            ac.reference_skills(agent)
+
+        assert "No skill found with the id 'id-skill-unknown'" in caplog.text
+
+    def test_reference_skills_passes_workspace_id(self):
+        skill_records = [{"id": "id-skill-1", "name": "skill-one"}]
+        agent = self._make_agent(["id-skill-1"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        ac.reference_skills(agent, workspace_id="ws-456")
+
+        mock_sc.get_all_skills.assert_called_once_with("ws-456")
+
+
+class TestDereferenceNativeAgentDependenciesSkills:
+    """Verify dereference_native_agent_dependencies calls dereference_skills."""
+
+    def test_skills_are_dereferenced_on_import(self):
+        agent = Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=["skill-one"],
+        )
+
+        ac = AgentsController()
+
+        with patch.object(ac, "dereference_skills", wraps=ac.dereference_skills) as deref_skills_spy, \
+             patch.object(ac, "get_skills_controller") as mock_get_sc:
+            mock_sc = MagicMock()
+            mock_sc.get_all_skills.return_value = [{"id": "id-skill-1", "name": "skill-one"}]
+            mock_get_sc.return_value = mock_sc
+
+            result = ac.dereference_native_agent_dependencies(agent)
+
+        deref_skills_spy.assert_called_once_with(agent)
+        assert result.skills == ["id-skill-1"]
+
+    def test_skills_not_called_when_empty(self):
+        agent = Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=[],
+        )
+
+        ac = AgentsController()
+
+        with patch.object(ac, "dereference_skills") as deref_skills_mock:
+            ac.dereference_native_agent_dependencies(agent)
+
+        deref_skills_mock.assert_not_called()
+
+
+class TestCustomAgentsMetadataRoundTrip:
+    BASE_SPEC = {
+        "spec_version": SpecVersion.V1,
+        "kind": AgentKind.NATIVE,
+        "name": "test_agent",
+        "description": "desc",
+        "llm": "watsonx/default/llm",
+        "style": AgentStyle.REACT_CORE,
+    }
+
+    def test_model_validate_preserves_field(self):
+        spec = {**self.BASE_SPEC, "custom_agents_metadata": {"k": "v"}}
+        agent = Agent.model_validate(spec)
+        assert agent.custom_agents_metadata == {"k": "v"}
+
+    def test_model_dump_includes_field_when_set(self):
+        spec = {**self.BASE_SPEC, "custom_agents_metadata": {"k": "v"}}
+        agent = Agent.model_validate(spec)
+        dumped = agent.model_dump(exclude_none=True)
+        assert "custom_agents_metadata" in dumped
+        assert dumped["custom_agents_metadata"] == {"k": "v"}
+
+    def test_model_dump_omits_field_when_none(self):
+        agent = Agent.model_validate(self.BASE_SPEC)
+        dumped = agent.model_dump(exclude_none=True)
+        assert "custom_agents_metadata" not in dumped

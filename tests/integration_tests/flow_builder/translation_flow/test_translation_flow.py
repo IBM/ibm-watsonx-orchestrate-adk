@@ -25,7 +25,7 @@ import requests
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 from ibm_watsonx_orchestrate.client.tools.builder_client import BuilderClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import activate
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT
 from ibm_watsonx_orchestrate.flow_builder import utils as flow_builder_utils
@@ -61,17 +61,24 @@ def ensure_local_environment():
     monkeypatch = pytest.MonkeyPatch()
 
     def _instantiate_local_tool_client(client_cls, *args, **kwargs):
-        if client_cls is ToolClient:
-            class _DummyClient:
-                def __init__(self):
-                    self.credentials = Credentials(url=DEFAULT_LOCAL_SERVICE_URL)
-                    self.token = None
+        class _DummyClient:
+            def __init__(self):
+                self.credentials = Credentials(url=DEFAULT_LOCAL_SERVICE_URL)
+                self.token = None
 
-            local_service_instance = LocalServiceInstance(_DummyClient())
-            tenant_access_token = local_service_instance.tenant_access_token
-            if tenant_access_token is None:
-                raise RuntimeError("Failed to obtain local tenant access token for translation tests")
+        local_service_instance = LocalServiceInstance(_DummyClient())
+        tenant_access_token = local_service_instance.tenant_access_token
+        if tenant_access_token is None:
+            raise RuntimeError("Failed to obtain local tenant access token for translation tests")
+
+        if client_cls is ToolClient:
             return ToolClient(
+                base_url=DEFAULT_LOCAL_SERVICE_URL,
+                api_key=tenant_access_token,
+                is_local=True
+            )
+        if client_cls is BuilderClient:
+            return BuilderClient(
                 base_url=DEFAULT_LOCAL_SERVICE_URL,
                 api_key=tenant_access_token,
                 is_local=True
@@ -81,6 +88,10 @@ def ensure_local_environment():
     monkeypatch.setattr(flow_builder_utils, "instantiate_client", _instantiate_local_tool_client)
     monkeypatch.setattr(
         "tests.integration_tests.flow_builder.translation_flow.test_translation_flow.instantiate_client",
+        _instantiate_local_tool_client
+    )
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client",
         _instantiate_local_tool_client
     )
 

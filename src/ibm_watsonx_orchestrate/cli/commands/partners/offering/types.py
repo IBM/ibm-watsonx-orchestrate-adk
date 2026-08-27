@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 CATALOG_PLACEHOLDERS = {
     'domain' : 'HR',
-    'version' : '1.0',
+    'version' : '1.0.0',
     'part_number': 'my-part-number',
     'form_factor': 'free',
     'tenant_type': {
@@ -31,7 +31,7 @@ CATALOG_ONLY_FIELDS = [
 
 class OfferingRelatedLinkTypes(str, Enum):
     HYPERLINK = 'hyperlink'
-    EMBEDED = 'embeded'
+    EMBEDDED = 'embedded'
 
     def __str__(self):
         return self.value
@@ -54,12 +54,12 @@ class OfferingRelatedLink(BaseModel):
 
 class OfferingFormFactor(BaseModel):
     aws: Optional[str] = CATALOG_PLACEHOLDERS['form_factor']
-    ibm_cloud: Optional[str] = CATALOG_PLACEHOLDERS['form_factor']
+    ibmcloud: Optional[str] = CATALOG_PLACEHOLDERS['form_factor']
     cp4d: Optional[str] = CATALOG_PLACEHOLDERS['form_factor']
 
 class OfferingPartNumber(BaseModel):
-    aws: Optional[str] = CATALOG_PLACEHOLDERS['part_number']
-    ibm_cloud: Optional[str] = CATALOG_PLACEHOLDERS['part_number']
+    aws: Optional[str] = None
+    ibmcloud: Optional[str] = None
     cp4d: Optional[str] = None
 
 class OfferingScope(BaseModel):
@@ -82,33 +82,85 @@ class OfferingAgentRole(str, Enum):
     def __repr__(self):
         return repr(self.value)
     
+TOOL_CATALOG_ONLY_PLACEHOLDERS = {
+    'icon': "inline-svg-of-icon",
+    'change_log': ["Initial release"],
+    'version': "1.0.0",
+}
+
+class ToolCatalogExtras(BaseModel):
+    """Fields injected into a tool YAML during `offering create` if absent."""
+    category: Optional[str] = None
+    kind: Optional[str] = None
+    version: Optional[str] = None
+    change_log: Optional[List[str]] = None
+    bundled: Optional[bool] = None
+    delete_by: Optional[str] = None
+    publisher: Optional[str] = None
+    language_support: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    icon: Optional[str] = None
+    hidden: Optional[bool] = None
+
+    @staticmethod
+    def from_tool_details(tool_data: dict, publisher_name: str) -> 'ToolCatalogExtras':
+        extras = ToolCatalogExtras()
+        if "category" not in tool_data:
+            extras.category = "tool"
+        if "kind" not in tool_data:
+            extras.kind = "native"
+        if "publisher" not in tool_data:
+            extras.publisher = publisher_name
+        if "language_support" not in tool_data:
+            extras.language_support = ["English"]
+        if "tags" not in tool_data:
+            extras.tags = []
+        if "icon" not in tool_data:
+            extras.icon = TOOL_CATALOG_ONLY_PLACEHOLDERS['icon']
+        if "change_log" not in tool_data:
+            extras.change_log = TOOL_CATALOG_ONLY_PLACEHOLDERS['change_log']
+        if "bundled" not in tool_data:
+            extras.bundled = False
+        if "version" not in tool_data:
+            extras.version = TOOL_CATALOG_ONLY_PLACEHOLDERS['version']
+        if "delete_by" not in tool_data:
+            extras.delete_by = None
+        if "hidden" not in tool_data:
+            extras.hidden = False
+        return extras
+
+# scope is intentionally included: a partner with non-null part_number values but
+# scope.form_factor still at the all-free default will fail the catalog schema's
+# allOf business rule. Including scope here causes _validate_agent_placeholders to
+# emit a warning before packaging.
 AGENT_CATALOG_ONLY_PLACEHOLDERS = {
     'icon': "inline-svg-of-icon",
-    'part_number': OfferingPartNumber(),
     'scope': OfferingAgentScope(),
+    'change_log': ["Initial release"],
+    'version': "1.0.0",
     'related_links': [
         OfferingRelatedLink(
-            key="support",
+            key="Support",
             value="",
             type=OfferingRelatedLinkTypes.HYPERLINK.value
         ),
         OfferingRelatedLink(
-            key="demo",
+            key="Demo",
             value="",
-            type=OfferingRelatedLinkTypes.EMBEDED.value
+            type=OfferingRelatedLinkTypes.EMBEDDED.value
         ),
         OfferingRelatedLink(
-            key="documentation",
+            key="Documentation",
             value="",
             type=OfferingRelatedLinkTypes.HYPERLINK.value
         ),
         OfferingRelatedLink(
-            key="training",
+            key="Training",
             value="",
-            type=OfferingRelatedLinkTypes.EMBEDED.value
+            type=OfferingRelatedLinkTypes.EMBEDDED.value
         ),
         OfferingRelatedLink(
-            key="terms_and_conditions",
+            key="Terms and Conditions",
             value="",
             type=OfferingRelatedLinkTypes.HYPERLINK.value
         )
@@ -138,6 +190,10 @@ class OfferingAgentExtras(BaseModel):
     channels: Optional[List[str]] = None
     related_links: Optional[List[OfferingRelatedLink]] = None
     billing: Optional[OfferingAgentBilling] = None
+    change_log: Optional[List[str]] = None
+    bundled: Optional[bool] = None
+    version: Optional[str] = None
+    delete_by: Optional[str] = None
 
     @staticmethod
     def from_agent_details(agent_data: dict, publisher_name: str, parent_agent_name: str) -> 'OfferingAgentExtras':
@@ -157,7 +213,7 @@ class OfferingAgentExtras(BaseModel):
         if "agent_role" not in agent_data:
             extras.agent_role = OfferingAgentRole.MANAGER.value if agent_data.get("name") == parent_agent_name else OfferingAgentRole.COLLABORATOR.value
         if "part_number" not in agent_data:
-            extras.part_number = AGENT_CATALOG_ONLY_PLACEHOLDERS["part_number"]
+            extras.part_number = OfferingPartNumber()  # all-null: free agent default
         if "scope" not in agent_data:
             extras.scope = AGENT_CATALOG_ONLY_PLACEHOLDERS["scope"]
         if "channels" not in agent_data:
@@ -166,6 +222,14 @@ class OfferingAgentExtras(BaseModel):
             extras.related_links = AGENT_CATALOG_ONLY_PLACEHOLDERS["related_links"]
         if "billing" not in agent_data:
             extras.billing = OfferingAgentBilling()
+        if "change_log" not in agent_data:
+            extras.change_log = AGENT_CATALOG_ONLY_PLACEHOLDERS["change_log"]
+        if "bundled" not in agent_data:
+            extras.bundled = False
+        if "version" not in agent_data:
+            extras.version = AGENT_CATALOG_ONLY_PLACEHOLDERS["version"]
+        if "delete_by" not in agent_data:
+            extras.delete_by = None
         
         return extras
     

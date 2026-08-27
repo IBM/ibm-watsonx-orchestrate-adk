@@ -249,6 +249,19 @@ class ToolSpec(BaseModel):
     is_async: bool = False
     response_format: ToolResponseFormat = ToolResponseFormat.CONTENT
     workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
+    category: Optional[str] = None
+    # Catalog-only fields (partner-native-tool.schema.json)
+    kind: Optional[str] = None
+    version: Optional[str] = None
+    change_log: Optional[List[str]] = None
+    bundled: Optional[bool] = None
+    delete_by: Optional[str] = None
+    publisher: Optional[str] = None
+    language_support: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    icon: Optional[str] = None
+    hidden: Optional[bool] = None
+    applications: Optional[List[dict]] = None
 
     def is_custom_join_tool(self) -> bool:
         if self.binding.python is None:

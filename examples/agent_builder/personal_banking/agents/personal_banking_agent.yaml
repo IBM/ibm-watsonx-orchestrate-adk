@@ -62,5 +62,6 @@ welcome_content:
   welcome_message: Welcome to Personal Banking! 👋
   description: I'm your personal banking assistant. I can help you transfer money between accounts, check your account balances, and manage your contact information.
   is_default_message: false
+  is_user_barge_in_disabled: false
 
 # Made with Bob

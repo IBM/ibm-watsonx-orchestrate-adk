@@ -1,4 +1,6 @@
+import base64
 import json
+import re
 import yaml
 import zipfile
 import logging
@@ -9,6 +11,7 @@ import zipfile
 import shutil
 from shutil import make_archive
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentSpec
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -25,7 +28,41 @@ from ibm_watsonx_orchestrate.utils.utils import sanitize_catalog_label
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import *
 
-APPLICATIONS_FILE_VERSION = '1.16.0'
+# Version of the applications config file format expected by the catalog runtime.
+APPLICATIONS_FILE_VERSION = '1.0.0'
+
+# ADK-internal fields on AgentSpec that the catalog schema rejects via
+# additionalProperties:false.  Everything else in AgentSpec is passed through.
+# Update this set when ADK adds a new platform-only field that must not reach
+# the catalog -- do NOT add catalog fields here.
+_AGENT_ADK_INTERNAL_FIELDS = {
+    'id', 'spec_version', 'workspace', 'memory_enabled',
+    'voice_configuration', 'voice_configuration_id',
+    'plugins', 'skills', 'toolkits', 'structured_output',
+    'custom_join_tool', 'sync_tool_flow_interactions',
+    'compaction_settings', 'is_schedulable',
+}
+
+# ADK-internal fields on ToolSpec that the catalog tool schema rejects.
+_TOOL_ADK_INTERNAL_FIELDS = {
+    'id', 'response_format', 'workspace',
+}
+
+# Derived at import time from the live Pydantic models so the allowlists stay
+# in sync automatically when fields are added to AgentSpec / ToolSpec.
+NATIVE_AGENT_CATALOG_FIELDS = (
+    set(AgentSpec.model_json_schema().get('properties', {}).keys())
+    - _AGENT_ADK_INTERNAL_FIELDS
+)
+NATIVE_TOOL_CATALOG_FIELDS = (
+    set(ToolSpec.model_json_schema().get('properties', {}).keys())
+    - _TOOL_ADK_INTERNAL_FIELDS
+)
+
+# Fields allowed inside binding.python by the tool schema (additionalProperties:false).
+# Kept explicit: the PythonToolBinding has very few catalog-valid fields and the
+# internal ones (connections, type, agent_run_paramater) must always be stripped.
+NATIVE_TOOL_PYTHON_BINDING_FIELDS = {'function', 'requirements'}
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +91,52 @@ def get_tool_bindings(tool_names: list[str]) -> dict[str, dict]:
 
     return results
 
+def _normalize_icon(icon: str | None) -> str | None:
+    """Normalize an icon value for catalog submission.
+
+    Accepts a raw SVG string or a base64-encoded SVG. Returns the bare
+    ``<svg>…</svg>`` fragment with all double-quotes replaced by single
+    quotes (required by the catalog schema). Returns ``None`` when the
+    input is falsy and returns the original value unchanged when it
+    cannot be decoded or does not contain an SVG element.
+    """
+    if not icon:
+        return None
+
+    processed_icon = icon
+
+    if not icon.lstrip().startswith("<"):
+        try:
+            decoded_icon = base64.b64decode(icon, validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return icon
+
+        if "<" in decoded_icon and ">" in decoded_icon:
+            processed_icon = decoded_icon
+        else:
+            return icon
+
+    svg_match = re.search(r"<svg[\s\S]*</svg>", processed_icon, re.IGNORECASE)
+    if svg_match:
+        processed_icon = svg_match.group(0)
+
+    return processed_icon.replace('"', "'")
+
+
+def _normalize_icon_quotes(data: dict):
+    """Normalize the ``icon`` field of *data* in-place using :func:`_normalize_icon`.
+
+    If the dict has a string ``icon`` key its value is replaced with the
+    normalized form.  No-ops when ``icon`` is absent or the normalized
+    result is ``None``.
+    """
+    icon = data.get("icon")
+    if isinstance(icon, str):
+        normalized_icon = _normalize_icon(icon)
+        if normalized_icon is not None:
+            data["icon"] = normalized_icon
+
+
 def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_name: str):
     agents_dir = project_root / "agents"
     if not agents_dir.exists():
@@ -69,20 +152,36 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
             parent_agent_name
         ).model_dump()
 
-        extra_agent_fields = {k: v for k, v in extra_agent_fields.items() if v is not None}
+        # Keep all non-None fields, plus explicitly keep delete_by even when None
+        # because null is a valid required value for that field in the catalog schema.
+        extra_agent_fields = {
+            k: v for k, v in extra_agent_fields.items()
+            if v is not None or k == "delete_by"
+        }
 
         agent_data.update(extra_agent_fields)
+        _normalize_icon_quotes(agent_data)
 
         with safe_open(agent_yaml, "w") as f:
             yaml.safe_dump(agent_data, f, sort_keys=False)
 
 
 def _create_applications_entry(connection_config: dict) -> dict:
+    """Build an applications entry conforming to partner-applications.schema.json.
+
+    The schema requires: app_id, name, icon, security_schema, documentation_link.
+    We read catalog metadata written by export_connection(include_catalog=True).
+    security_schema defaults to an empty bearer_token stub when not present so
+    the entry is schema-valid — partners must fill in real auth config before submission.
+    """
+    catalog = connection_config.get('catalog', {})
     return {
         'app_id': connection_config.get('app_id'),
-        'name': connection_config.get('catalog',{}).get('name','applications_file'),
-        'description': connection_config.get('catalog',{}).get('description',''),
-        'icon': connection_config.get('catalog',{}).get('icon','')
+        'name': catalog.get('name') or connection_config.get('app_id', ''),
+        'description': catalog.get('description'),
+        'icon': catalog.get('icon') or '',
+        'security_schema': catalog.get('security_schema') or {'bearer_token': {}},
+        'documentation_link': catalog.get('documentation_link'),
     }
 
 def _compare_placeholders(value, placeholder) -> bool:
@@ -92,9 +191,26 @@ def _compare_placeholders(value, placeholder) -> bool:
     return value == placeholder
 
 def _validate_agent_placeholders(agent_data: dict, agent_name: str) -> None:
+    """Warn when any catalog field in *agent_data* still holds its scaffold placeholder value.
+
+    Partners must replace every placeholder before submitting a package to the
+    catalog.  This function surfaces each outstanding placeholder as a
+    ``WARNING`` log message so issues are visible during ``package``.
+    """
     for label, placeholder in AGENT_CATALOG_ONLY_PLACEHOLDERS.items():
-        if _compare_placeholders(agent_data.get(label),  placeholder):
+        if _compare_placeholders(agent_data.get(label), placeholder):
             logger.warning(f"Placeholder '{label}' detected for agent '{agent_name}', please ensure '{label}' is correct before packaging.")
+
+def _validate_tool_placeholders(tool_data: dict, tool_name: str) -> None:
+    """Warn when any catalog field in *tool_data* still holds its scaffold placeholder value.
+
+    Partners must replace every placeholder before submitting a package to the
+    catalog.  This function surfaces each outstanding placeholder as a
+    ``WARNING`` log message so issues are visible during ``package``.
+    """
+    for label, placeholder in TOOL_CATALOG_ONLY_PLACEHOLDERS.items():
+        if _compare_placeholders(tool_data.get(label), placeholder):
+            logger.warning(f"Placeholder '{label}' detected for tool '{tool_name}', please ensure '{label}' is correct before packaging.")
 
 
 
@@ -327,9 +443,10 @@ class PartnersOfferingController:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             top_level_folder = offering
 
-            # --- Add offering YAML as JSON ---
-            offering_json_path = f"{top_level_folder}/offerings/{offering}/config.json"
-            zf.writestr(offering_json_path, json.dumps(offering_data, indent=2))
+            # --- Keep offerings/ folder present in the zip via a placeholder ---
+            # The offerings/ directory is currently unused for partners packaging;
+            # a .donotremove file preserves the folder structure in the zip.
+            zf.writestr(f"{top_level_folder}/offerings/.donotremove", "")
 
             # --- Add & validate agents ---
             agents = offering_data.get("assets", {}).get(publisher_name, {}).get("agents", [])
@@ -363,8 +480,28 @@ class PartnersOfferingController:
                 
                 _validate_agent_placeholders(agent_data, agent_name)
 
+                # Strip fields not in the catalog schema before packaging.
+                # The ADK agent spec contains internal platform fields (e.g. plugins,
+                # spec_version, is_schedulable) that the catalog rejects via
+                # additionalProperties:false. Only native agents need this filter;
+                # external agent schema validation is handled separately.
+                if agent_kind == AgentKind.NATIVE:
+                    catalog_data = {k: v for k, v in agent_data.items() if k in NATIVE_AGENT_CATALOG_FIELDS}
+                    # hidden is required by the catalog schema but excluded from
+                    # agent exports that use exclude_unset=True — ensure it is present.
+                    if "hidden" not in catalog_data:
+                        catalog_data["hidden"] = False
+                    dropped = set(agent_data.keys()) - NATIVE_AGENT_CATALOG_FIELDS
+                    if dropped:
+                        logger.warning(
+                            f"Agent '{agent_name}': dropping fields not in catalog schema: {sorted(dropped)}"
+                        )
+                else:
+                    catalog_data = agent_data
+
+                _normalize_icon_quotes(catalog_data)
                 agent_json_path = f"{top_level_folder}/agents/{agent_name}/config.json"
-                zf.writestr(agent_json_path, json.dumps(agent_data, indent=2))
+                zf.writestr(agent_json_path, json.dumps(catalog_data, indent=2))
             
             # --- Add & validate tools ---
             tools_client = instantiate_client(ToolClient)
@@ -396,9 +533,37 @@ class PartnersOfferingController:
                     logger.error(f"Tool {tool_name} has invalid or missing name in spec")
                     sys.exit(1)
 
-                # Write tool spec directly into zip
+                # Inject catalog-required fields that are absent from the tool spec
+                # (e.g. exported specs omit fields with exclude_unset=True).
+                extras = ToolCatalogExtras.from_tool_details(tool_data, publisher_name)
+                extra_fields = {
+                    k: v for k, v in extras.model_dump().items()
+                    if v is not None or k == "delete_by"
+                }
+                tool_data.update(extra_fields)
+                _normalize_icon_quotes(tool_data)
+
+                _validate_tool_placeholders(tool_data, tool_name)
+
+                # Strip fields not in the catalog tool schema (additionalProperties:false).
+                # Also strip internal fields from binding.python (connections, type, etc.)
+                catalog_tool_data = {k: v for k, v in tool_data.items() if k in NATIVE_TOOL_CATALOG_FIELDS}
+                dropped_tool = set(tool_data.keys()) - NATIVE_TOOL_CATALOG_FIELDS
+                if dropped_tool:
+                    logger.warning(
+                        f"Tool '{tool_name}': dropping fields not in catalog schema: {sorted(dropped_tool)}"
+                    )
+                if "binding" in catalog_tool_data and "python" in catalog_tool_data["binding"]:
+                    catalog_tool_data["binding"] = {
+                        "python": {
+                            k: v for k, v in catalog_tool_data["binding"]["python"].items()
+                            if k in NATIVE_TOOL_PYTHON_BINDING_FIELDS
+                        }
+                    }
+
+                # Write filtered tool spec into zip
                 tool_zip_path = f"{top_level_folder}/tools/{tool_name}/config.json"
-                zf.writestr(tool_zip_path, json.dumps(tool_data, indent=2))
+                zf.writestr(tool_zip_path, json.dumps(catalog_tool_data, indent=2))
 
                 # --- Build artifact zip in-memory instead of source ---
                 artifact_zip_path = f"{top_level_folder}/tools/{tool_name}/attachments/{tool_name}.zip"
@@ -407,6 +572,9 @@ class PartnersOfferingController:
                     with tempfile.TemporaryDirectory() as tmpdir:
                         tmp_zip = Path(tmpdir) / f"{tool_name}.zip"
                         make_archive(str(tmp_zip.with_suffix('')), 'zip', root_dir=tool_dir, base_dir='.')
+                        # Append the bundle-format marker required by the catalog runtime.
+                        with zipfile.ZipFile(tmp_zip, "a") as artifact_zf:
+                            artifact_zf.writestr("bundle-format", "2.0.0")
                         zf.write(tmp_zip, artifact_zip_path)
                 else:
                     logger.error(f"No Python files found for tool {tool_name}.")

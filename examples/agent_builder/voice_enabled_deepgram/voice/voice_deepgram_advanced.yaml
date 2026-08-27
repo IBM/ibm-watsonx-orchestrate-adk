@@ -84,3 +84,4 @@ agent_idle_handler:
   hold_audio_seconds: 15  # Duration of hold audio in seconds (0-120)
   pre_hold_message: "We're taking a little extra time but we'll be with you shortly. Thanks for your patience!"  # The text to play for the user before playing on-hold audio
   hold_message: "Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait."  # The text to play to the user periodically while on hold
+  long_running_task_seconds: 2  # Seconds of agent processing time before the pre-hold message is triggered (0-120)

@@ -5,6 +5,7 @@ import logging
 import mimetypes
 import os
 import re
+import sys
 import zipfile
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -62,6 +63,21 @@ class SkillsController:
     def __init__(self):
         self.client = instantiate_client(BaseWXOClient)
         self.base_url = f"{self.client.base_url}/skills"
+
+    def get_all_skills(self, workspace_id: Optional[str] = None) -> list:
+        """Fetch all skills from the server, optionally scoped to a workspace."""
+        params = {"workspace_id": workspace_id} if workspace_id else {}
+        response = requests.get(
+            self.base_url,
+            params=params,
+            headers=self.client._get_headers(),
+            verify=self.client.verify,
+        )
+        if response.status_code != 200:
+            detail = _error_detail(response)
+            logger.error(f"Failed to list skills: {detail}")
+            sys.exit(1)
+        return response.json()
 
     def _resolve_skill_id_by_name(
         self,
