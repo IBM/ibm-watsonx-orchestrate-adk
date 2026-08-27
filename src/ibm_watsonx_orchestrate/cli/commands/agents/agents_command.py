@@ -174,13 +174,6 @@ def agent_create(
             help="Agent configuration in JSON format (e.g., '{\"hidden\": false, \"enable_cot\": false}')",
         ),
     ] = None,
-    custom_agents_metadata: Annotated[
-        str,
-        typer.Option(
-            "--custom-agents-metadata",
-            help="Free-form metadata to associate with the agent, as a JSON dict. e.g. '{\"key\": \"value\"}'",
-        ),
-    ] = None,
     nickname: Annotated[
         str,
         typer.Option("--nickname", help="Agent's nickname"),
@@ -272,7 +265,6 @@ def agent_create(
     config_dict = json.loads(config) if config else {}
     auth_config_dict = json.loads(auth_config) if auth_config else {}
     structured_output_dict = json.loads(structured_output) if structured_output else None
-    custom_agents_metadata_dict = json.loads(custom_agents_metadata) if custom_agents_metadata else None
     
     custom_agent_file_path = None
     custom_agent_config_file = None
@@ -355,7 +347,6 @@ def agent_create(
         context_variables=context_variables,
         custom_agent_file_path=custom_agent_file_path,
         custom_agent_config_file=custom_agent_config_file,
-        custom_agents_metadata=custom_agents_metadata_dict,
     )
     agents_controller.publish_or_update_agents([agent])
 
