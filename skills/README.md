@@ -1,6 +1,6 @@
 # watsonx Orchestrate Skills
 
-This directory contains Skills for working with the IBM watsonx Orchestrate Agent Development Kit (ADK). These skills provide expert guidance and assistance for the **end-to-end lifecycle of enterprise automation and agent solutions**—from business requirements, to SOPs, to watsonx Orchestrate (wxO) implementation, to post-build analysis and documentation.
+This directory contains Skills for working with the IBM watsonx Orchestrate Agent Development Kit (ADK). These skills provide expert guidance and assistance for the **end-to-end lifecycle of enterprise automation and agent solutions**—from business requirements, solution architecture, and SOPs, to watsonx Orchestrate (wxO) implementation, post-build analysis and documentation, telemetry-based debugging, evaluation of agent instructions for production readiness, and customer care MCP server development.
 
 ---
 
@@ -26,7 +26,11 @@ This skill set covers the complete journey of building enterprise AI agent solut
 
 5. **telemetry-analyzer** - Exports and analyzes agent telemetry traces from watsonx Orchestrate (OTel or Langfuse JSON) to produce structured bug reports with root-cause analysis, fix recommendations, and conversational flow reports.
 
-Together, these skills create a **closed-loop system** for designing, building, documenting, maintaining, and debugging enterprise-grade watsonx Orchestrate solutions.
+6. **agent-instructions-evaluator** - Evaluates agent instructions for operational achievability in production settings, scoring across five dimensions and surfacing hidden state, conflicting rules, and brittle phrasing before deployment.
+
+7. **customercare-mcp-builder** - Expert guide for building production-ready MCP servers for customer care agents, covering transaction patterns, widget types, context management, agent handoff, and complete reference implementations.
+
+Together, these skills create a **closed-loop system** for designing, building, documenting, debugging, evaluating, and maintaining enterprise-grade watsonx Orchestrate solutions.
 
 ---
 
@@ -79,25 +83,26 @@ Transforms **technical workflows into business-readable SOPs**. It:
 ### 3. wxo-builder
 **Location:** `wxo-builder/SKILL.md`
 
-Turns SOPs or prompts into **fully implemented watsonx Orchestrate solutions**. It:
+Turns SOPs or prompts into **fully implemented watsonx Orchestrate solutions**, then sees them through testing, debugging, and production deployment. It:
 
-- Generates agents, tools, flows, and knowledge bases
-- Follows recommended ADK project structures and patterns
+- Generates agents, tools (`@tool`), flows (`@flow`), connections, models, and knowledge bases
+- Follows recommended ADK project structures and dependency-ordered import patterns
 - Supports multiple KB backends and end-to-end CLI workflows
+- Covers the full lifecycle: build → test → debug → publish → runtime API consumption
 
-**Best for:** Implementation and production-ready wxO builds
+**Best for:** End-to-end wxO implementation and production-ready builds
 
 **Key Capabilities:**
 - Generating complete wxO implementations from Standard Operating Procedures (SOPs)
 - Transforming business requirements into agents, tools, flows, and knowledge bases
 - Recommended workflow: Use `sop-builder` to create SOPs from BPMN/n8n/Langflow first, then use `wxo-builder` to generate wxO solutions
-- Knowledge base providers (Milvus, AstraDB, Elasticsearch)
-- Standard project structure and implementation patterns
-- Document processing flows and workflow patterns
-- Python tool and flow decorators
-- Agent YAML configuration
-- CLI import commands and best practices
-- Complete examples from the ADK repository
+- Knowledge base providers (built-in Milvus, AstraDB, Elasticsearch)
+- Standard project structure with import and delete scripts for the full solution
+- Python tools and flows guidance
+- Agent YAML configuration 
+- Connections and custom model setup
+- Test gate and debugging playbook covering 15+ common failure modes
+- Publishing, webchat embed, runtime REST API, and MCP toolkit integration
 
 ---
 
@@ -218,18 +223,41 @@ This creates a **closed-loop system** where:
 
 ## Using These Skills
 
-### In Claude Desktop or Web
+### In Bob
 
-1. Navigate to the Skills section in Claude
-2. Import the desired skill by selecting the appropriate SKILL.md file:
-   - `solution-architect/SKILL.md` - For solution architecture documentation
-   - `sop-builder/SKILL.md` - For SOP generation from workflows
-   - `wxo-builder/SKILL.md` - For watsonx Orchestrate development
-   - `wxo-analyzer/SKILL.md` - For analyzing existing wxO projects
-   - `agent-instructions-evaluator/SKILL.md` - For evaluating agent instructions
-   - `customercare-mcp-builder/SKILL.md` - For customer care MCP servers
-   - `telemetry-analyzer/SKILL.md` - For analyzing agent telemetry traces
-3. The skill will be available in your conversations
+Place the skill folder(s) you want to use inside `.bob/skills/` in your workspace. Bob will automatically pick them up.
+
+```
+.bob/
+└── skills/
+    ├── wxo-builder/
+    ├── solution-architect/
+    ├── sop-builder/
+    ├── wxo-analyzer/
+    ├── agent-instructions-evaluator/
+    └── customercare-mcp-builder/
+```
+
+---
+
+### Using the watsonx Orchestrate ADK Extension in Bob
+
+The **watsonx Orchestrate ADK** extension for Bob automatically initializes your workspace and loads all curated skills into the assistant, giving you instant access to the full skill set without manual imports.
+
+**Install the extension:**
+
+- [Open VSX Registry](https://open-vsx.org/extension/watson-devex/ibm-watsonx-orchestrate-agent-builder)
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=watson-devex.ibm-watsonx-orchestrate-agent-builder)
+
+**Steps to get started:**
+
+1. **Open Extensions Manager** in Bob: Click the Extensions icon in the Activity Bar (or press `Ctrl+Shift+X` / `Cmd+Shift+X`). Search for **"watsonx Orchestrate ADK"** and install the extension published by **IBM watsonx Orchestrate**.
+
+2. **Open watsonx Orchestrate inside Bob**: Click the watsonx Orchestrate icon in the Activity Bar to open the extension panel.
+
+3. **Click "Initialize Workspace"**: This sets up your local environment, installs the ADK Python package, configures the MCP server, and registers all available skills automatically.
+
+4. **Hit Enter in the chat**: Once initialization is complete, press Enter in the Bob chat input to load all the latest curated skills into your session. The skills are now available and Bob will use them to assist you.
 
 ### With the MCP Server
 
