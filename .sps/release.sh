@@ -22,11 +22,11 @@ function python_release() {
     if ! using_default_branch; then
         if [ "$release_type" = "BETA" ]; then
           local git_token
-          git_token=$(get_env git-token)
+          git_token=$(get_secret git-token)
 
           install_gh_cli_via_curl
           authenticate_gh_cli "$git_token"
-          login_docker_registry "$(get_env "wai-registry-development")"
+          login_docker_registry "$(get_secret "wai-registry-development")"
 
           # Fetch what the new version will be
           local new_version
@@ -50,11 +50,11 @@ function python_release() {
           git_create_pr --open-from "${branch}" --title "chore(beta-release): Release of ${new_version}" --description "Release of ${new_version} created by pipeline run ${BUILD_NUMBER}" --reviewer "Eric-Marcoux"
         elif [ "$release_type" = "RELEASE" ]; then
           local git_token
-          git_token=$(get_env git-token)
+          git_token=$(get_secret git-token)
 
           install_gh_cli_via_curl
           authenticate_gh_cli "$git_token"
-          login_docker_registry "$(get_env "wai-registry-development")"
+          login_docker_registry "$(get_secret "wai-registry-development")"
 
           # Fetch what the new version will be
           local new_version
@@ -76,11 +76,11 @@ function python_release() {
         warn "No new version detected, skipping release"
     else
         local git_token
-        git_token=$(get_env git-token)
+        git_token=$(get_secret git-token)
         
         install_gh_cli_via_curl
         authenticate_gh_cli "$git_token"
-        login_docker_registry "$(get_env "wai-registry-development")"
+        login_docker_registry "$(get_secret "wai-registry-development")"
 
         # Fetch what the new version will be
         local new_version

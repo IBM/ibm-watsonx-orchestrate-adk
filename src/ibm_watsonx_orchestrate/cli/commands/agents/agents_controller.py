@@ -37,6 +37,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
 from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name, should_use_workspaces
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
@@ -168,6 +169,7 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "custom_join_tool": args.get("custom_join_tool"),
         "structured_output": args.get("structured_output"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     collaborators = args.get("collaborators", [])
@@ -195,17 +197,8 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     context_variables = [x.strip() for x in context_variables if x.strip() != ""]
     agent_details["context_variables"] = context_variables
 
-    # hidden = args.get("hidden")
-    # if hidden:
-    #     agent_details["hidden"] = hidden 
-
-    # starter_prompts = args.get("starter_prompts")
-    # if starter_prompts:
-    #     agent_details["starter_prompts"] = starter_prompts 
-
-    # welcome_content = args.get("welcome_content")
-    # if welcome_content:
-    #     agent_details["welcome_content"] = welcome_content 
+    agent_details["hidden"] = args.get("hidden", False)
+    agent_details["restrictions"] = args.get("restrictions", AgentRestrictionType.EDITABLE.value)
 
     return agent_details
 
@@ -225,6 +218,7 @@ def parse_create_external_args(name: str, kind: AgentKind, description: str | No
         "nickname": args.get("nickname"),
         "app_id": args.get("app_id"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     context_variables = args.get("context_variables", [])
@@ -244,6 +238,7 @@ def parse_create_assistant_args(name: str, kind: AgentKind, description: str | N
         "config": args.get("config", {}),
         "nickname": args.get("nickname"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     context_variables = args.get("context_variables", [])
@@ -284,42 +279,57 @@ class AgentsController:
         self.knowledge_base_client = None
         self.toolkit_client = None
         self.voice_configuration_client = None
+        self.skills_controller = None
         self.safe_mode = safe_mode
 
     def get_native_client(self):
+        """Lazily initialise and return the shared AgentClient instance."""
         if not self.native_client:
             self.native_client = instantiate_client(AgentClient)
         return self.native_client
 
     def get_external_client(self):
+        """Lazily initialise and return the shared ExternalAgentClient instance."""
         if not self.external_client:
             self.external_client = instantiate_client(ExternalAgentClient)
         return self.external_client
     
     def get_assistant_client(self):
+        """Lazily initialise and return the shared AssistantAgentClient instance."""
         if not self.assistant_client:
             self.assistant_client = instantiate_client(AssistantAgentClient)
         return self.assistant_client
     
     def get_tool_client(self):
+        """Lazily initialise and return the shared ToolClient instance."""
         if not self.tool_client:
             self.tool_client = instantiate_client(ToolClient)
         return self.tool_client
     
     def get_knowledge_base_client(self):
+        """Lazily initialise and return the shared KnowledgeBaseClient instance."""
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
 
     def get_toolkit_client(self):
+        """Lazily initialise and return the shared ToolKitClient instance."""
         if not self.toolkit_client:
             self.toolkit_client = instantiate_client(ToolKitClient)
         return self.toolkit_client
 
     def get_voice_configuration_client(self):
+        """Lazily initialise and return the shared VoiceConfigurationsClient instance."""
         if not self.voice_configuration_client:
             self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
         return self.voice_configuration_client
+
+    def get_skills_controller(self):
+        """Lazily initialise and return the shared SkillsController instance."""
+        if not self.skills_controller:
+            from ibm_watsonx_orchestrate.cli.commands.skills.skills_controller import SkillsController
+            self.skills_controller = SkillsController()
+        return self.skills_controller
     
     @staticmethod
     def import_agent(
@@ -1120,6 +1130,47 @@ class AgentsController:
         ref_agent.knowledge_base = ref_knowledge_bases
 
         return ref_agent
+
+    def dereference_skills(self, agent: Agent) -> Agent:
+        """Resolve skill names to IDs for agent import/binding."""
+        skills_controller = self.get_skills_controller()
+
+        deref_agent = deepcopy(agent)
+
+        all_skills = skills_controller.get_all_skills()
+        name_id_lookup = {s["name"]: s["id"] for s in all_skills}
+
+        deref_skills = []
+        for name in agent.skills:
+            skill_id = name_id_lookup.get(name)
+            if not skill_id:
+                logger.error(f"Failed to find skill. No skill found with the name '{name}'.")
+                sys.exit(1)
+            deref_skills.append(skill_id)
+
+        deref_agent.skills = deref_skills
+        return deref_agent
+
+    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+        """Resolve skill IDs back to names for agent export."""
+        skills_controller = self.get_skills_controller()
+
+        ref_agent = deepcopy(agent)
+
+        all_skills = skills_controller.get_all_skills(workspace_id)
+        id_name_lookup = {s["id"]: s["name"] for s in all_skills}
+
+        ref_skills = []
+        for skill_id in agent.skills:
+            name = id_name_lookup.get(skill_id)
+            if not name:
+                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'.")
+                sys.exit(1)
+            ref_skills.append(name)
+
+        ref_agent.skills = ref_skills
+        return ref_agent
+
     def dereference_toolkits(self, agent: Agent) -> Agent:
         client = self.get_toolkit_client()
 
@@ -1310,6 +1361,8 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
+        if agent.skills and len(agent.skills) > 0:
+            agent = self.dereference_skills(agent)
 
         return agent
     
@@ -1324,6 +1377,8 @@ class AgentsController:
             agent = self.reference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits):
             agent = self.reference_toolkits(agent)
+        if agent.skills and len(agent.skills):
+            agent = self.reference_skills(agent, workspace_id=workspace_id)
 
         return agent
     
@@ -1915,20 +1970,24 @@ class AgentsController:
             case _:
                 return ([], [[f"Invalid Agent kind '{target_agent_kind}'"]])
         
-        # Use client method directly - it handles workspace_id parameter 
+        # Use client method directly - it handles workspace_id parameter
         response = agent_client.get(workspace_id=workspace_id, include_global=include_global)
         
-        agents = []
-        for agent in response:
-            try:
-                agents.append(target_kind_class.model_validate(agent))
-            except Exception as e:
-                name = agent.get('name', None)
-                parse_errors.append([
-                    f"{target_kind_display_name} '{name}' could not be parsed",
-                    json.dumps(agent),
-                    e
-                ])
+        token = validation_context.set("list")
+        try:
+            agents = []
+            for agent in response:
+                try:
+                    agents.append(target_kind_class.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([
+                        f"{target_kind_display_name} '{name}' could not be parsed",
+                        json.dumps(agent),
+                        e
+                    ])
+        finally:
+            validation_context.reset(token)
         return (agents, parse_errors)
 
     def _get_all_unique_agent_resources(self, agents: List[Agent], target_attr: str) -> List[str]:
@@ -2431,19 +2490,23 @@ class AgentsController:
         return agent_spec
 
     def get_agent(self, name: str, kind: AgentKind, workspace_id: Optional[str] = None) -> Agent | ExternalAgent | AssistantAgent:
-        match kind:
-            case AgentKind.NATIVE:
-                client = self.get_native_client()
-                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
-                agent = Agent.model_validate(agent_details)
-            case AgentKind.EXTERNAL:
-                client = self.get_external_client()
-                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
-                agent = ExternalAgent.model_validate(agent_details)
-            case AgentKind.ASSISTANT:
-                client = self.get_assistant_client()
-                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
-                agent = AssistantAgent.model_validate(agent_details)
+        token = validation_context.set("get")
+        try:
+            match kind:
+                case AgentKind.NATIVE:
+                    client = self.get_native_client()
+                    agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
+                    agent = Agent.model_validate(agent_details)
+                case AgentKind.EXTERNAL:
+                    client = self.get_external_client()
+                    agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
+                    agent = ExternalAgent.model_validate(agent_details)
+                case AgentKind.ASSISTANT:
+                    client = self.get_assistant_client()
+                    agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
+                    agent = AssistantAgent.model_validate(agent_details)
+        finally:
+            validation_context.reset(token)
         
         return agent
     
@@ -2452,17 +2515,21 @@ class AgentsController:
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()
 
-        # Use client methods directly - they handle workspace_id parameter 
+        # Use client methods directly - they handle workspace_id parameter
         native_result = native_client.get_draft_by_id(id, workspace_id=workspace_id)
         external_result = external_client.get_draft_by_id(id, workspace_id=workspace_id)
         assistant_result = assistant_client.get_draft_by_id(id, workspace_id=workspace_id)
 
-        if native_result:
-            return Agent.model_validate(native_result)
-        if external_result:
-            return ExternalAgent.model_validate(external_result)
-        if assistant_result:
-            return AssistantAgent.model_validate(assistant_result)
+        token = validation_context.set("get_by_id")
+        try:
+            if native_result:
+                return Agent.model_validate(native_result)
+            if external_result:
+                return ExternalAgent.model_validate(external_result)
+            if assistant_result:
+                return AssistantAgent.model_validate(assistant_result)
+        finally:
+            validation_context.reset(token)
 
     def get_agent_by_names(self, names: List[str]) -> List[dict]:
         native_client = self.get_native_client()
@@ -2518,6 +2585,8 @@ class AgentsController:
         llm_config = llm_config.model_dump(exclude_unset=True, exclude_defaults=True, exclude_none=True)
         if "llm_config" in agent_spec_file_content and not llm_config:
             agent_spec_file_content.pop("llm_config", None)
+        else:
+            agent_spec_file_content.update({"llm_config": llm_config})
 
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
