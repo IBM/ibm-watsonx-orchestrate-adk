@@ -1,0 +1,14 @@
+# Simple example with minimal fields for proper functionality
+
+name: azure_voice_config
+speech_to_text:
+  provider: azure_stt
+  azure_stt_config:
+    subscription_key: "your-azure-subscription-key"
+    region: "eastus"
+text_to_speech:
+  provider: azure_tts
+  azure_tts_config:
+    subscription_key: "your-azure-subscription-key"
+    region: "eastus"
+    voice: "example voice" # "en-US-JennyNeural"

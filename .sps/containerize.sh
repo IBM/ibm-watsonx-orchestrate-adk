@@ -75,7 +75,7 @@ function build_sub_packages() {
 warn "ENTER ${BASH_SOURCE[0]}"
 
 BUILD_IMAGE=$(get_env "wai-build-env-image")
-login_docker_registry "$(get_env "wai-registry-development")"
+login_docker_registry "$(get_secret "wai-registry-development")"
 
 
 if property_set "wai-release-type"; then
@@ -107,7 +107,7 @@ build_sub_packages $BUILD_IMAGE
 if is_prerelease && ! property_set "wai-release-type"; then
   info "Publishing release candidate version ${VERSION}"
   pypi_repo="testpypi"
-  pypi_api_key=$(get_env "test-pypi-watson-devex")
+  pypi_api_key=$(get_secret "test-pypi-watson-devex")
   docker_run $BUILD_IMAGE "twine upload --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
   COMMIT_MESSAGE=$(cat <<EOF
 ### Release published to testpypi
@@ -125,11 +125,11 @@ elif is_release_branch; then
   info "Publishing version ${VERSION}"
 
   pypi_repo="testpypi"
-  pypi_api_key=$(get_env "test-pypi-watson-devex")
+  pypi_api_key=$(get_secret "test-pypi-watson-devex")
   docker_run $BUILD_IMAGE "twine upload --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
 
   pypi_repo="pypi"
-  pypi_api_key=$(get_env "pypi-watson-devex")
+  pypi_api_key=$(get_secret "pypi-watson-devex")
   docker_run $BUILD_IMAGE "twine upload --repository pypi -u __token__ -p ${pypi_api_key} dist/*"
 
   github_create_release ${VERSION}

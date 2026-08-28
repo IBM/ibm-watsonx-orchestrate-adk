@@ -6,14 +6,14 @@ class TestKnowledgeBaseImport:
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.import_knowledge_base") as import_mock:
             knowledge_bases_command.knowledge_base_import(file="test.yaml")
             import_mock.assert_called_once_with(
-                file="test.yaml", app_id=None
+                file="test.yaml", app_id=None, sync=False
             )
 
     def test_knowledge_base_import_with_app_id(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.import_knowledge_base") as import_mock:
             knowledge_bases_command.knowledge_base_import(file="test.yaml", app_id="app-id")
             import_mock.assert_called_once_with(
-                file="test.yaml", app_id="app-id"
+                file="test.yaml", app_id="app-id", sync=False
             )
 
 class TestKnowledgeBaseList:
@@ -42,7 +42,7 @@ class TestKnowledgeBaseStatus:
                 name="test_knowledge_base"
             )
 
-            mock.assert_called_once_with(  id=None, name="test_knowledge_base")
+            mock.assert_called_once_with(id=None, name="test_knowledge_base", verbose=False)
 
 class TestKnowledgeBaseDelete:
     def test_knowledge_base_remove(self):

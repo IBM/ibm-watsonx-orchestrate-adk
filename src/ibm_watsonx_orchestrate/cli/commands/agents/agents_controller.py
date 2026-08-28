@@ -275,42 +275,57 @@ class AgentsController:
         self.knowledge_base_client = None
         self.toolkit_client = None
         self.voice_configuration_client = None
+        self.skills_controller = None
         self.safe_mode = safe_mode
 
     def get_native_client(self):
+        """Lazily initialise and return the shared AgentClient instance."""
         if not self.native_client:
             self.native_client = instantiate_client(AgentClient)
         return self.native_client
 
     def get_external_client(self):
+        """Lazily initialise and return the shared ExternalAgentClient instance."""
         if not self.external_client:
             self.external_client = instantiate_client(ExternalAgentClient)
         return self.external_client
     
     def get_assistant_client(self):
+        """Lazily initialise and return the shared AssistantAgentClient instance."""
         if not self.assistant_client:
             self.assistant_client = instantiate_client(AssistantAgentClient)
         return self.assistant_client
     
     def get_tool_client(self):
+        """Lazily initialise and return the shared ToolClient instance."""
         if not self.tool_client:
             self.tool_client = instantiate_client(ToolClient)
         return self.tool_client
     
     def get_knowledge_base_client(self):
+        """Lazily initialise and return the shared KnowledgeBaseClient instance."""
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
 
     def get_toolkit_client(self):
+        """Lazily initialise and return the shared ToolKitClient instance."""
         if not self.toolkit_client:
             self.toolkit_client = instantiate_client(ToolKitClient)
         return self.toolkit_client
 
     def get_voice_configuration_client(self):
+        """Lazily initialise and return the shared VoiceConfigurationsClient instance."""
         if not self.voice_configuration_client:
             self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
         return self.voice_configuration_client
+
+    def get_skills_controller(self):
+        """Lazily initialise and return the shared SkillsController instance."""
+        if not self.skills_controller:
+            from ibm_watsonx_orchestrate.cli.commands.skills.skills_controller import SkillsController
+            self.skills_controller = SkillsController()
+        return self.skills_controller
     
     @staticmethod
     def import_agent(
@@ -1111,6 +1126,47 @@ class AgentsController:
         ref_agent.knowledge_base = ref_knowledge_bases
 
         return ref_agent
+
+    def dereference_skills(self, agent: Agent) -> Agent:
+        """Resolve skill names to IDs for agent import/binding."""
+        skills_controller = self.get_skills_controller()
+
+        deref_agent = deepcopy(agent)
+
+        all_skills = skills_controller.get_all_skills()
+        name_id_lookup = {s["name"]: s["id"] for s in all_skills}
+
+        deref_skills = []
+        for name in agent.skills:
+            skill_id = name_id_lookup.get(name)
+            if not skill_id:
+                logger.error(f"Failed to find skill. No skill found with the name '{name}'.")
+                sys.exit(1)
+            deref_skills.append(skill_id)
+
+        deref_agent.skills = deref_skills
+        return deref_agent
+
+    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+        """Resolve skill IDs back to names for agent export."""
+        skills_controller = self.get_skills_controller()
+
+        ref_agent = deepcopy(agent)
+
+        all_skills = skills_controller.get_all_skills(workspace_id)
+        id_name_lookup = {s["id"]: s["name"] for s in all_skills}
+
+        ref_skills = []
+        for skill_id in agent.skills:
+            name = id_name_lookup.get(skill_id)
+            if not name:
+                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'.")
+                sys.exit(1)
+            ref_skills.append(name)
+
+        ref_agent.skills = ref_skills
+        return ref_agent
+
     def dereference_toolkits(self, agent: Agent) -> Agent:
         client = self.get_toolkit_client()
 
@@ -1301,6 +1357,8 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
+        if agent.skills and len(agent.skills) > 0:
+            agent = self.dereference_skills(agent)
 
         return agent
     
@@ -1315,6 +1373,8 @@ class AgentsController:
             agent = self.reference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits):
             agent = self.reference_toolkits(agent)
+        if agent.skills and len(agent.skills):
+            agent = self.reference_skills(agent, workspace_id=workspace_id)
 
         return agent
     

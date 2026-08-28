@@ -1,6 +1,6 @@
 from .constants import START, END, RESERVED
 
-from ..types import FlowContext, TaskData, TaskEventType, DocProcInput, DecisionsCondition, DecisionsRule, FlowCallback, FlowCallbackEventKind
+from ..types import FlowContext, TaskData, TaskEventType, DocProcInput, DecisionsCondition, DecisionsRule, FlowCallback, FlowCallbackEventKind, ThreadControlPolicy
 from ..node import (UserNode, AgentNode, StartNode, EndNode, PromptNode, ToolNode, DecisionsNode, ScriptNode,
     DocClassifierNode, DocExtNode, DocProcNode, TimerNode)
 
@@ -53,6 +53,7 @@ __all__ = [
     "UserFlow",
     "FlowCallback",
     "FlowCallbackEventKind",
+    "ThreadControlPolicy",
 
     "flow"
 ]
