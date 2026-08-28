@@ -354,6 +354,14 @@ class WorkspacesController:
             if not account_id:
                 # Try direct account field
                 account_id = token.get('account')
+
+            if not account_id:
+                # Try direct account field
+                account_id = token.get('accountId')
+
+            if not account_id:
+                # Try direct account field
+                account_id = token.get('tenantId')
             
             if not account_id:
                 logger.error("Could not extract account ID from token")
