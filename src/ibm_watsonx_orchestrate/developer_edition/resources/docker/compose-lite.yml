@@ -1544,6 +1544,11 @@ services:
     depends_on:
       wdu-model-copy:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: '6G'
 
   wdu-model-copy:
     image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.9.1}
