@@ -246,7 +246,7 @@ class ModelsController:
         existing_policies = {mp.name for mp in model_policies_client.list()}
 
         return existing_models.union(existing_policies)
-    
+
     def does_model_exist(self, model_name: str) -> bool:
         models = self.list_models(format=ListFormats.JSON)
         model_names = {model.name for model in models}
