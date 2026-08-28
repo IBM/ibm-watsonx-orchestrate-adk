@@ -49,7 +49,6 @@ __all__ = [
     # State management
     "StateManager",
     "SessionStateManager",
-    "ContextStateManager",
     "HybridStateManager",
     "WidgetState",
     "StateManagerError",

@@ -10,7 +10,7 @@ ensuring that any future changes to form widgets automatically apply to
 multi-turn flows as well.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import Dict, Any, Optional, Union
 import uuid
 
@@ -50,9 +50,19 @@ class MultiTurnWidget(BaseModel):
         description: Optional widget description
         
     Note:
-        The title parameter is not needed at the MultiTurnWidget level.
+        The title parameter sets the JSON Schema ``title`` for the widget as
+        a whole. This is distinct from ``FormInput.title``, which is the
+        display label shown to the user for the individual input field.
         Titles should be specified on the individual FormInput items
         (e.g., TextInput.title, NumberInput.title, etc.).
+
+    Serialization note:
+        Use ``to_response()`` to obtain the wire-format dict expected by the
+        runtime. ``model_dump()`` returns the standard Pydantic field
+        representation and should not be used for wire serialization.
+        Nesting ``MultiTurnWidget`` inside another Pydantic model is
+        unsupported — the ``state_manager`` field (a non-Pydantic ABC) will
+        not round-trip through ``model_dump()`` without a custom serializer.
         
     Example:
         >>> from ibm_watsonx_orchestrate.run.widgets import TextInput
@@ -98,8 +108,17 @@ class MultiTurnWidget(BaseModel):
     state_manager: StateManager = Field(
         default_factory=lambda: HybridStateManager(ttl=3600)
     )
+
+    @field_serializer("state_manager")
+    def _serialize_state_manager(self, value: StateManager) -> str:
+        """Return the class name so Pydantic can serialize this non-model field."""
+        return type(value).__name__
     
     # Lifecycle tracking
+    # NOTE: turn_number represents the NEXT turn to be processed (N+1 semantics).
+    # After update_state() completes, turn_number is already incremented to point
+    # at the upcoming turn. This differs from TurnRecord.turn_number in the
+    # context's turn_history, which records the COMPLETED turn number (N semantics).
     turn_number: int = Field(default=1, ge=1)
     is_complete: bool = False
     
@@ -139,19 +158,23 @@ class MultiTurnWidget(BaseModel):
         # Link session to context
         self.context.session_id = self.session_id
         
-        # Initialize turn number
-        self.turn_number = 1
-        self.is_complete = False
-        
-        # Try to load existing state
+        # Try to load existing state; only reset to defaults when none exists.
+        # If the load raises, leave any live state untouched rather than
+        # silently discarding in-progress widget state.
         try:
             existing_state = self.state_manager.load_state(self.session_id)
             if existing_state:
-                # Restore from existing state
                 self._restore_from_state(existing_state)
+            else:
+                self.turn_number = 1
+                self.is_complete = False
         except StateManagerError as e:
-            # Log but continue - will start fresh
+            # Log but continue - live state preserved as-is
             print(f"Warning: Could not load existing state: {e}")
+
+        # Evict expired sessions to prevent unbounded memory growth
+        if hasattr(self.state_manager, "cleanup_expired"):
+            self.state_manager.cleanup_expired()
 
     def update_state(
         self,
@@ -204,14 +227,21 @@ class MultiTurnWidget(BaseModel):
             status=TurnStatus.COMPLETED if is_valid else TurnStatus.FAILED,
             metadata=metadata or {},
         )
+
+        # Populate TurnRecord.error on failed turns so callers can inspect it
+        if not is_valid and validation_errors:
+            turn.error = validation_errors[0]
         
+        # Increment turn number before persisting so stored value is current
+        self.turn_number += 1
+
         # Persist state
         state_data = {
             "widget_name": self.name,
             "input_name": self.input.name,
             "turn_number": self.turn_number,
             "widget_state": widget_state.to_dict(),
-            "context": self.context.model_dump(),
+            "context": self.context.model_dump(mode="json"),
             "is_complete": self.is_complete,
         }
         
@@ -220,9 +250,6 @@ class MultiTurnWidget(BaseModel):
                 self.state_manager.save_state(self.session_id, state_data)
             except StateManagerError as e:
                 print(f"Warning: Failed to persist state: {e}")
-        
-        # Increment turn number
-        self.turn_number += 1
 
     def get_context(self) -> Dict[str, Any]:
         """
@@ -248,7 +275,7 @@ class MultiTurnWidget(BaseModel):
             "widget_name": self.name,
             "input_name": self.input.name,
             "turn_history": [
-                turn.model_dump() for turn in self.context.turn_history
+                turn.model_dump(mode="json") for turn in self.context.turn_history
             ],
         }
 
@@ -276,6 +303,8 @@ class MultiTurnWidget(BaseModel):
             self.turn_number = context["turn_number"]
         if "is_complete" in context:
             self.is_complete = context["is_complete"]
+            if context["is_complete"]:
+                self.context.is_active = False
         if "session_id" in context:
             self.session_id = context["session_id"]
             self.context.session_id = context["session_id"]
@@ -379,11 +408,9 @@ class MultiTurnWidget(BaseModel):
             self.input.name: self.input.to_ui_schema()
         }
         
-        # Build form data (default values)
-        form_data = {}
-        default_value = self.input.to_form_data()
-        if default_value is not None:
-            form_data[self.input.name] = default_value
+        # Build form data (default values) — always write the key, even when
+        # the default is None, to stay consistent with FormWidget._build_form_data().
+        form_data = {self.input.name: self.input.to_form_data()}
         
         # Build complete response
         response = {
@@ -418,9 +445,10 @@ class MultiTurnWidget(BaseModel):
         if "is_complete" in state_data:
             self.is_complete = state_data["is_complete"]
         if "context" in state_data:
-            # Restore context
+            # Use model_validate so datetime strings are coerced correctly
+            # when state was persisted via model_dump(mode="json").
             try:
-                self.context = ConversationContext(**state_data["context"])
+                self.context = ConversationContext.model_validate(state_data["context"])
             except Exception as e:
                 print(f"Warning: Could not restore context: {e}")
 
@@ -451,15 +479,6 @@ class MultiTurnWidget(BaseModel):
             "is_complete": self.is_complete,
             "conversation_summary": context_summary,
         }
-
-    def model_dump(self, **kwargs) -> Dict[str, Any]:  # type: ignore[override]
-        """
-        Override Pydantic's model_dump to return response structure.
-        
-        This allows the widget to be serialized directly to the
-        response format expected by the runtime.
-        """
-        return self.to_response()
 
     def dict(self, **kwargs) -> Dict[str, Any]:  # type: ignore[override]
         """Override Pydantic v1 dict() for backward compatibility"""

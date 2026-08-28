@@ -35,7 +35,6 @@ from .multiturn import (
     # State management
     StateManager,
     SessionStateManager,
-    ContextStateManager,
     HybridStateManager,
     WidgetState,
     StateManagerError,
@@ -81,7 +80,6 @@ __all__ = [
     # State management
     "StateManager",
     "SessionStateManager",
-    "ContextStateManager",
     "HybridStateManager",
     "WidgetState",
     "StateManagerError",
