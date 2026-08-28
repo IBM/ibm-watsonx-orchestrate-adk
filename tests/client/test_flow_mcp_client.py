@@ -73,17 +73,6 @@ def _fake_base_init(self, *args, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# Helpers — pure URL logic (no instantiation required)
-# ---------------------------------------------------------------------------
-
-def _expected_remote_mcp_url(base_url: str) -> str:
-    """Compute expected mcp_url the same way the fixed code does."""
-    stripped = base_url.rstrip("/")
-    full_base = stripped + "/v1/orchestrate"
-    return full_base.rstrip("/") + "/flows/mcp"
-
-
-# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
@@ -142,12 +131,12 @@ class TestFlowMCPClientMcpUrl:
         Local deployments must still use port 9044 with /mcp context root.
         The tenant-path fix must not affect local mode.
         """
-        base_url = "http://localhost"
-        client = _make_client(base_url, is_local=True)
-        assert client.mcp_url == "http://localhost:9044/mcp"
+        for base_url in ("http://localhost", "http://localhost/"):
+            client = _make_client(base_url, is_local=True)
+            assert client.mcp_url == "http://localhost:9044/mcp"
 
     def test_local_deployment_with_custom_hostname(self):
         """Local mode with a non-localhost hostname."""
-        base_url = "http://my-local-server"
+        base_url = "http://my-local-server/"
         client = _make_client(base_url, is_local=True)
         assert client.mcp_url == "http://my-local-server:9044/mcp"
