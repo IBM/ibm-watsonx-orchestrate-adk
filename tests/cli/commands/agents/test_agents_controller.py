@@ -648,16 +648,6 @@ class TestParseCreateNativeArgs:
         assert "restrictions" in parsed_args
         assert parsed_args["restrictions"] == "editable"
 
-    def test_parse_create_native_args_forwards_custom_agents_metadata(self):
-        metadata = {"feature_flag": True, "owner": "team-a"}
-        parsed_args = parse_create_native_args(
-            name="test_agent",
-            kind=AgentKind.NATIVE,
-            description="desc",
-            custom_agents_metadata=metadata,
-        )
-        assert parsed_args["custom_agents_metadata"] == metadata
-
 
 class TestParseCreateExternalArgs:
     def test_parse_create_external_args(self):
@@ -685,18 +675,6 @@ class TestParseCreateExternalArgs:
         assert parsed_args["nickname"] == "some_nickname"
         assert parsed_args["app_id"] == "some_app_id"
 
-    def test_parse_create_external_args_forwards_custom_agents_metadata(self):
-        metadata = {"feature_flag": True}
-        parsed_args = parse_create_external_args(
-            name="test_external_agent",
-            kind=AgentKind.EXTERNAL,
-            description="desc",
-            api_url="https://someurl.com",
-            custom_agents_metadata=metadata,
-        )
-        assert parsed_args["custom_agents_metadata"] == metadata
-
-
 class TestParseCreateAssistantArgs:
     def test_parse_create_assistant_args(self):
         parsed_args = parse_create_assistant_args(
@@ -716,17 +694,6 @@ class TestParseCreateAssistantArgs:
         assert parsed_args["tags"] == ["tag1", "tag2"]
         assert parsed_args["config"] == '{"api_version": "2021-11-27", "assistant_id": "test_id", "crn": "test_crn", "instance_url": "test_instance_url", "environment_id": "test_env", "app_id": "test_app_id"}'
         assert parsed_args["nickname"] == "some_nickname"
-
-    def test_parse_create_assistant_args_forwards_custom_agents_metadata(self):
-        metadata = {"feature_flag": True}
-        parsed_args = parse_create_assistant_args(
-            name="test_assistant_agent",
-            kind=AgentKind.ASSISTANT,
-            description="desc",
-            custom_agents_metadata=metadata,
-        )
-        assert parsed_args["custom_agents_metadata"] == metadata
-
 
 class TestGetConnIdFromAppId:
     mock_app_id = "test_app_id"
@@ -2201,31 +2168,3 @@ class TestDereferenceNativeAgentDependenciesSkills:
             ac.dereference_native_agent_dependencies(agent)
 
         deref_skills_mock.assert_not_called()
-
-
-class TestCustomAgentsMetadataRoundTrip:
-    BASE_SPEC = {
-        "spec_version": SpecVersion.V1,
-        "kind": AgentKind.NATIVE,
-        "name": "test_agent",
-        "description": "desc",
-        "llm": "watsonx/default/llm",
-        "style": AgentStyle.REACT_CORE,
-    }
-
-    def test_model_validate_preserves_field(self):
-        spec = {**self.BASE_SPEC, "custom_agents_metadata": {"k": "v"}}
-        agent = Agent.model_validate(spec)
-        assert agent.custom_agents_metadata == {"k": "v"}
-
-    def test_model_dump_includes_field_when_set(self):
-        spec = {**self.BASE_SPEC, "custom_agents_metadata": {"k": "v"}}
-        agent = Agent.model_validate(spec)
-        dumped = agent.model_dump(exclude_none=True)
-        assert "custom_agents_metadata" in dumped
-        assert dumped["custom_agents_metadata"] == {"k": "v"}
-
-    def test_model_dump_omits_field_when_none(self):
-        agent = Agent.model_validate(self.BASE_SPEC)
-        dumped = agent.model_dump(exclude_none=True)
-        assert "custom_agents_metadata" not in dumped

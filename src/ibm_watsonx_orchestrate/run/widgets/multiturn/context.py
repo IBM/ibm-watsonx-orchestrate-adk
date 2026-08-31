@@ -62,20 +62,6 @@ class TurnRecord(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
 
-    def mark_completed(self) -> None:
-        """Mark this turn as completed"""
-        self.status = TurnStatus.COMPLETED
-
-    def mark_failed(self, error: str) -> None:
-        """Mark this turn as failed with error message"""
-        self.status = TurnStatus.FAILED
-        self.error = error
-
-    def mark_skipped(self) -> None:
-        """Mark this turn as skipped"""
-        self.status = TurnStatus.SKIPPED
-
-
 class ConversationContext(BaseModel):
     """
     Tracks context across a multi-turn conversation.
@@ -199,91 +185,6 @@ class ConversationContext(BaseModel):
             'widget1'
         """
         return self.turn_history[-1] if self.turn_history else None
-
-    def get_turn_by_number(self, turn_number: int) -> Optional[TurnRecord]:
-        """
-        Get a specific turn by its number.
-        
-        Args:
-            turn_number: The turn number to retrieve (1-based)
-            
-        Returns:
-            The TurnRecord, or None if not found
-            
-        Example:
-            >>> context = ConversationContext()
-            >>> context.add_turn("widget1", "input1")
-            >>> turn = context.get_turn_by_number(1)
-            >>> turn.widget_name
-            'widget1'
-        """
-        for turn in self.turn_history:
-            if turn.turn_number == turn_number:
-                return turn
-        return None
-
-    def get_current_turn_number(self) -> int:
-        """
-        Get the current turn number (next turn to be added).
-        
-        Returns:
-            The next turn number
-            
-        Example:
-            >>> context = ConversationContext()
-            >>> context.get_current_turn_number()
-            1
-            >>> context.add_turn("widget1", "input1")
-            >>> context.get_current_turn_number()
-            2
-        """
-        return len(self.turn_history) + 1
-
-    def update_last_turn(
-        self,
-        user_input: Optional[Any] = None,
-        widget_state: Optional[Dict[str, Any]] = None,
-        status: Optional[TurnStatus] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[TurnRecord]:
-        """
-        Update the most recent turn.
-        
-        Args:
-            user_input: New user input
-            widget_state: New widget state
-            status: New status
-            metadata: Additional metadata to merge
-            
-        Returns:
-            The updated TurnRecord, or None if no turns exist
-            
-        Example:
-            >>> context = ConversationContext()
-            >>> context.add_turn("widget1")
-            >>> context.update_last_turn(
-            ...     user_input="updated_input",
-            ...     status=TurnStatus.COMPLETED
-            ... )
-        """
-        if not self.turn_history:
-            return None
-        
-        last_turn = self.turn_history[-1]
-        
-        if user_input is not None:
-            last_turn.user_input = user_input
-        if widget_state is not None:
-            last_turn.widget_state.update(widget_state)
-        if status is not None:
-            last_turn.status = status
-        if metadata is not None:
-            last_turn.metadata.update(metadata)
-        
-        last_turn.timestamp = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
-        
-        return last_turn
 
     def close(self) -> None:
         """
