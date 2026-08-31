@@ -188,7 +188,7 @@ class McpToolBinding(BaseModel):
     server_url: Optional[str] = None
     source: str | None = None
     connections: Dict[str, str] | None = None
-    sub_type: Optional[str] = None
+    sub_type: Optional[Literal["flow"]] = None
 
 class FlowToolBinding(BaseModel):
     flow_id: Optional[str] = None
