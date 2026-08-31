@@ -152,6 +152,8 @@ class OpenApiToolBinding(BaseModel):
     callback: Optional[CallbackBinding] = None
     acknowledgement: Optional[AcknowledgementBinding] = None
     plugin_hook: Optional[str] = None
+    context_request_body_path: Optional[str] = None # Sourced from x-ibm-orchestrate-inject-context.request_body_path in the OpenAPI spec.
+    context_response_body_path: Optional[str] = None # Sourced from x-ibm-orchestrate-inject-context.response_body_path in the OpenAPI spec.
 
 
 class PythonToolBinding(BaseModel):
