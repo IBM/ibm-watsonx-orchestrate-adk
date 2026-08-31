@@ -337,14 +337,6 @@ class TestMultiTurnWidgetResponse:
         assert "ui_schema" in response
         assert "form_data" in response
 
-    @pytest.mark.xfail(
-        reason=(
-            "model_dump() currently delegates to to_response() via the override "
-            "in types.py.  This test guards against regression once PR #3435 "
-            "(which removes that override) is merged."
-        ),
-        strict=True,
-    )
     def test_model_dump_is_pydantic_standard(self):
         """Test model_dump() returns standard Pydantic field output, not wire format.
 
@@ -501,15 +493,15 @@ class TestMultiTurnWidgetSessionRestore:
     def test_initialize_restores_existing_session(self):
         """Test that initialize() restores turn_number from a previous session.
 
-        update_state() saves the *current* turn_number before incrementing, so
-        after one update the persisted turn_number is 1.  _restore_from_state()
-        replays that value, giving widget2.turn_number == 1.
+        update_state() increments turn_number *before* persisting, so after one
+        update the persisted turn_number is 2.  _restore_from_state() replays
+        that value, giving widget2.turn_number == 2.
         """
         widget = MultiTurnWidget(
             input=TextInput(name="field", title="Field")
         )
         widget.initialize(session_id="test_restore_session")
-        # turn_number is 1 here; update_state saves turn_number=1 then increments to 2
+        # update_state increments to 2 then persists turn_number=2
         widget.update_state(user_input="hello")
 
         # New widget instance, same state_manager (shares the in-memory store)
@@ -519,16 +511,18 @@ class TestMultiTurnWidgetSessionRestore:
         )
         widget2.initialize(session_id="test_restore_session")
 
-        # Persisted turn_number is 1 (saved before the increment in update_state)
-        assert widget2.turn_number == 1
+        # Persisted turn_number is 2 (saved after the increment in update_state)
+        assert widget2.turn_number == widget.turn_number
         assert widget2.is_complete == widget.is_complete
 
     def test_initialize_does_not_crash_on_load_error(self):
         """Test that initialize() handles a StateManagerError from load_state() gracefully.
 
         When the state backend is unavailable, initialize() must not propagate
-        the exception.  The widget should be in a clean initialized state
-        (turn_number=1, is_complete=False) ready for a fresh interaction.
+        the exception.  Any pre-existing live state is preserved as-is (the
+        reset to defaults only happens in the no-state-found branch, not the
+        error branch).  For a freshly constructed widget, turn_number stays at
+        the Pydantic default of 1.
         """
         from ibm_watsonx_orchestrate.run.widgets.multiturn.state import (
             StateManager,
