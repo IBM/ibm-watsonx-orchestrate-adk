@@ -323,18 +323,50 @@ class TestMultiTurnWidgetResponse:
         assert "form_data" in response
         assert response["form_data"]["username"] == "john.doe"
 
-    def test_model_dump_returns_response(self):
-        """Test model_dump() returns response structure"""
+    def test_to_response_wire_format(self):
+        """Test to_response() returns the expected wire-format structure"""
         widget = MultiTurnWidget(
             input=TextInput(name="field", title="Field")
         )
         widget.initialize()
-        
-        dumped = widget.model_dump()
+
         response = widget.to_response()
-        
-        assert dumped == response
-        assert dumped["response_type"] == "multiturn_form"
+
+        assert response["response_type"] == "multiturn_form"
+        assert "json_schema" in response
+        assert "ui_schema" in response
+        assert "form_data" in response
+
+    @pytest.mark.xfail(
+        reason=(
+            "model_dump() currently delegates to to_response() via the override "
+            "in types.py.  This test guards against regression once PR #3435 "
+            "(which removes that override) is merged."
+        ),
+        strict=True,
+    )
+    def test_model_dump_is_pydantic_standard(self):
+        """Test model_dump() returns standard Pydantic field output, not wire format.
+
+        model_dump() must NOT delegate to to_response() — it should reflect the
+        raw Pydantic fields of MultiTurnWidget (name, response_type, turn_number,
+        etc.) so that the object can be serialized/logged without wire-format side
+        effects.
+        """
+        widget = MultiTurnWidget(
+            input=TextInput(name="field", title="Field")
+        )
+        widget.initialize()
+
+        dumped = widget.model_dump()
+
+        # Standard Pydantic fields must be present at the top level
+        assert "name" in dumped
+        assert "response_type" in dumped
+        # Wire-format nesting must NOT be present
+        assert "json_schema" not in dumped
+        assert "ui_schema" not in dumped
+        assert "form_data" not in dumped
 
 
 class TestMultiTurnWidgetWithDifferentInputs:
@@ -462,5 +494,66 @@ class TestMultiTurnWidgetSummary:
         assert summary["is_complete"] is False
         assert "conversation_summary" in summary
         assert summary["conversation_summary"]["total_turns"] == 2
+
+class TestMultiTurnWidgetSessionRestore:
+    """Test session persistence and restore behaviour"""
+
+    def test_initialize_restores_existing_session(self):
+        """Test that initialize() restores turn_number from a previous session.
+
+        update_state() saves the *current* turn_number before incrementing, so
+        after one update the persisted turn_number is 1.  _restore_from_state()
+        replays that value, giving widget2.turn_number == 1.
+        """
+        widget = MultiTurnWidget(
+            input=TextInput(name="field", title="Field")
+        )
+        widget.initialize(session_id="test_restore_session")
+        # turn_number is 1 here; update_state saves turn_number=1 then increments to 2
+        widget.update_state(user_input="hello")
+
+        # New widget instance, same state_manager (shares the in-memory store)
+        widget2 = MultiTurnWidget(
+            input=TextInput(name="field", title="Field"),
+            state_manager=widget.state_manager,
+        )
+        widget2.initialize(session_id="test_restore_session")
+
+        # Persisted turn_number is 1 (saved before the increment in update_state)
+        assert widget2.turn_number == 1
+        assert widget2.is_complete == widget.is_complete
+
+    def test_initialize_does_not_crash_on_load_error(self):
+        """Test that initialize() handles a StateManagerError from load_state() gracefully.
+
+        When the state backend is unavailable, initialize() must not propagate
+        the exception.  The widget should be in a clean initialized state
+        (turn_number=1, is_complete=False) ready for a fresh interaction.
+        """
+        from ibm_watsonx_orchestrate.run.widgets.multiturn.state import (
+            StateManager,
+            StateManagerError,
+        )
+
+        class FailingStateManager(StateManager):
+            """StateManager stub that always raises on load."""
+            def save_state(self, session_id, state): pass
+            def load_state(self, session_id):
+                raise StateManagerError("backend down")
+            def delete_state(self, session_id): pass
+            def exists(self, session_id): return False
+
+        widget = MultiTurnWidget(
+            input=TextInput(name="field", title="Field"),
+            state_manager=FailingStateManager(),
+        )
+
+        # Must not raise, must leave the widget in a clean initialized state
+        widget.initialize(session_id="test_error_session")
+
+        assert widget.turn_number == 1
+        assert widget.is_complete is False
+        assert widget.session_id == "test_error_session"
+
 
 # Made with Bob

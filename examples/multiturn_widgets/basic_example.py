@@ -84,7 +84,7 @@ def example_2_multi_turn_conversation():
             required=True
         )
     )
-    name_widget.initialize(session_id="registration_session")
+    name_widget.initialize(session_id="registration_name")
     
     response1 = name_widget.to_response()
     print(f"📤 Asking for: {response1['json_schema']['properties']['full_name']['title']}")
@@ -105,7 +105,7 @@ def example_2_multi_turn_conversation():
             maximum=120
         )
     )
-    age_widget.initialize(session_id="registration_session")
+    age_widget.initialize(session_id="registration_age")
     
     response2 = age_widget.to_response()
     print(f"📤 Asking for: {response2['json_schema']['properties']['age']['title']}")
@@ -124,7 +124,7 @@ def example_2_multi_turn_conversation():
             required=True
         )
     )
-    agree_widget.initialize(session_id="registration_session")
+    agree_widget.initialize(session_id="registration_agree")
     
     response3 = agree_widget.to_response()
     print(f"📤 Asking for: {response3['json_schema']['properties']['agree_terms']['title']}")
@@ -236,6 +236,8 @@ def example_4_context_and_state_management():
     
     # Show turn history with metadata
     print("\n📜 Turn History with Metadata:")
+    # Note: turn_data["timestamp"] is a datetime — use json.dumps with a
+    # default serializer (e.g. str) if serializing this dict to JSON.
     for turn_data in context['turn_history']:
         print(f"   Turn {turn_data['turn_number']}:")
         print(f"     Input: {turn_data['user_input']}")

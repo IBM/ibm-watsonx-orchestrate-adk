@@ -272,7 +272,8 @@ The MultiTurnWidget implementation follows the architecture specified in the Arc
 - Supports all 14+ widget types from FormWidget
 - Maintains state across multiple conversational turns
 - Tracks context and conversation history
-- Title parameter removed from MultiTurnWidget (titles go on individual inputs)
+- `MultiTurnWidget.title` sets the widget envelope title in `json_schema["title"]` (the schema-level label)
+- `FormInput.title` sets the display label shown to the user in the UI
 
 ## Related Documentation
 
