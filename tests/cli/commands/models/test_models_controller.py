@@ -1120,7 +1120,7 @@ class TestImportModelPolicy:
 
     def test_import_model_policy(self):
 
-        mock_models_client = MockModelsClient(list_response=[MockModel(name=self.mock_model_name)])
+        mock_models_client = MockModelsClient(list_all_response=[{"id": self.mock_model_name}])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
@@ -1150,7 +1150,7 @@ class TestImportModelPolicy:
     
     def test_import_model_policy_model_not_found(self, caplog):
 
-        mock_models_client = MockModelsClient(list_response=[])
+        mock_models_client = MockModelsClient(list_all_response=[])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
@@ -1179,7 +1179,7 @@ class TestCreateModelPolicy:
     mock_policy_strategy = ModelPolicyStrategyMode.FALL_BACK
 
     def test_create_model_policy(self):
-        mock_models_client = MockModelsClient(list_response=[MockModel(name=self.mock_model_name)])
+        mock_models_client = MockModelsClient(list_all_response=[{"id": self.mock_model_name}])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
@@ -1203,7 +1203,7 @@ class TestCreateModelPolicy:
             assert target.model_name == self.mock_model_name
     
     def test_create_model_policy_model_not_found(self, caplog):
-        mock_models_client = MockModelsClient(list_response=[])
+        mock_models_client = MockModelsClient(list_all_response=[])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
@@ -1224,6 +1224,35 @@ class TestCreateModelPolicy:
         captured = caplog.text
 
         assert f"No model found with the name '{self.mock_model_name}'" in captured
+
+    def test_import_model_policy_with_nested_policy(self):
+            mock_models_client = MockModelsClient(list_all_response=[])
+            mock_policies_client = MockModelPoliciesClient(
+                list_response=[ModelPolicy(
+                    name=self.mock_policy_name,
+                    display_name="...", description="...", policy=ModelPolicyInner(targets=[])
+                )]
+            )
+    
+            with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+                
+                instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
+    
+                mc = ModelsController()
+                policy = mc.create_model_policy(
+                    name=self.mock_policy_name,
+                    models=[self.mock_policy_name],
+                    strategy=self.mock_policy_strategy,
+                    strategy_on_code=[500],
+                    retry_on_code=[503],
+                    retry_attempts=1,
+                )
+    
+                assert policy.name == f"virtual-policy/{self.mock_policy_name}"
+                assert len(policy.policy.targets) == 1
+    
+                target = policy.policy.targets[0]
+                assert target.model_name == self.mock_policy_name
 
 class TestExportModelPolicy:
     mock_model_spec = {
