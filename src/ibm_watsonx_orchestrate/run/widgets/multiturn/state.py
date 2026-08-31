@@ -188,18 +188,21 @@ class SessionStateManager(StateManager):
 class ContextStateManager(StateManager):
     """
     Context-based state storage (stateless with context passing).
-    
-    This implementation doesn't actually persist state externally.
-    Instead, it expects state to be passed in the conversation context.
-    This is useful for serverless environments or when external state
-    storage is not available.
-    
+
+    .. warning::
+        **ContextStateManager silently discards all state.**
+        Every call to ``save_state()`` is a no-op and ``load_state()``
+        always returns ``None``. A widget using this manager loses all
+        state on every turn. This class is **not** included in the public
+        ``__all__`` and should not be used in production. It exists as an
+        advanced escape-hatch for serverless environments where no external
+        storage is available and the caller manages state entirely via the
+        conversation context payload.
+
     Example:
         >>> manager = ContextStateManager()
-        >>> # State is managed in conversation context, not persisted
-        >>> manager.save_state("session_123", {"key": "value"})
-        >>> # Returns None - state must be provided via context
-        >>> manager.load_state("session_123")
+        >>> manager.save_state("session_123", {"key": "value"})  # no-op
+        >>> manager.load_state("session_123")  # always None
     """
 
     def __init__(self):
@@ -312,32 +315,6 @@ class HybridStateManager(StateManager):
         except StateManagerError:
             return False
 
-    def sync_from_context(
-        self, 
-        session_id: str, 
-        context_state: Dict[str, Any]
-    ) -> None:
-        """
-        Synchronize state from context to session storage.
-        
-        Useful for restoring session state from context after a
-        session store failure or restart.
-        
-        Args:
-            session_id: Session identifier
-            context_state: State from conversation context
-            
-        Example:
-            >>> manager = HybridStateManager()
-            >>> context_state = {"key": "value"}
-            >>> manager.sync_from_context("session_123", context_state)
-        """
-        try:
-            self.session_manager.save_state(session_id, context_state)
-        except StateManagerError as e:
-            print(f"Warning: Failed to sync state from context: {e}")
-
-
 class WidgetState(BaseModel):
     """
     Represents the state of a multi-turn widget.
@@ -368,35 +345,6 @@ class WidgetState(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    def update_value(self, value: Any, is_valid: bool = True) -> None:
-        """
-        Update the widget value.
-        
-        Args:
-            value: New value
-            is_valid: Whether the value is valid
-        """
-        self.current_value = value
-        self.is_valid = is_valid
-        self.updated_at = datetime.utcnow()
-
-    def add_validation_error(self, error: str) -> None:
-        """
-        Add a validation error.
-        
-        Args:
-            error: Error message
-        """
-        self.validation_errors.append(error)
-        self.is_valid = False
-        self.updated_at = datetime.utcnow()
-
-    def clear_validation_errors(self) -> None:
-        """Clear all validation errors"""
-        self.validation_errors = []
-        self.is_valid = True
-        self.updated_at = datetime.utcnow()
-
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
@@ -407,20 +355,5 @@ class WidgetState(BaseModel):
             "metadata": self.metadata,
             "updated_at": self.updated_at.isoformat(),
         }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WidgetState":
-        """
-        Create from dictionary.
-        
-        Args:
-            data: Dictionary representation
-            
-        Returns:
-            WidgetState instance
-        """
-        if "updated_at" in data and isinstance(data["updated_at"], str):
-            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
-        return cls(**data)
 
 # Made with Bob

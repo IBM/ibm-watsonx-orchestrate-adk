@@ -6,7 +6,7 @@ from ibm_watsonx_orchestrate.agent_builder.models.types import  ProviderConfig, 
 
 logger = logging.getLogger(__name__)
 
-_BASIC_PROVIDER_CONFIG_KEYS = {'provider', 'api_key', 'custom_host', 'url_to_fetch', 'forward_headers', 'request_timeout', 'transform_to_form_data', 'server_cert'}
+_BASIC_PROVIDER_CONFIG_KEYS = {'provider', 'api_key', 'custom_host', 'url_to_fetch', 'forward_headers', 'request_timeout', 'transform_to_form_data'}
 
 PROVIDER_EXTRA_PROPERTIES_LUT = {
     ModelProvider.ANTHROPIC: {'anthropic_beta', 'anthropic_version'},
