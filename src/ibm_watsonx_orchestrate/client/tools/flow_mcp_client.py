@@ -98,7 +98,7 @@ class FlowMCPClient(BaseWXOClient):
             # Local MCP server runs on port 9044 with context root /mcp
             self.mcp_url = f"{parsed_url.scheme}://{parsed_url.hostname}:9044/mcp"
         else:
-            self.mcp_url = f"{parsed_url.scheme}://{parsed_url.netloc}/v1/orchestrate/flows/mcp"
+            self.mcp_url = self.base_url.rstrip("/") + "/flows/mcp"
         
         self._session: Optional[ClientSession] = None  # type: ignore[valid-type]
         self._context_manager = None
