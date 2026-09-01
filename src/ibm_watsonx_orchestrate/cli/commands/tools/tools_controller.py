@@ -1044,8 +1044,7 @@ class ToolsController:
                 logger.error(f"Could not find tool spec for tool '{name}'")
                 sys.exit(1)
         
-        # Check if its an Toolkit tool if so call toolkit export instead.
-        # MCP tools with sub_type "flow" are excluded: they carry a workflow JSON
+        # Check if its an Toolkit tool if so call toolkit export instead
         is_mcp_flow = spec.get("binding", {}).get("mcp", {}).get("sub_type") == "flow"
         toolkit = spec.get("toolkit_id")
         name_parts = name.split(":")
