@@ -232,7 +232,7 @@ def set_credentials_connection_command(
         str,
         typer.Option(
             '--server-cert',
-            help='For basic auth, oauth_auth_password_flow and key-value connection, the server certificate used to authenticate the server'
+            help='For basic auth and oauth_auth_password_flow, the server certificate used to authenticate the server'
         )
     ] = None,
     token: Annotated[
