@@ -532,7 +532,7 @@ def format_text(data: Dict) -> str:
         lines.append("  ✓ No branch nodes present")
     lines.append("")
 
-    lines.append("### Check 3 / 7 — Agent nodes")
+    lines.append("### Check 3 / 6 — Agent nodes")
     if data["check_3_6_agent_nodes"]:
         for an in data["check_3_6_agent_nodes"]:
             preds = ", ".join(f"{p['display_name']} ({p['kind']})" for p in an["predecessors"]) or "(none)"
