@@ -45,7 +45,7 @@ This skill applies to:
 - Top-level flow structure and the internals of container nodes (`parallel`, `foreach`, `loop`, `user_flow`)
 
 **Python `@flow` artefacts:**
-When the artefact is a Python file using the ADK `@flow` decorator, the same 7 checks apply. Run `scripts/extract_flow_info.py <file.py>` to pre-extract the structural summary before analysis (see Step 1).
+When the artefact is a Python file using the ADK `@flow` decorator, the same 6 checks apply. Run `scripts/extract_flow_info.py <file.py>` to pre-extract the structural summary before analysis (see Step 1).
 
 **Out of scope:**
 - Agent definitions beyond their YAML (model selection, RAG configuration, knowledge base content)
@@ -62,9 +62,9 @@ When the artefact is a Python file using the ADK `@flow` decorator, the same 7 c
 - Do not flag issues you cannot point to directly in the JSON
 - Do not fabricate recommendations to appear thorough — a clean result is a valid and useful output
 - Use measured latency figures from the platform: explicit mapping <10ms, auto-mapping 500–3000ms, context compression 1000–5000ms (triggers at >6500 tokens), per-task transition ~35ms, agent context retrieval ~500ms, Generative Prompt 500–3000ms, agent ReACT loop 2–10s
-- Distinguish between definite findings and candidates (e.g. Check 6 is a candidate based on description, not a certainty)
+- Distinguish between definite findings and candidates (e.g. Check 5 is a candidate based on description, not a certainty)
 - If an artefact is partially incomplete (`metadata.is_under_specified: true`), note this and scope findings accordingly
-- **Output only what the 7 checks produce.** Do not add freeform observations, "worth noting" sections, commentary, or supplementary advice outside the check findings. If the checks produce no findings, the output is the clean result message — nothing else.
+- **Output only what the 6 checks produce.** Do not add freeform observations, "worth noting" sections, commentary, or supplementary advice outside the check findings. If the checks produce no findings, the output is the clean result message — nothing else.
 
 **Platform-managed fields — do NOT flag or comment on:**
 - `assignees` — this field on `user_flow` nodes is populated automatically by the platform (defaulting to the flow initiator). It does not require an explicit `input_map`. Never suggest mapping `assignees` to a user list.
@@ -74,7 +74,7 @@ When the artefact is a Python file using the ADK `@flow` decorator, the same 7 c
 - Non-functional requirements beyond what is detectable statically (throughput, concurrency, load behaviour)
 - Business logic correctness — the skill assesses architecture patterns, not whether the flow does the right thing
 - Security review of credentials, API keys, or data handling beyond what is visible in the JSON structure
-- Completeness gaps on fields not covered by the 7 checks — missing `input_map` on a `user_flow` node is not an architecture issue detectable by this skill
+- Completeness gaps on fields not covered by the 6 checks — missing `input_map` on a `user_flow` node is not an architecture issue detectable by this skill
 
 ---
 
@@ -171,12 +171,25 @@ If only partial artefacts are provided, proceed with what is available and clear
 Do NOT ask the user any question.
 
 **Path A — User provided a file path** (e.g. `resource/MyFlow/MyFlow.json`):
-Run the extraction script directly on that path — do not read the file contents:
+
+Run **exactly this one command** and nothing else:
 ```
 python3 .bob/skills/agentic-workflow-advisor/scripts/extract_flow_info.py <file_path>
 ```
 Use `python3`. If not found, try `python`. Use the full path to the script relative to workspace root.
-After the script runs, map its output keys to checks using the table at the end of this step, then proceed to Step 3.
+
+**This single command produces all data needed for all 6 checks. Run it once. That is all.**
+
+**STRICTLY FORBIDDEN for Path A — these are never acceptable under any circumstances:**
+- Do NOT run `python3 -c "..."` inline scripts to read or inspect the JSON file
+- Do NOT run multiple commands to gather evidence for individual checks
+- Do NOT read the JSON file directly with `read_file` or any other tool
+- Do NOT run any additional commands after the script — the script output is complete and sufficient
+- Do NOT re-run the script for individual checks
+
+If the script output seems incomplete, proceed with what it produced — do not supplement with ad-hoc commands.
+
+After the script runs once, map its output keys to checks using the table at the end of this step, then proceed to Step 3.
 
 ---
 
@@ -241,11 +254,11 @@ From `data.edges[]`:
 
 **`check_3_branch_nodes`**: All nodes where `kind == "branch"` → `{display_name, conditions: branch_conditions}`
 
-**`check_3_7_agent_nodes`**: All nodes where `kind == "agent"` → `{display_name, message, thread_control_policy, output_schema_properties, predecessors: [{display_name, kind}] from predecessors map}`
+**`check_3_6_agent_nodes`**: All nodes where `kind == "agent"` → `{display_name, message, thread_control_policy, output_schema_properties, predecessors: [{display_name, kind}] from predecessors map}`
 
-**`check_5_input_schema_field_count`**: `len(top_properties)`
+**`check_4_input_schema_field_count`**: `len(top_properties)`
 
-**`check_6_tool_nodes`**: All nodes where `kind == "tool"` → `{display_name, description}`
+**`check_5_tool_nodes`**: All nodes where `kind == "tool"` → `{display_name, description}`
 
 **`node_kinds_present`**: sorted unique set of all `kind` values across all nodes
 
@@ -259,15 +272,15 @@ From `data.edges[]`:
 - `check_2_unmapped_required_fields` → Check 2 unmapped field findings
 - `check_2_phantom_mappings` → Check 2 phantom mapping findings
 - `check_3_branch_nodes` → Check 3 branch condition evidence
-- `check_3_7_agent_nodes` → Check 3 (predecessors) and Check 7 (message, tools, output_schema)
-- `check_5_input_schema_field_count` → Check 5 field count
-- `check_6_tool_nodes` → Check 6 tool descriptions
+- `check_3_6_agent_nodes` → Check 3 (predecessors) and Check 6 (message, tools, output_schema)
+- `check_4_input_schema_field_count` → Check 4 field count
+- `check_5_tool_nodes` → Check 5 tool descriptions
 - `node_kinds_present` → which checks will produce findings
 - `is_under_specified: true` → note at top that flow is incomplete, findings may be partial
 
 ---
 
-### Step 3 — Run All 7 Detection Checks
+### Step 3 — Run All 6 Detection Checks
 
 Work through every check below. Collect all findings before composing the output — do not output findings one by one.
 
@@ -349,7 +362,7 @@ An `agent` node that exists solely to route based on an already-deterministic re
 
 ---
 
-#### Check 5 — Oversized Input Schema 🟢 Low Impact
+#### Check 4 — Oversized Input Schema 🟢 Low Impact
 
 **What to look for:**
 The top-level flow `spec.input_schema.properties` or any node's `input_schema.properties` has more than 20 fields.
@@ -365,7 +378,7 @@ The top-level flow `spec.input_schema.properties` or any node's `input_schema.pr
 
 ---
 
-#### Check 6 — Tool Node That Should Be a Logic Code Block 🟢 Low Impact
+#### Check 5 — Tool Node That Should Be a Logic Code Block 🟢 Low Impact
 
 **What to look for:**
 A `"kind": "tool"` node whose evidence — across description, display_name, tool name, and output_schema shape — suggests pure in-process computation: string manipulation, formatting, arithmetic, data transformation, log item construction, timestamp generation — with no mention of external APIs, databases, or services.
@@ -390,7 +403,7 @@ Work through each signal in order. A node is a candidate if **any** signal point
 
 ---
 
-#### Check 7 — Agent Node That Should Be a Generative Prompt Node 🟡 Medium Impact
+#### Check 6 — Agent Node That Should Be a Generative Prompt Node 🟡 Medium Impact
 
 **What to look for:**
 An `agent` node whose `message` field contains a simple static prompt — plain text with no tool invocations, no RAG lookups, no multi-turn conversation, and no conditional logic — where a `prompt` node (`"kind": "prompt"`) would produce the same result at a fraction of the cost.
@@ -452,9 +465,9 @@ Use exactly the format below. Do not fabricate issues.
 | Check 2 — Unmapped Required Fields | ⚠ [node: field list] OR ✓ None |
 | Check 2 — Phantom Mappings | ⚠ [node: field list] OR ✓ None |
 | Check 3 — LLM-based Routing | ⚠ [agent name] OR ✓ None |
-| Check 5 — Oversized Input Schema | ⚠ [N fields — exceeds 10] OR ✓ [N fields — within limit] |
-| Check 6 — Logic Code Block Candidates | ⚠ [node names] OR ✓ None |
-| Check 7 — Agent → Prompt Node | ⚠ [agent name] OR ✓ None |
+| Check 4 — Oversized Input Schema | ⚠ [N fields — exceeds 20] OR ✓ [N fields — within limit] |
+| Check 5 — Logic Code Block Candidates | ⚠ [node names] OR ✓ None |
+| Check 6 — Agent → Prompt Node | ⚠ [agent name] OR ✓ None |
 
 ---
 
@@ -495,9 +508,9 @@ If the workflow is clean:
 | Check 2 — Unmapped Required Fields | ✓ None |
 | Check 2 — Phantom Mappings | ✓ None |
 | Check 3 — LLM-based Routing | ✓ None |
-| Check 5 — Oversized Input Schema | ✓ [N fields] |
-| Check 6 — Logic Code Block Candidates | ✓ None |
-| Check 7 — Agent → Prompt Node | ✓ None |
+| Check 4 — Oversized Input Schema | ✓ [N fields] |
+| Check 5 — Logic Code Block Candidates | ✓ None |
+| Check 6 — Agent → Prompt Node | ✓ None |
 
 ✅ No architecture issues found across all applicable detection categories.
 
@@ -512,7 +525,7 @@ _Review scope: workflow JSON ✅ | agent YAML [✅/❌ not provided]_
 **Be evidence-based:**
 - Reference actual node `display_name` values and field names from the artefact
 - Do not flag issues you cannot point to in the JSON
-- Distinguish between definite findings and candidates (e.g. Check 6 is a candidate, not a certainty)
+- Distinguish between definite findings and candidates (e.g. Check 5 is a candidate, not a certainty)
 
 **Be operational, not academic:**
 - Focus on runtime performance and stability impact
@@ -535,7 +548,7 @@ _Review scope: workflow JSON ✅ | agent YAML [✅/❌ not provided]_
 |-----------|----------|
 | No `agent` nodes in the flow | Check 3 will produce no findings — continue with the remaining checks |
 | Agent does genuine NLP work (RAG, free-text matching from scratch) | Do NOT flag for Check 3 — the agent is the decision-maker, not routing a pre-computed result |
-| `kind: "script"` nodes | Already Logic Code Blocks — correct pattern, do not flag for Check 6 |
+| `kind: "script"` nodes | Already Logic Code Blocks — correct pattern, do not flag for Check 5 |
 | Nodes inside `parallel` container | Already concurrent — do not flag for Check 1 |
 | `decisions` node with empty `rules` | Partially configured — note in review but do not flag as architecture issue |
 | `metadata.is_under_specified: true` | Note at top of review that flow is incomplete, findings may be partial |
