@@ -4,7 +4,7 @@ A Bob skill that analyses IBM watsonx Orchestrate agentic workflow artefacts and
 
 ## What it does
 
-The skill performs static analysis of your workflow artefact and runs 7 detection checks covering the most impactful design patterns that cause performance issues, routing failures, or maintainability problems in production. Findings are grouped by impact — High, Medium, and Low — and each recommendation includes what was observed, why it matters, and what to do about it.
+The skill performs static analysis of your workflow artefact and runs 6 detection checks covering the most impactful design patterns that cause performance issues, routing failures, or maintainability problems in production. Findings are grouped by impact — High, Medium, and Low — and each recommendation includes what was observed, why it matters, and what to do about it.
 
 ## Who it is for
 
