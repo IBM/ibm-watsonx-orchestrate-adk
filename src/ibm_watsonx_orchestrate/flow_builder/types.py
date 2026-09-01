@@ -563,10 +563,6 @@ class DocProcSpec(DocProcCommonNodeSpec):
             Example: PageRange(start=1, end=5) extracts pages 1 through 5
             Default: None (extracts all pages)
 
-        detect_signatures (bool | None): Optional flag to enable signature detection.
-            When True, the pipeline returns a signatures array in the output.
-            Default: None (signature detection disabled)
-
         output_format (DocProcOutputFormat): Specifies the response format:
             - docref: Returns a reference URL to a file containing results (default)
               Response type: TextExtractionResponse
@@ -649,15 +645,6 @@ class DocProcSpec(DocProcCommonNodeSpec):
                    "the specified page range will be extracted. Example: PageRange(start=1, end=5) "
                    "extracts pages 1 through 5. None extracts all pages."
     )
-    detect_signatures: bool | None = Field(
-        title="Detect Signatures",
-        default=None,
-        description="Optional flag to enable signature detection for text extraction. "
-                   "When True, the pipeline returns a signatures array in the output. "
-                   "None omits the field from the serialised spec entirely; "
-                   "False explicitly disables signature detection downstream."
-    )
-
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "docproc"
@@ -678,8 +665,6 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["kvp_enable_text_hints"] = self.kvp_enable_text_hints
         if self.page_range is not None:
             model_spec["page_range"] = self.page_range
-        if self.detect_signatures is not None:
-            model_spec["detect_signatures"] = self.detect_signatures
         if self.output_format != DocProcOutputFormat.docref:
             model_spec["output_format"] = self.output_format
         return model_spec
@@ -3603,7 +3588,6 @@ class Token(BaseModel):
     bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the token in the context of the page, expressed as pixel coordinates with respect to pages_metadata.page_image_height and pages_metadata.page_image_width")
     confidence: Optional[float] = Field(None, description="Confidence score for the token")
 
-
 class Structures(BaseModel):
     sections: Optional[List[Section]] = Field(
         default=None, description="All Section objects found in the document"
@@ -3655,9 +3639,6 @@ class Structures(BaseModel):
     )
     bar_codes: Optional[List[BarCode]] = Field(
         default=None, description="All BarCode objects found in the document"
-    )
-    signatures: Optional[List[dict]] = Field(
-        default=None, description="Signatures detected in the document. Populated when detect_signatures is True. Each element is a raw WDU picture object."
     )
     tokens: Optional[List[Token]] = Field(
         default=None, description="All Token objects found in the document"
@@ -3762,15 +3743,14 @@ class DocumentProcessingCommonInput(BaseModel):
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
-    This class represents the input of a Document processing task.
+    This class represents the input of a Document processing task. 
 
     Attributes:
         kvp_schemas (List[DocProcKVPSchema]): Optional list of key-value pair schemas to use for extraction. If not provided or None, no KVPs will be extracted. If an empty list is provided, we will use the internal schemas to extract KVPs.
         kvp_model_name (str | None): The LLM model to be used for key-value pair extraction
         kvp_force_schema_name (str | None): The name of the schema to use for KVP extraction. If not provided or None, the default schema will be used.
         kvp_enable_text_hints (bool): Whether to enable text hints for KVP extraction
-        detect_signatures (bool | None): Optional runtime override for signature detection. When True, the pipeline returns a signatures array in the output. Overrides the value set in the node spec.
-
+    
     Inherited Attributes:
         document_ref (bytes|str): Document reference
         page_range (PageRange | None): Optional page range for text extractor and layout document extractor
@@ -3795,11 +3775,6 @@ class DocProcInput(DocumentProcessingCommonInput):
         title='KVP Enable Text Hints',
         description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
         default=True
-    )
-    detect_signatures: bool | None = Field(
-        title='Detect Signatures',
-        description='Optional flag to enable signature detection for text extraction. When True, the pipeline returns a signatures array in the output. Overrides the value set in the node spec when provided at runtime.',
-        default=None
     )
 
 class TextExtractionObjectResponse(AssemblyJsonOutput):
