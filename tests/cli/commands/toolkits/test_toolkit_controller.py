@@ -1303,3 +1303,281 @@ class TestToolkitControllerImportToolkit:
                 tc.import_toolkit("test_file.yaml", ["test_app"])
 
             assert "Field 'spec_version' not provided" in str(e)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for quota-error / upload-failure tests
+# ---------------------------------------------------------------------------
+
+def _make_mock_response(text, status_code=429):
+    """Build a minimal requests.Response-like mock for ClientAPIException."""
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.text = text
+    return resp
+
+
+def _make_client_api_exception(response_text=None, status_code=429):
+    from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+    resp = _make_mock_response(response_text, status_code)
+    return ClientAPIException(response=resp)
+
+
+# ---------------------------------------------------------------------------
+# _extract_error_detail
+# ---------------------------------------------------------------------------
+
+class TestExtractErrorDetail:
+    """Unit tests for ToolkitController._extract_error_detail."""
+
+    def test_json_detail_string(self):
+        import json
+        exc = _make_client_api_exception(
+            response_text=json.dumps({"detail": "Maximum tool limit (40) reached for this tenant."})
+        )
+        tc = ToolkitController()
+        assert tc._extract_error_detail(exc) == "Maximum tool limit (40) reached for this tenant."
+
+    def test_json_detail_dict(self):
+        """detail can itself be a dict (quota payload); should be returned as-is."""
+        import json
+        detail_payload = {
+            "code": "RESOURCE_QUOTA_EXCEEDED",
+            "resource": "tool",
+            "current": 449,
+            "requested": 2,
+            "limit": 40,
+            "message": "Maximum tool limit (40) reached for this tenant.",
+        }
+        exc = _make_client_api_exception(response_text=json.dumps({"detail": detail_payload}))
+        tc = ToolkitController()
+        assert tc._extract_error_detail(exc) == detail_payload
+
+    def test_non_json_body(self):
+        exc = _make_client_api_exception(response_text="plain text error")
+        tc = ToolkitController()
+        assert tc._extract_error_detail(exc) == "plain text error"
+
+    def test_empty_body_falls_back_to_str(self):
+        exc = _make_client_api_exception(response_text="")
+        tc = ToolkitController()
+        # Empty text → outer try/except catches the falsy check, falls back to str(e)
+        result = tc._extract_error_detail(exc)
+        assert isinstance(result, str)
+
+    def test_no_response_falls_back_to_str(self):
+        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+        # response=None causes __repr__ to blow up too; _extract_error_detail must not raise
+        exc = MagicMock(spec=ClientAPIException)
+        exc.response = None
+        tc = ToolkitController()
+        result = tc._extract_error_detail(exc)
+        assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# publish_toolkit — upload failure
+# ---------------------------------------------------------------------------
+
+class TestPublishToolkitUploadFailure:
+    """publish_toolkit() wraps upload() errors: structured log + orphan cleanup."""
+
+    mock_name = "test_toolkit"
+    mock_description = "test_description"
+    mock_id = "toolkit-id-123"
+
+    def _make_toolkit(self):
+        return BaseToolkit(
+            spec=ToolkitSpec(
+                name=self.mock_name,
+                description=self.mock_description,
+                mcp=LocalMcpModel(
+                    tools=["*"],
+                    source=ToolkitSource.PUBLIC_REGISTRY,
+                    command="npx",
+                    args=["-y", "test-pkg"],
+                    package="test-pkg",
+                )
+            )
+        )
+
+    def _make_upload_exc(self, message="Maximum tool limit (40) reached for this tenant."):
+        import json
+        payload = json.dumps({
+            "detail": {
+                "code": "RESOURCE_QUOTA_EXCEEDED",
+                "resource": "tool",
+                "current": 449,
+                "requested": 2,
+                "limit": 40,
+                "message": message,
+            }
+        })
+        return _make_client_api_exception(response_text=payload, status_code=429)
+
+    def test_upload_failure_exits(self, caplog):
+        """publish_toolkit raises SystemExit when upload() raises ClientAPIException."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MockToolkitsClient()
+            mock_client.create_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = self._make_upload_exc()
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.publish_toolkit(toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+    def test_upload_failure_deletes_orphan(self):
+        """publish_toolkit deletes the newly-created toolkit record on upload failure."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MockToolkitsClient()
+            mock_client.create_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = self._make_upload_exc()
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.publish_toolkit(toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+            mock_client.delete.assert_called_once_with(toolkit_id=self.mock_id)
+
+    def test_upload_failure_logs_structured_error(self, caplog):
+        """publish_toolkit logs the Runtime quota message, not a raw traceback."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MockToolkitsClient()
+            mock_client.create_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = self._make_upload_exc()
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.publish_toolkit(toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+        assert "Failed to upload toolkit" in caplog.text
+        assert self.mock_name in caplog.text
+
+    def test_upload_failure_non_429_also_handled(self):
+        """Any ClientAPIException on upload (not just 429) is caught cleanly."""
+        exc = _make_client_api_exception(response_text='{"detail": "internal error"}', status_code=500)
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MockToolkitsClient()
+            mock_client.create_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = exc
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.publish_toolkit(toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+            # Orphan must still be cleaned up regardless of status code
+            mock_client.delete.assert_called_once_with(toolkit_id=self.mock_id)
+
+    def test_no_artifact_skips_upload(self):
+        """When no toolkit_artifact is provided upload is never called."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MockToolkitsClient()
+            mock_client.create_toolkit.return_value = {"id": self.mock_id}
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            tc.publish_toolkit(toolkit=self._make_toolkit(), toolkit_artifact=None)
+
+            mock_client.upload.assert_not_called()
+            mock_client.delete.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# update_toolkit — upload failure
+# ---------------------------------------------------------------------------
+
+class TestUpdateToolkitUploadFailure:
+    """update_toolkit() wraps upload() errors: structured log, no orphan delete."""
+
+    mock_name = "test_toolkit"
+    mock_description = "test_description"
+    mock_id = "existing-toolkit-id-456"
+
+    def _make_toolkit(self):
+        return BaseToolkit(
+            spec=ToolkitSpec(
+                name=self.mock_name,
+                description=self.mock_description,
+                mcp=LocalMcpModel(
+                    tools=["*"],
+                    source=ToolkitSource.PUBLIC_REGISTRY,
+                    command="npx",
+                    args=["-y", "test-pkg"],
+                    package="test-pkg",
+                )
+            )
+        )
+
+    def _make_upload_exc(self, message="Maximum tool limit (40) reached for this tenant."):
+        import json
+        payload = json.dumps({
+            "detail": {
+                "code": "RESOURCE_QUOTA_EXCEEDED",
+                "resource": "tool",
+                "current": 449,
+                "requested": 2,
+                "limit": 40,
+                "message": message,
+            }
+        })
+        return _make_client_api_exception(response_text=payload, status_code=429)
+
+    def test_upload_failure_exits(self):
+        """update_toolkit raises SystemExit when upload() raises ClientAPIException."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.update_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = self._make_upload_exc()
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.update_toolkit(toolkit_id=self.mock_id, toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+    def test_upload_failure_does_not_delete_existing_toolkit(self):
+        """update_toolkit must NOT delete the pre-existing toolkit record on upload failure."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.update_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = self._make_upload_exc()
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.update_toolkit(toolkit_id=self.mock_id, toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+            mock_client.delete.assert_not_called()
+
+    def test_upload_failure_logs_structured_error(self, caplog):
+        """update_toolkit logs the Runtime quota message on upload failure."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.update_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = self._make_upload_exc()
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.update_toolkit(toolkit_id=self.mock_id, toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+        assert "Failed to upload toolkit" in caplog.text
+        assert self.mock_name in caplog.text
+
+    def test_upload_failure_non_429_also_handled(self):
+        """Any ClientAPIException on update upload is caught cleanly — no delete."""
+        exc = _make_client_api_exception(response_text='{"detail": "internal error"}', status_code=500)
+        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.update_toolkit.return_value = {"id": self.mock_id}
+            mock_client.upload.side_effect = exc
+            mock_get_client.return_value = mock_client
+
+            tc = ToolkitController()
+            with pytest.raises(SystemExit):
+                tc.update_toolkit(toolkit_id=self.mock_id, toolkit=self._make_toolkit(), toolkit_artifact="/fake/path.zip")
+
+            mock_client.delete.assert_not_called()
