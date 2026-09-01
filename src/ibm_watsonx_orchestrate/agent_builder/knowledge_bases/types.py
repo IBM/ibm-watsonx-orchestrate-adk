@@ -390,6 +390,39 @@ class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
 class FileUpload(BaseModel):
     path: str
     url: Optional[str] = None
+
+class ContentSourceType(str, Enum):
+    """Supported external content source types.
+
+    These values must match the connector IDs from wdp-connect-library
+    as they are used directly as datasource_name in Flight service calls.
+    """
+    amazons3 = "amazons3"
+    azureblobstorage = "azureblobstorage"
+    box = "box"
+    dropbox = "dropbox"
+    googlecloudstorage = "googlecloudstorage"
+    onedrive = "onedrive"
+    sharepoint_file = "sharepoint-file"
+
+class ContentSourceConfig(BaseModel):
+    """Configuration for the external content source of a knowledge base."""
+    type: ContentSourceType = Field(
+        ...,
+        description="Type of external source (box, sharepoint, google_drive, etc.)"
+    )
+    app_id: Optional[str] = Field(
+        None,
+        description="App ID of the connector application (specified in the spec; resolved to connection_id at import time)"
+    )
+    connection_id: Optional[str] = Field(
+        None,
+        description="Resolved connection ID for the external source (populated at import time from app_id)"
+    )
+
+class KnowledgeBaseSyncJob(BaseModel):
+    """Schedule repeat options for knowledge base ingestion"""
+    schedule: str = Field(..., description="Cron pattern (e.g., '0 0 * * *' for daily at midnight)")
     
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
@@ -404,12 +437,36 @@ class KnowledgeBaseSpec(BaseModel):
     prioritize_built_in_index: Optional[bool] = None
     workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
     representation: Optional[KnowledgeBaseRepresentation] = None
-    vector_index_id: Optional[UUID] = None 
+    vector_index_id: Optional[UUID] = None
     created_by: Optional[str] = None
-    created_on: Optional[datetime] = None 
+    created_on: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    content_source: Optional[ContentSourceConfig] = None
+    sync_job: Optional[KnowledgeBaseSyncJob] = None
     # For import/update
     documents: list[str] | list[FileUpload] = None
+    
+    # DEFERRED: sync_job scheduling deferred to a future release.
+    # @model_validator(mode='after')
+    # def validate_sync_job_requires_content_source(self) -> 'KnowledgeBaseSpec':
+    #     """Validate that sync_job is only used with content_source, not with index_config."""
+    #     if self.sync_job is not None:
+    #         # Check if using index_config (external knowledge base)
+    #         if self.conversational_search_tool and isinstance(self.conversational_search_tool, ConversationalSearchConfig):
+    #             if self.conversational_search_tool.index_config:
+    #                 raise ValueError(
+    #                     "sync_job is not supported for knowledge bases using index_config. "
+    #                     "sync_job can only be used with content_source."
+    #                 )
+    #
+    #         # Ensure content_source is provided when sync_job is specified
+    #         if self.content_source is None:
+    #             raise ValueError(
+    #                 "sync_job requires content_source to be specified. "
+    #                 "Please provide a content_source (e.g., type: 'box')."
+    #             )
+    #
+    #     return self
 
 class KnowledgeBaseListEntry(BaseModel):
     name: str = Field(description="Name of the knowledge base")
@@ -417,6 +474,7 @@ class KnowledgeBaseListEntry(BaseModel):
     app_id: Optional[str] = Field(description="The app id for a connection that connects the knowledge base to an external knowledge store")
     id: Optional[str] = Field(description="Unique identifier of the knowledge base")
     is_global: Optional[bool] = Field(default=None, description="Is the knowledge base present in the global workspace")
+    sync_pattern: Optional[str] = Field(default=None, description="Cron schedule pattern for automatic sync (content_source knowledge bases only)")
 
     def get_row_details(self):
         row = [self.name, self.description, self.app_id, self.id]

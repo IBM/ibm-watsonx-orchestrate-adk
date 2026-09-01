@@ -193,7 +193,16 @@ class TestConnectionsSetCredentials:
         "grant_type": "test_grant_type",
         "entries": ["testentry1=testentry"],
         "token_entries": [],
-        "auth_entries": []
+        "auth_entries": [],
+        "alg": "test_alg",
+        "private_key": "test_pkey",
+        "kid": "test_kid",
+        "private_key_password": "test_pk_password",
+        "iss": "test_issuer",
+        "aud": "https://test.example.com/token",
+        "exp": "test_exp",
+        "include_jti": False,
+        "claims": ["test_claims=claim1"],
     }
 
     def test_set_credentials_connection_command(self):
