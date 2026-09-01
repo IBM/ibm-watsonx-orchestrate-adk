@@ -41,6 +41,7 @@ from ibm_watsonx_orchestrate.cli.config import Config, PYTHON_REGISTRY_HEADER, P
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.tools.builder_client import BuilderClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
@@ -1044,10 +1045,10 @@ class ToolsController:
                 sys.exit(1)
         
         # Check if its an Toolkit tool if so call toolkit export instead
+        is_mcp_flow = spec.get("binding", {}).get("mcp", {}).get("sub_type") == "flow"
         toolkit = spec.get("toolkit_id")
-        if toolkit:
-            name_parts = name.split(":")
-
+        name_parts = name.split(":")
+        if toolkit and not is_mcp_flow:
             if len(name_parts) < 2:
                 BadRequest(f"The tool '{name}' does not match the naming scheme expected of a Toolkit tool '<toolkit_name>:<tool_name>'")
             toolkit_name = name_parts[0]
@@ -1067,7 +1068,24 @@ class ToolsController:
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
 
-        tool_artifact: DownloadResult | None = self.download_tool(name, tool_spec=spec)
+        # For MCP flow tools, fetch the flow model from Tempus using the tool's own id 
+        if is_mcp_flow:
+            tool_id = spec.get("id")
+            if not tool_id:
+                logger.error(f"Skipping '{name}', MCP flow tool has no id")
+                sys.exit(1)
+            tool_name_part = name_parts[-1]
+            try:
+                tempus_client = instantiate_client(TempusClient)
+                tempus_response = tempus_client.get_flow_model(tool_id)
+                flow_model = tempus_response.get("data", tempus_response)
+            except Exception as e:
+                logger.error(f"Could not fetch flow model for MCP flow tool '{name}' (id={tool_id}): {str(e)}")
+                sys.exit(1)
+            artifact_bytes = self.serialize_to_json_in_zip(flow_model, f"{tool_name_part}.json")
+            tool_artifact = DownloadResult(content=artifact_bytes, kind=ToolKind.flow)
+        else:
+            tool_artifact = self.download_tool(name, tool_spec=spec)
 
         connection_ids = _get_connection_ids_from_spec(spec)
         connection_ids = [c for c in connection_ids if c]
