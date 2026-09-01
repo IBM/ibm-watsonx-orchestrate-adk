@@ -1048,9 +1048,8 @@ class ToolsController:
         # MCP tools with sub_type "flow" are excluded: they carry a workflow JSON
         is_mcp_flow = spec.get("binding", {}).get("mcp", {}).get("sub_type") == "flow"
         toolkit = spec.get("toolkit_id")
+        name_parts = name.split(":")
         if toolkit and not is_mcp_flow:
-            name_parts = name.split(":")
-
             if len(name_parts) < 2:
                 BadRequest(f"The tool '{name}' does not match the naming scheme expected of a Toolkit tool '<toolkit_name>:<tool_name>'")
             toolkit_name = name_parts[0]
@@ -1075,15 +1074,15 @@ class ToolsController:
             tool_id = spec.get("id")
             if not tool_id:
                 logger.error(f"Skipping '{name}', MCP flow tool has no id")
-                return
-            tool_name_part = name.split(":")[-1] if ":" in name else name
+                sys.exit(1)
+            tool_name_part = name_parts[-1]
             try:
                 tempus_client = instantiate_client(TempusClient)
                 tempus_response = tempus_client.get_flow_model(tool_id)
                 flow_model = tempus_response.get("data", tempus_response)
             except Exception as e:
                 logger.error(f"Could not fetch flow model for MCP flow tool '{name}' (id={tool_id}): {str(e)}")
-                return
+                sys.exit(1)
             artifact_bytes = self.serialize_to_json_in_zip(flow_model, f"{tool_name_part}.json")
             tool_artifact = DownloadResult(content=artifact_bytes, kind=ToolKind.flow)
         else:
