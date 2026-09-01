@@ -7,15 +7,14 @@ Supports:
   - Python @flow   (.py)   — ADK pro-code flow using the @flow decorator
 
 Outputs a compact structural summary covering all evidence needed for the
-7 agentic-workflow-advisor detection checks:
+6 agentic-workflow-advisor detection checks:
 
   Check 1 — Sequential nodes with no data dependency (edges + input_maps)
   Check 2 — Unmapped required input fields / phantom mappings (input_maps, required fields)
   Check 3 — LLM-based routing over deterministic result (agent nodes + preceding node kinds)
-  Check 4 — Flow-scoped variables in agent guidelines (agent YAML — not extracted here)
-  Check 5 — Oversized input schema (top-level input_schema field count)
-  Check 6 — Tool node that should be a Logic Code Block (node descriptions)
-  Check 7 — Agent node that should be a Generative Prompt node (agent message, tools, output_schema)
+  Check 4 — Oversized input schema (top-level input_schema field count)
+  Check 5 — Tool node that should be a Logic Code Block (node descriptions)
+  Check 6 — Agent node that should be a Generative Prompt node (agent message, tools, output_schema)
 
 Usage:
   python extract_flow_info.py <workflow.json>      # JSON flow
@@ -219,15 +218,8 @@ def extract_json_flow_from_dict(data: Dict) -> Dict:
 
     # Sequential tool pairs: A -> B where both are tool kind, no dependency
     sequential_tool_pairs = []
-    node_input_map_refs: Dict[str, List[str]] = {}
-    for n in all_nodes:
-        # Build set of upstream nodes referenced in this node's input maps
-        refs = set()
-        for raw in n.get("explicitly_mapped_fields", []):
-            pass  # need raw value_expressions not just field names
-        node_input_map_refs[n["id"]] = list(refs)
 
-    # Re-scan with raw maps for value_expression references
+    # Scan with raw maps for value_expression references
     def get_referenced_upstream(node_obj: Dict) -> List[str]:
         maps = node_obj.get("input_map", {}).get("spec", {}).get("maps", [])
         refs = []
@@ -270,7 +262,7 @@ def extract_json_flow_from_dict(data: Dict) -> Dict:
 
     sequential_pairs = find_sequential_pairs(raw_data_nodes, edge_list)
 
-    # Agent nodes for Check 3 and Check 7
+    # Agent nodes for Check 3 and Check 6
     agent_nodes = [n for n in all_nodes if n["kind"] == "agent"]
 
     # For each agent node, find its immediate predecessor kind
@@ -340,7 +332,7 @@ def extract_json_flow_from_dict(data: Dict) -> Dict:
         ],
         "check_2_unmapped_required_fields": unmapped_nodes,
         "check_2_phantom_mappings": phantom_nodes,
-        "check_3_7_agent_nodes": [
+        "check_3_6_agent_nodes": [
             {
                 "display_name": n["display_name"],
                 "message": n.get("message", ""),
@@ -350,8 +342,8 @@ def extract_json_flow_from_dict(data: Dict) -> Dict:
             }
             for n in agent_nodes
         ],
-        "check_5_input_schema_field_count": len(top_properties),
-        "check_6_tool_nodes": [
+        "check_4_input_schema_field_count": len(top_properties),
+        "check_5_tool_nodes": [
             {"display_name": n["display_name"], "description": n["description"]}
             for n in all_nodes
             if n["kind"] == "tool"
@@ -480,7 +472,7 @@ def format_text(data: Dict) -> str:
         f"Under-specified: {data['is_under_specified']}",
         "",
         f"### Top-level Input Schema",
-        f"Field count: {data['check_5_input_schema_field_count']}",
+        f"Field count: {data['check_4_input_schema_field_count']}",
         f"Required: {', '.join(data['top_level_input_schema']['required']) or '(none)'}",
         "",
     ]
@@ -541,8 +533,8 @@ def format_text(data: Dict) -> str:
     lines.append("")
 
     lines.append("### Check 3 / 7 — Agent nodes")
-    if data["check_3_7_agent_nodes"]:
-        for an in data["check_3_7_agent_nodes"]:
+    if data["check_3_6_agent_nodes"]:
+        for an in data["check_3_6_agent_nodes"]:
             preds = ", ".join(f"{p['display_name']} ({p['kind']})" for p in an["predecessors"]) or "(none)"
             lines += [
                 f"  Agent: {an['display_name']}",
@@ -556,11 +548,11 @@ def format_text(data: Dict) -> str:
         lines.append("  ✓ No agent nodes present")
     lines.append("")
 
-    lines.append("### Check 6 — Tool nodes (description for external-call assessment)")
-    for tn in data["check_6_tool_nodes"]:
+    lines.append("### Check 5 — Tool nodes (description for external-call assessment)")
+    for tn in data["check_5_tool_nodes"]:
         desc = tn["description"][:100] + "..." if len(tn.get("description", "")) > 100 else tn.get("description", "(none)")
         lines.append(f"  - {tn['display_name']}: {desc}")
-    if not data["check_6_tool_nodes"]:
+    if not data["check_5_tool_nodes"]:
         lines.append("  ✓ No tool nodes present")
 
     return "\n".join(lines)
@@ -597,7 +589,8 @@ def main():
                 sys.exit(1)
         print("Usage: extract_flow_info.py <workflow.json|workflow.py> [--json]")
         print("       cat flow.json | extract_flow_info.py --stdin [--json]")
-        print("\nExtracts structural evidence for all 7 agentic-workflow-advisor checks.")
+        print("\nExtracts structural evidence for all 6 agentic-workflow-advisor checks.")
+        print("Note: --stdin only supports JSON input; Python @flow files must be passed as a file path.")
         print("Paste the output into Bob chat for analysis.")
         sys.exit(1)
 
@@ -628,5 +621,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# Made with Bob
