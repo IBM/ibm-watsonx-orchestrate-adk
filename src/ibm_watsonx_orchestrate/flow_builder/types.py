@@ -283,7 +283,6 @@ class LanguageCode(StrEnum):
     kg = auto()
     kj = auto()
     la = auto()
-    latn = auto()
     mg = auto()
     gv = auto()
     ng = auto()
@@ -391,6 +390,7 @@ class DocProcCommonNodeSpec(NodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
     enable_hw: bool | None = Field(description="Boolean value indicating if hand-written feature is enabled.", title="Enable handwritten", default=False)
     language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
+    error_handler_config: Optional["NodeErrorHandlerConfig"] = Field(description="Error handling and retry configuration for this node.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -401,7 +401,8 @@ class DocProcCommonNodeSpec(NodeSpec):
         model_spec["enable_hw"] = self.enable_hw
         if self.language is not None:
             model_spec["language"] = self.language
-        
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         return model_spec
     
 class DocClassifierSpec(DocProcCommonNodeSpec):
@@ -709,8 +710,8 @@ class ToolNodeSpec(NodeSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
-        if self.error_handler_config:
-            model_spec["error_handler_config"] = self.error_handler_config.to_json()  
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.tool:
             if isinstance(self.tool, ToolSpec):
                 model_spec["tool"] = self.tool.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
@@ -2847,11 +2848,63 @@ class UserNodeSpec(NodeSpec):
         return self.form
 
 
+ThreadControlPolicy = Literal[
+    "REUSE_AND_CORRELATE",
+    "CREATE_ALWAYS",
+]
+
+
+class _Unset:
+    """Sentinel value used to detect when thread_control_policy has not been explicitly set."""
+
+    def __repr__(self):
+        return "UNSET"
+
+
+_UNSET = _Unset()
+
+_DEFAULT_THREAD_CONTROL_POLICY: ThreadControlPolicy = "REUSE_AND_CORRELATE"
+
+_VALID_THREAD_CONTROL_POLICIES = {
+    "REUSE_AND_CORRELATE",
+    "CREATE_ALWAYS",
+}
+
+
+
+
 class AgentNodeSpec(ToolNodeSpec):
     message: str | None = Field(default=None, description="The instructions for the task.")
     title: str | None = Field(default=None, description="The title of the message.")
     guidelines: str | None = Field(default=None, description="The guidelines for the task.")
     agent: str
+    thread_control_policy: ThreadControlPolicy = Field(
+        default=_DEFAULT_THREAD_CONTROL_POLICY,
+        description=(
+            "Controls how the agent node manages conversation thread lifecycle. "
+            "'REUSE_AND_CORRELATE' (default): reuse correlated thread or create new. "
+            "'CREATE_ALWAYS': always create a new isolated thread."
+        ),
+    )
+
+    @field_validator("thread_control_policy", mode="before")
+    @classmethod
+    def normalize_thread_control_policy(cls, value):
+        """Validate and normalise thread_control_policy, falling back to the default when the sentinel is received."""
+        if isinstance(value, _Unset):
+            logger.warning(
+                f"No valid thread_control_policy specified for agent node. "
+                f"Defaulting to '{_DEFAULT_THREAD_CONTROL_POLICY}'."
+            )
+            return _DEFAULT_THREAD_CONTROL_POLICY
+
+        if value in _VALID_THREAD_CONTROL_POLICIES:
+            return value
+
+        raise ValueError(
+            f"Invalid thread_control_policy={value!r}. "
+            f"Expected one of {_VALID_THREAD_CONTROL_POLICIES}."
+        )
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -2867,6 +2920,7 @@ class AgentNodeSpec(ToolNodeSpec):
             model_spec["agent"] = self.agent
         if self.title:
             model_spec["title"] = self.title
+        model_spec["thread_control_policy"] = self.thread_control_policy
         return model_spec
 
 class PromptLLMParameters(BaseModel):
@@ -2919,6 +2973,7 @@ class PromptNodeSpec(NodeSpec):
     error_handler_config: Optional[NodeErrorHandlerConfig] = None
     metadata: dict[str, Any] | None = None
     test_input_data: dict[str, Any] | None = None
+    include_agent_context: bool = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2934,8 +2989,8 @@ class PromptNodeSpec(NodeSpec):
             model_spec["llm"] = self.llm
         if self.llm_parameters:
             model_spec["llm_parameters"] = self.llm_parameters.to_json()
-        if self.error_handler_config:
-            model_spec["error_handler_config"] = self.error_handler_config.to_json()            
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.prompt_examples:
             model_spec["prompt_examples"] = []
             for example in self.prompt_examples:
@@ -2944,6 +2999,7 @@ class PromptNodeSpec(NodeSpec):
             model_spec["metadata"] = self.metadata
         if self.test_input_data:
             model_spec["test_input_data"] = self.test_input_data
+        model_spec["include_agent_context"] = self.include_agent_context
         return model_spec
     
 class TimerNodeSpec(NodeSpec):

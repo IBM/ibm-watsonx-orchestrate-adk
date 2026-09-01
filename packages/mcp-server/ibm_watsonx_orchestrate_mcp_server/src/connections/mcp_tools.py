@@ -118,7 +118,15 @@ def set_credentials_connection(options: SetCredentialsConnectionOptions) -> str:
         scope=scope,
         entries=entries,
         token_entries=options.token_entries,
-        auth_entries=options.auth_entries
+        auth_entries=options.auth_entries,
+        alg=options.alg,
+        private_key=options.private_key,
+        kid=options.kid,
+        private_key_password=options.private_key_password,
+        iss=options.iss,
+        aud=options.aud,
+        exp=options.exp,
+        include_jti=options.include_jti,
     )
     return f"Credentials set for connection '{options.app_id}'"
 

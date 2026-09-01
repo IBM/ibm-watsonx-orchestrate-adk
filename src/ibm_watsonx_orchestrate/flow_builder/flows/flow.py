@@ -40,15 +40,15 @@ from ..types import (
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
     UserFormButton, LanguageCode
 )
-from ..masking_utils import MaskingPolicy, InputPolicy
+from ..masking_utils import MaskingPolicy, InputPolicy, ChannelOverride
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
     EndNode, Node, PromptNode, ScriptNode, StartNode, TimerNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
 )
 from ..types import (
-    AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
+    AgentNodeSpec, ThreadControlPolicy, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
     NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema,
-    FlowCallback, FlowCallbackEventKind
+    FlowCallback, FlowCallbackEventKind, _UNSET
 )
 
 from ..data_map import DataMap, DataMapSpec
@@ -1009,7 +1009,8 @@ class Flow(Node):
               description: str | None = None,
               input_schema: type[BaseModel]|None = None, 
               output_schema: type[BaseModel]|None=None,
-              guidelines: str|None=None) -> AgentNode:
+              guidelines: str|None=None,
+              thread_control_policy: ThreadControlPolicy  = cast(ThreadControlPolicy, _UNSET)) -> AgentNode:
 
          # create input spec
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
@@ -1024,6 +1025,7 @@ class Flow(Node):
             title=title,
             message=message,
             guidelines=guidelines,
+            thread_control_policy=thread_control_policy,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj
@@ -1046,7 +1048,8 @@ class Flow(Node):
             description: str | None = None,
             input_schema: type[BaseModel]|None = None, 
             output_schema: type[BaseModel]|None=None,
-            error_handler_config: NodeErrorHandlerConfig | None = None,) -> PromptNode:
+            error_handler_config: NodeErrorHandlerConfig | None = None,
+            include_agent_context: bool = False,) -> PromptNode:
 
         if name is None:
             raise ValueError("name must be provided.")
@@ -1066,6 +1069,7 @@ class Flow(Node):
             llm=llm,
             llm_parameters=llm_parameters,
             error_handler_config=error_handler_config,
+            include_agent_context=include_agent_context,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj
@@ -1077,17 +1081,18 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(PromptNode, node)
     
-    def docclassifier(self, 
-            name: str, 
+    def docclassifier(self,
+            name: str,
             llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
-            classes: type[BaseModel]| None = None, 
+            classes: type[BaseModel]| None = None,
             description: str | None = None,
             min_confidence: float = 0.0,
             enable_hw: bool = False,
             enable_review: bool = False,
-            language: LanguageCode | None = None) -> DocClassifierNode:
+            language: LanguageCode | None = None,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -1111,7 +1116,8 @@ class Flow(Node):
             version=version,
             enable_hw=enable_hw,
             enable_review=enable_review,
-            language=language
+            language=language,
+            error_handler_config=error_handler_config
         )
         node = DocClassifierNode(spec=task_spec)
         
@@ -1145,19 +1151,20 @@ class Flow(Node):
 
     
     def docext(self,
-            name: str, 
+            name: str,
             llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
-            fields: type[BaseModel]| None = None, 
+            fields: type[BaseModel]| None = None,
             description: str | None = None,
             enable_hw: bool = False,
-            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
+            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code.
             review_fields: List[str] = [],
             field_extraction_method: str = "classic",
             enable_review: bool = False,
             page_range: PageRange | None = None,
-            language: LanguageCode | None = None) -> tuple[DocExtNode, type[BaseModel]]:
+            language: LanguageCode | None = None,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -1187,7 +1194,8 @@ class Flow(Node):
             review_fields=review_fields,
             field_extraction_method=field_extraction_method,
             enable_review=enable_review,
-            language=language
+            language=language,
+            error_handler_config=error_handler_config
         )
         node = DocExtNode(spec=task_spec)
         
@@ -1242,7 +1250,8 @@ class Flow(Node):
             kvp_enable_text_hints: bool | None = True,
             page_range: PageRange | None = None,
             language: LanguageCode | None = None,
-            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
+            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -1282,7 +1291,8 @@ class Flow(Node):
             kvp_enable_text_hints=kvp_enable_text_hints,
             page_range=page_range,
             language=language,
-            output_format=output_format
+            output_format=output_format,
+            error_handler_config=error_handler_config
         )
 
         node = DocProcNode(spec=task_spec)
@@ -1854,7 +1864,8 @@ class Flow(Node):
         property_schema: Union[JsonSchemaObject, ToolResponseBody, ToolRequestBody],
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
+        input_policy: Optional[InputPolicy] = None,
+        channel_override: Optional[ChannelOverride] = None
     ) -> None:
         """
         Validate a resolved property schema and apply masking extensions.
@@ -1871,7 +1882,8 @@ class Flow(Node):
             property_schema,
             masking_policy=masking_policy,
             regex_config=regex_config,
-            input_policy=input_policy
+            input_policy=input_policy,
+            channel_override=channel_override
         )
 
     def mask_property(
@@ -1879,7 +1891,8 @@ class Flow(Node):
         property_path: str,
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
+        input_policy: Optional[InputPolicy] = None,
+        channel_override: Optional[ChannelOverride] = None
     ) -> Self:
         """
         Mark a property as sensitive/confidential by adding IBM masking extensions.
@@ -1913,6 +1926,10 @@ class Flow(Node):
             input_policy: Input masking behavior (InputPolicy enum, optional)
                 - InputPolicy.MASK_WHILE_TYPING: Mask the value while the user is typing
                 If omitted, data is only masked on output, not during input
+            channel_override: Channel-level visibility override (ChannelOverride enum, optional)
+                - ChannelOverride.VISIBLE_TO_INITIATOR: Sensitive info will be unmasked in
+                  the channel when outputted to the flow initiator in the channel.
+                If omitted, the value remains masked in all channels.
         
         Returns:
             Self for method chaining
@@ -1944,6 +1961,13 @@ class Flow(Node):
                 "flow.input.password",
                 MaskingPolicy.MASK_ALL,
                 input_policy=InputPolicy.MASK_WHILE_TYPING
+            )
+
+            # Unmask for flow initiator in channel
+            flow.mask_property(
+                "flow.input.result",
+                MaskingPolicy.MASK_ALL,
+                channel_override=ChannelOverride.VISIBLE_TO_INITIATOR
             )
         """
         from ..masking_utils import PropertyMaskingHelper
@@ -2034,7 +2058,8 @@ class Flow(Node):
             property_schema,
             masking_policy=masking_policy,
             regex_config=regex_config,
-            input_policy=input_policy
+            input_policy=input_policy,
+            channel_override=channel_override
         )
         
         return self
