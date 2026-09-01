@@ -4,7 +4,7 @@ A Bob skill that analyses IBM watsonx Orchestrate agentic workflow artefacts and
 
 ## What it does
 
-The skill performs static analysis of your workflow artefact and runs 7 detection checks covering the most impactful design patterns that cause performance issues, routing failures, or maintainability problems in production. Findings are grouped by impact — High, Medium, and Low — and each recommendation includes what was observed, why it matters, and what to do about it.
+The skill performs static analysis of your workflow artefact and runs 6 detection checks covering the most impactful design patterns that cause performance issues, routing failures, or maintainability problems in production. Findings are grouped by impact — High, Medium, and Low — and each recommendation includes what was observed, why it matters, and what to do about it.
 
 ## Who it is for
 
@@ -26,7 +26,7 @@ The skill performs static analysis of your workflow artefact and runs 7 detectio
 | Artefact | Required | Notes |
 |----------|----------|-------|
 | Workflow JSON | ✅ Yes | Export from Flow Builder or ADK |
-| Agent YAML | Optional | Required for Check 4 (guidelines analysis) only |
+| Agent YAML | Optional | Useful for deeper Check 3 (LLM-based routing) analysis |
 
 Paste the artefact directly into chat or attach the file.
 
@@ -51,10 +51,9 @@ Run an agentic workflow advisor check on these files — I've attached the workf
 | 1 | Sequential nodes with no data dependencies | 🔴 High |
 | 2 | Required input field with no explicit mapping (or unmapped flow output field) | 🟡 Medium |
 | 3 | LLM-based routing over a deterministic upstream result | 🔴 High |
-| 4 | Flow-scoped variable expressions (`{flow.*}`, `{self.*}`) in agent guidelines | 🟡 Medium |
-| 5 | Input schema with >20 fields | 🟢 Low |
-| 6 | Toolkit tool with no external HTTP calls | 🟢 Low |
-| 7 | Agent node that could be replaced with a Generative Prompt node | 🟡 Medium |
+| 4 | Input schema with >20 fields | 🟢 Low |
+| 5 | Toolkit tool with no external HTTP calls | 🟢 Low |
+| 6 | Agent node that could be replaced with a Generative Prompt node | 🟡 Medium |
 
 ## Sample Output
 
@@ -88,7 +87,7 @@ Run an agentic workflow advisor check on these files — I've attached the workf
 - Recommended action: Audit which fields are actually read inside the flow and remove unused ones
 
 ---
-_Review scope: workflow JSON ✅ | agent YAML ❌ not provided | Checks skipped: Check 4 (agent YAML not provided)_
+_Review scope: workflow JSON ✅ | agent YAML ❌ not provided_
 ```
 
 ## Scope and Limitations
@@ -96,9 +95,9 @@ _Review scope: workflow JSON ✅ | agent YAML ❌ not provided | Checks skipped:
 - **All flows are in scope** — the skill evaluates any watsonx Orchestrate flow JSON. Checks that target a specific node kind produce no findings if that node kind is absent.
 - **Static analysis only** — the skill does not invoke, modify, or connect to any running workflow or platform API.
 - **No automated remediation** — the skill identifies and explains issues; it does not rewrite the workflow.
-- **Agent YAML is optional** — Check 4 (guidelines analysis) requires the agent YAML; all other checks run from the workflow JSON alone.
-- **Check 6 runs from description alone** — no toolkit Python source needed; the skill infers from the node's `description` and `display_name`.
-- **Check 7 considers `thread_control_policy`** — if `REUSE_AND_CORRELATE` is set on the agent node, the recommendation explicitly notes that a Generative Prompt node cannot maintain conversation context continuity.
+- **Agent YAML is optional** — all checks run from the workflow JSON alone; the agent YAML is useful for deeper Check 3 (LLM-based routing) analysis.
+- **Check 5 runs from description alone** — no toolkit Python source needed; the skill infers from the node's `description` and `display_name`.
+- **Check 6 considers `thread_control_policy`** — if `REUSE_AND_CORRELATE` is set on the agent node, the recommendation explicitly notes that a Generative Prompt node cannot maintain conversation context continuity.
 
 ## Distribution
 
