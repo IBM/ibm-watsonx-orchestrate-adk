@@ -409,10 +409,25 @@ def export_agent(
             "--agent-only",
             help="Export only the yaml to the specified agent, excluding its dependencies",
         ),
-    ]=False
-):  
+    ] = False,
+    semantic_version: Annotated[
+        Optional[str],
+        typer.Option(
+            "--semantic-version",
+            "-sv",
+            help="(Native agents only) Export a specific semantic version of the agent (e.g. '1.2.0'). "
+                 "The version is loaded into the draft before export.",
+        ),
+    ] = None,
+):
     agents_controller = AgentsController()
-    agents_controller.export_agent(name=name, kind=kind, output_path=output_file, agent_only_flag=agent_only_flag)
+    agents_controller.export_agent(
+        name=name,
+        kind=kind,
+        output_path=output_file,
+        agent_only_flag=agent_only_flag,
+        semantic_version=semantic_version,
+    )
 
 @agents_app.command(name="deploy", help="Deploy Agent")
 def deploy_agent(
