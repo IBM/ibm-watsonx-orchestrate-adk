@@ -199,7 +199,8 @@ class TestAgentExport:
                 name="test_native_agent",
                 kind=AgentKind.NATIVE,
                 output_path="test_output.zip",
-                agent_only_flag=False
+                agent_only_flag=False,
+                semantic_version=None
             )
 
 class TestAgentDeploy:
