@@ -19,6 +19,7 @@ from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, TypeVar
+from packaging.version import Version, InvalidVersion
 
 import requests
 import rich
@@ -47,8 +48,7 @@ from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, ToolKindImport, import_python_tool, ToolsController, \
     _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, transform_agents_from_flat_agent_spec
-from ibm_watsonx_orchestrate_clients.agents.agent_client import BumpType, CreateVersionRequest
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, BumpType, CreateVersionRequest, transform_agents_from_flat_agent_spec
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
@@ -335,7 +335,7 @@ class AgentsController:
         custom_agent_file_path: str | None = None,
         custom_agent_config_file: str | None = None,
         version: str | None = None,
-    ) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
+    ) -> tuple[List[Agent | CustomAgent | ExternalAgent | AssistantAgent], str | None]:
         # Check if this is a custom agent with package root
         if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
             # This is a custom agent with a directory - create a CustomAgent
@@ -355,7 +355,7 @@ class AgentsController:
             )
             agent.custom_agent_file_path = zip_path
 
-            return [agent]
+            return [agent], version
 
         if not file:
             raise ValueError("File must be provided for native agents")
@@ -363,18 +363,15 @@ class AgentsController:
         # Check if file is a ZIP, if so handle import from ZIP
         if file.endswith('.zip'):
             logger.info(f"Detected ZIP file, initiating bulk import from '{file}'")
-            return AgentsController._import_from_zip(file, app_id)
+            return AgentsController._import_from_zip(file, app_id), version
 
         agents = parse_file(file)
 
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
-            # Attach the version hint so publish_or_update_agents can use it
-            if version:
-                agent._import_version = version
 
-        return agents
+        return agents, version
     @staticmethod
     def _import_from_zip(zip_path: str, app_id: str | None = None) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
         if not zipfile.is_zipfile(zip_path):
@@ -1419,7 +1416,9 @@ class AgentsController:
             return self.reference_external_or_assistant_agent_dependencies(agent)
 
     def publish_or_update_agents(
-        self, agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent]
+        self,
+        agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent],
+        version: str | None = None,
     ):
         for agent in agents:
             # Check for existing agents by name
@@ -1444,8 +1443,14 @@ class AgentsController:
 
             all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
 
-            # Retrieve the version hint attached by import_agent() before dereference mutates the object
-            import_version: str | None = getattr(agent, '_import_version', None)
+            # Warn when --version is supplied but this agent kind doesn't support versioning
+            import_version: str | None = version
+            if import_version and not isinstance(agent, Agent):
+                logger.warning(
+                    f"Agent '{agent_name}': --version is only supported for native agents. "
+                    f"The version '{import_version}' will be ignored for this {type(agent).__name__}."
+                )
+                import_version = None
 
             agent = self.dereference_agent_dependencies(agent)
 
@@ -1727,7 +1732,6 @@ class AgentsController:
         native_client: AgentClient,
     ) -> None:
         """Emit a warning when *import_version* is lower than the latest existing semantic version."""
-        from packaging.version import Version, InvalidVersion
         try:
             existing_versions = native_client.list_versions(agent_id)
             if not existing_versions:
@@ -1756,12 +1760,24 @@ class AgentsController:
         import_version: str,
         native_client: AgentClient,
     ) -> None:
-        """Create a patch semantic version snapshot after an agent import/update."""
+        """Create a semantic version snapshot after an agent import/update.
+
+        Uses *import_version* as the explicit semantic version when the string is a
+        valid semver (e.g. "2.0.0").  Falls back to a PATCH auto-increment so that
+        non-semver labels such as "v1-feature" still produce a version record.
+        """
         try:
+            try:
+                Version(import_version)
+                is_valid_semver = True
+            except InvalidVersion:
+                is_valid_semver = False
+
             version_response = native_client.create_version(
                 agent_id,
                 CreateVersionRequest(
                     bump_type=BumpType.PATCH,
+                    semantic_version=import_version if is_valid_semver else None,
                     version_name=import_version,
                     version_description=f"Imported version {import_version}",
                 ),

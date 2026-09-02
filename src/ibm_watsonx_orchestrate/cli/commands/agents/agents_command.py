@@ -54,27 +54,26 @@ def agent_import(
         )
     ] = None,
 ):
-    
     # Validate that either file or package_root is provided
     if not file and not package_root:
         raise ValueError("Either --file or --package-root is required")
-    
+
     if file and package_root:
         raise ValueError("Specify either --file or --package-root, not both")
-    
+
     if config_file and not package_root:
         raise ValueError("--config-file can only be used with --package-root")
-    
+
     custom_agent_file_path = None
     custom_agent_config_file = None
-    
+
     if package_root:
         # Validate the directory exists
         if not os.path.exists(package_root):
             raise ValueError(f"Package root directory not found: {package_root}")
         if not os.path.isdir(package_root):
             raise ValueError(f"Package root must be a directory: {package_root}")
-        
+
         # Validate config file if provided
         if config_file:
             if not os.path.exists(config_file):
@@ -82,23 +81,23 @@ def agent_import(
             if not os.path.isfile(config_file):
                 raise ValueError(f"Config file must be a file: {config_file}")
             custom_agent_config_file = config_file
-        
+
         custom_agent_file_path = package_root
         file = package_root
     elif file:
         # Validate the file exists
         if not os.path.exists(file):
             raise ValueError(f"File not found: {file}")
-    
+
     agents_controller = AgentsController(safe_mode=safe)
-    agent_specs = agents_controller.import_agent(
+    agent_specs, import_version = agents_controller.import_agent(
         file=file,
         app_id=app_id,
         custom_agent_file_path=custom_agent_file_path,
         custom_agent_config_file=custom_agent_config_file,
         version=version
     )
-    agents_controller.publish_or_update_agents(agent_specs)
+    agents_controller.publish_or_update_agents(agent_specs, version=import_version)
 
 
 @agents_app.command(name="create", help='Create and import an agent into the active env')
@@ -413,10 +412,10 @@ def export_agent(
     semantic_version: Annotated[
         Optional[str],
         typer.Option(
-            "--semantic-version",
-            "-sv",
+            "--version",
+            "-v",
             help="(Native agents only) Export a specific semantic version of the agent (e.g. '1.2.0'). "
-                 "The version is loaded into the draft before export.",
+                 "Warning: this will overwrite the agent's current draft state on the server.",
         ),
     ] = None,
 ):

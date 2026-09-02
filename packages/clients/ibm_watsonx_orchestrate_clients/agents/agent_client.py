@@ -42,6 +42,7 @@ class BumpType(str, Enum):
 
 class CreateVersionRequest(BaseModel):
     bump_type: BumpType
+    semantic_version: Optional[str] = None
     version_name: Optional[str] = None
     version_description: Optional[str] = None
 
