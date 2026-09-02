@@ -2168,3 +2168,322 @@ class TestDereferenceNativeAgentDependenciesSkills:
             ac.dereference_native_agent_dependencies(agent)
 
         deref_skills_mock.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests for agent versioning paths (PR review items #3, #6, #7)
+# ---------------------------------------------------------------------------
+
+class TestImportAgentReturnsTuple:
+    """import_agent() must return (agents, version) tuple — not mutate agent objects."""
+
+    def test_returns_tuple_with_version(self, native_agent_content):
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.parse_file",
+            return_value=[Agent(**native_agent_content)],
+        ):
+            result = AgentsController.import_agent(file="agent.yaml", version="1.2.3")
+
+        agents, version = result
+        assert version == "1.2.3"
+        assert len(agents) == 1
+        # The version must NOT be attached as a dynamic attribute on the agent model
+        assert not hasattr(agents[0], "_import_version")
+
+    def test_returns_tuple_with_none_version(self, native_agent_content):
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.parse_file",
+            return_value=[Agent(**native_agent_content)],
+        ):
+            result = AgentsController.import_agent(file="agent.yaml")
+
+        agents, version = result
+        assert version is None
+
+    def test_zip_import_propagates_version(self):
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController._import_from_zip",
+            return_value=[],
+        ):
+            _, version = AgentsController.import_agent(file="bundle.zip", version="2.0.0")
+        assert version == "2.0.0"
+
+
+class TestCreateVersionAfterImport:
+    """_create_version_after_import passes the explicit semver to the API."""
+
+    def _make_controller(self):
+        return AgentsController()
+
+    def test_called_on_update_with_version(self, native_agent_content):
+        ac = AgentsController()
+        agent_id = "agent-uuid-123"
+        mock_native = MagicMock()
+        mock_native.get_draft_by_name.return_value = [
+            {"name": "test_native_agent", "id": agent_id, "description": "x"}
+        ]
+        mock_native.list_versions.return_value = []
+
+        with patch.object(ac, "get_native_client", return_value=mock_native), \
+             patch.object(ac, "get_external_client", return_value=MagicMock(
+                 get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "get_assistant_client", return_value=MagicMock(
+                 get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a), \
+             patch.object(ac, "update_agent"), \
+             patch.object(ac, "_create_version_after_import") as mock_create_ver:
+
+            agent = Agent(**native_agent_content)
+            agent.tools = []
+            agent.collaborators = []
+            ac.publish_or_update_agents([agent], version="1.2.3")
+
+        mock_create_ver.assert_called_once_with(
+            agent_id=agent_id,
+            agent_name="test_native_agent",
+            import_version="1.2.3",
+            native_client=mock_native,
+        )
+
+    def test_semantic_version_passed_when_valid_semver(self):
+        """_create_version_after_import should set semantic_version for valid semver strings."""
+        ac = AgentsController()
+        mock_client = MagicMock()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client.create_version.return_value = VersionResponse(
+            semantic_version="2.0.0", version_label=3
+        )
+
+        ac._create_version_after_import(
+            agent_id="aid",
+            agent_name="my_agent",
+            import_version="2.0.0",
+            native_client=mock_client,
+        )
+
+        call_args = mock_client.create_version.call_args
+        request = call_args[0][1]  # second positional arg is the CreateVersionRequest
+        assert request.semantic_version == "2.0.0"
+
+    def test_semantic_version_none_for_non_semver_label(self):
+        """_create_version_after_import should leave semantic_version=None for non-semver labels."""
+        ac = AgentsController()
+        mock_client = MagicMock()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client.create_version.return_value = VersionResponse(
+            semantic_version="0.0.1", version_label=1
+        )
+
+        ac._create_version_after_import(
+            agent_id="aid",
+            agent_name="my_agent",
+            import_version="v1-feature",
+            native_client=mock_client,
+        )
+
+        call_args = mock_client.create_version.call_args
+        request = call_args[0][1]
+        assert request.semantic_version is None
+
+    def test_api_failure_emits_warning_not_exception(self, caplog):
+        ac = AgentsController()
+        mock_client = MagicMock()
+        mock_client.create_version.side_effect = Exception("server error")
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._create_version_after_import(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="1.0.0",
+                native_client=mock_client,
+            )
+
+        assert "Could not create version snapshot" in caplog.text
+
+
+class TestWarnOnVersionRegression:
+    """_warn_on_version_regression emits a warning when importing an older version."""
+
+    def test_warns_when_import_version_lower(self, caplog):
+        ac = AgentsController()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client = MagicMock()
+        mock_client.list_versions.return_value = [
+            VersionResponse(semantic_version="2.0.0"),
+            VersionResponse(semantic_version="1.5.0"),
+        ]
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._warn_on_version_regression(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="1.0.0",
+                native_client=mock_client,
+            )
+
+        assert "lower than the latest existing version" in caplog.text
+        assert "'1.0.0'" in caplog.text
+        assert "'2.0.0'" in caplog.text
+
+    def test_no_warning_when_import_version_higher(self, caplog):
+        ac = AgentsController()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client = MagicMock()
+        mock_client.list_versions.return_value = [
+            VersionResponse(semantic_version="1.0.0"),
+        ]
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._warn_on_version_regression(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="2.0.0",
+                native_client=mock_client,
+            )
+
+        assert "lower than the latest existing version" not in caplog.text
+
+    def test_no_warning_when_no_existing_versions(self, caplog):
+        ac = AgentsController()
+        mock_client = MagicMock()
+        mock_client.list_versions.return_value = []
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._warn_on_version_regression(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="1.0.0",
+                native_client=mock_client,
+            )
+
+        assert "lower than the latest existing version" not in caplog.text
+
+
+class TestVersionIgnoredForNonNativeAgents:
+    """publish_or_update_agents warns and skips versioning for non-native agent kinds."""
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id",
+           return_value="conn-id")
+    def test_warns_for_external_agent(self, _mock_conn, external_agent_content, caplog):
+        ac = AgentsController()
+        with patch.object(ac, "get_native_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "get_external_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "get_assistant_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "publish_agent"), \
+             patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a):
+
+            import logging
+            with caplog.at_level(logging.WARNING):
+                ac.publish_or_update_agents(
+                    [ExternalAgent(**external_agent_content)], version="1.0.0"
+                )
+
+        assert "--version is only supported for native agents" in caplog.text
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id",
+           return_value="conn-id")
+    def test_no_warning_for_native_agent(self, _mock_conn, native_agent_content, caplog):
+        ac = AgentsController()
+        mock_native = MagicMock()
+        mock_native.get_draft_by_name.return_value = []
+        mock_native.list_versions.return_value = []
+
+        with patch.object(ac, "get_native_client", return_value=mock_native), \
+             patch.object(ac, "get_external_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "get_assistant_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "publish_agent"), \
+             patch.object(ac, "_create_version_after_import"), \
+             patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a):
+
+            agent = Agent(**native_agent_content)
+            agent.tools = []
+            agent.collaborators = []
+
+            import logging
+            with caplog.at_level(logging.WARNING):
+                ac.publish_or_update_agents([agent], version="1.0.0")
+
+        assert "--version is only supported for native agents" not in caplog.text
+
+
+class TestExportAgentSemanticVersion:
+    """export_agent calls load_version_to_draft when --version is supplied."""
+
+    mock_agent_name = "versioned_agent"
+    mock_yaml_path = "out.yaml"
+
+    def _make_native_content(self):
+        return {
+            "spec_version": SpecVersion.V1,
+            "kind": AgentKind.NATIVE,
+            "style": AgentStyle.REACT,
+            "name": self.mock_agent_name,
+            "description": "desc",
+            "llm": "test_llm",
+            "collaborators": [],
+            "tools": [],
+            "hidden": False,
+        }
+
+    def test_load_version_to_draft_called_on_export(self, caplog):
+        content = self._make_native_content()
+        ac = AgentsController()
+        agent_id = "agent-uuid-export"
+        mock_native = MagicMock()
+        mock_native.get_draft_by_name.return_value = [
+            {**content, "id": agent_id}
+        ]
+        mock_native.load_version_to_draft.return_value = {}
+        ac.native_client = mock_native
+        ac.external_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.assistant_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.tool_client = MagicMock(get_drafts_by_ids=MagicMock(return_value=[]))
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()), \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_agent_details",
+                   return_value={**content, "id": agent_id}):
+
+            ac.export_agent(
+                name=self.mock_agent_name,
+                kind=AgentKind.NATIVE,
+                output_path=self.mock_yaml_path,
+                agent_only_flag=True,
+                semantic_version="1.5.0",
+            )
+
+        mock_native.load_version_to_draft.assert_called_once_with(agent_id, "1.5.0")
+
+    def test_no_load_version_without_flag(self, caplog):
+        content = self._make_native_content()
+        ac = AgentsController()
+        agent_id = "agent-uuid-export"
+        mock_native = MagicMock()
+        mock_native.get_draft_by_name.return_value = [
+            {**content, "id": agent_id}
+        ]
+        ac.native_client = mock_native
+        ac.external_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.assistant_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.tool_client = MagicMock(get_drafts_by_ids=MagicMock(return_value=[]))
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()):
+
+            ac.export_agent(
+                name=self.mock_agent_name,
+                kind=AgentKind.NATIVE,
+                output_path=self.mock_yaml_path,
+                agent_only_flag=True,
+            )
+
+        mock_native.load_version_to_draft.assert_not_called()
