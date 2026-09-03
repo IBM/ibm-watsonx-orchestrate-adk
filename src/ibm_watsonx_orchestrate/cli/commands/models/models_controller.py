@@ -9,7 +9,7 @@ import importlib
 import inspect
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import requests
 import rich
@@ -238,7 +238,15 @@ class ModelsController:
         models_client: ModelsClient = self.get_models_client()
         res = models_client.list_all()
         return self.format_models_client_list_all_response(res)
-    
+
+    def get_all_models_and_policy_names(self) -> Set[str]:
+        model_client: ModelsClient = self.get_models_client()
+        model_policies_client: ModelPoliciesClient = self.get_model_policies_client()
+        existing_models = {m.get("id") for m in model_client.list_all() if m.get("id")}
+        existing_policies = {mp.name for mp in model_policies_client.list()}
+
+        return existing_models.union(existing_policies)
+
     def does_model_exist(self, model_name: str) -> bool:
         models = self.list_models(format=ListFormats.JSON)
         model_names = {model.name for model in models}
@@ -542,13 +550,13 @@ class ModelsController:
 
     def import_model_policy(self, file: str) -> List[ModelPolicy]:
         policies = parse_policy_file(file)
-        model_client: ModelsClient = self.get_models_client()
-        model_lut = {m.name: m.id for m in model_client.list()}
+
+        existing_models = self.get_all_models_and_policy_names()
 
         for policy in policies:
             models =  get_model_names_from_policy(policy)
             for m in models:
-                if m not in model_lut:
+                if m not in existing_models:
                     logger.error(f"No model found with the name '{m}'")
                     sys.exit(1)
         
@@ -633,10 +641,10 @@ class ModelsController:
         description: str = None
     ) -> ModelPolicy:
         
-        model_client: ModelsClient = self.get_models_client()
-        model_lut = {m.name: m.id for m in model_client.list()}
+        existing_models = self.get_all_models_and_policy_names()
+
         for m in models:
-            if m not in model_lut:
+            if m not in existing_models:
                 logger.error(f"No model found with the name '{m}'")
                 sys.exit(1)
         
