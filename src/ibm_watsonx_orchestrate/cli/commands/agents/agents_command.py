@@ -49,8 +49,9 @@ def agent_import(
     ] = False,
     version: Annotated[
         Optional[str], typer.Option(
-            '--version', '-v',
-            help='The version the agent will be imported as. If an existing agent with a lower version exists, a warning will be displayed.'
+            '--version',
+            help="(Native agents only) Export a specific semantic version of the agent (e.g. '1.2.0'). "
+                 "Warning: this will overwrite the agent's current draft state on the server.",
         )
     ] = None,
 ):
