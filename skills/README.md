@@ -26,7 +26,13 @@ This skill set covers the complete journey of building enterprise AI agent solut
 
 5. **telemetry-analyzer** - Exports and analyzes agent telemetry traces from watsonx Orchestrate (OTel or Langfuse JSON) to produce structured bug reports with root-cause analysis, fix recommendations, and conversational flow reports.
 
-Together, these skills create a **closed-loop system** for designing, building, documenting, maintaining, and debugging enterprise-grade watsonx Orchestrate solutions.
+
+6. **agent-instructions-evaluator** - Evaluates agent instructions for operational achievability in production settings, scoring across five dimensions and surfacing hidden state, conflicting rules, and brittle phrasing before deployment.
+
+7. **customercare-mcp-builder** - Expert guide for building production-ready MCP servers for customer care agents, covering transaction patterns, widget types, context management, agent handoff, and complete reference implementations.
+
+Together, these skills create a **closed-loop system** for designing, building, documenting, debugging, evaluating, and maintaining enterprise-grade watsonx Orchestrate solutions — and now includes a dedicated **architecture advisor** for validating agentic workflow designs before deployment.
+
 
 ---
 
@@ -189,6 +195,25 @@ Expert guide for building production-ready MCP (Model Context Protocol) servers 
 
 ---
 
+### 8. agentic-workflow-advisor
+**Location:** `agentic-workflow-advisor/SKILL.md`
+
+Performs **static architecture analysis** of watsonx Orchestrate agentic workflow JSON artefacts (exported from Flow Builder or authored via ADK). It runs 6 detection checks covering the most impactful design patterns and returns a prioritised report grouped by High, Medium, and Low impact.
+
+**Best for:** Pre-deployment workflow review, performance diagnosis, and repeatable design audits without engineering escalation
+
+**Key Capabilities:**
+- Detecting sequential tool nodes with no data dependencies (parallelism opportunity)
+- Identifying auto-mapped input fields that trigger LLM calls at runtime (latency cost: 500–3000ms per field)
+- Flagging LLM-based routing over already-deterministic upstream results (latency cost: 2–10s per turn)
+- Detecting flow-scoped variable expressions in agent guidelines that will not resolve at runtime
+- Identifying oversized input schemas that inflate auto-mapping token costs
+- Flagging toolkit tool nodes that could be replaced with inline Logic Code Blocks (100–500ms saving per call)
+- Evidence-backed findings referencing actual `display_name` values — no generic advice
+- Clean result explicitly stated when no issues are found
+
+---
+
 ## How They Fit Together
 
 A typical end-to-end workflow looks like:
@@ -247,6 +272,7 @@ fetch_skill("wxo-analyzer", "./my_skills")
 fetch_skill("agent-instructions-evaluator", "./my_skills")
 fetch_skill("customercare-mcp-builder", "./my_skills")
 fetch_skill("telemetry-analyzer", "./my_skills")
+fetch_skill("agentic-workflow-advisor", "./my_skills")
 
 # Fetch all skills at once
 fetch_all_skills("./my_skills")
@@ -273,6 +299,7 @@ Each skill follows the Skills format:
 - **agent-instructions-evaluator**: `agent-instructions-evaluator/SKILL.md`
 - **customercare-mcp-builder**: `customercare-mcp-builder/SKILL.md`
 - **telemetry-analyzer**: `telemetry-analyzer/SKILL.md`
+- **agentic-workflow-advisor**: `agentic-workflow-advisor/SKILL.md`
 - **Reference Examples**: `customercare-mcp-builder/references/examples.md`
 - **IBM watsonx Orchestrate ADK**: https://github.com/IBM/ibm-watsonx-orchestrate-adk
 - **MCP Server**: `packages/mcp-server/ibm_watsonx_orchestrate_mcp_server/`
