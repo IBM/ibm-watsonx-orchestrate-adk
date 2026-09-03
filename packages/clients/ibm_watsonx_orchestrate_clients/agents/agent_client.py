@@ -36,17 +36,40 @@ class ReleaseStatus(str, Enum):
     IN_PROGRESS = "in_progress"
 
 class BumpType(str, Enum):
+    """Semantic version component to increment when creating a new agent version."""
+
     MAJOR = "major"
     MINOR = "minor"
     PATCH = "patch"
 
 class CreateVersionRequest(BaseModel):
+    """Request body for creating a new semantic version of an agent.
+
+    Attributes:
+        bump_type: Which version component to increment (major, minor, or patch).
+        semantic_version: Explicit version string to use instead of auto-incrementing
+            (e.g. ``"2.0.0"``). Mutually exclusive with ``bump_type`` auto-increment
+            behaviour — supply one or the other.
+        version_name: Optional human-readable display name for this version.
+        version_description: Optional free-text description of what changed in this version.
+    """
+
     bump_type: BumpType
     semantic_version: Optional[str] = None
     version_name: Optional[str] = None
     version_description: Optional[str] = None
 
 class VersionResponse(BaseModel):
+    """Response model returned by agent versioning endpoints.
+
+    Attributes:
+        version_label: Monotonically increasing integer label assigned by the server.
+        semantic_version: SemVer string for this version (e.g. ``"1.2.0"``).
+        version_name: Optional human-readable display name for this version.
+        version_description: Optional description of what changed in this version.
+        version_details: Raw metadata dict returned by the server for this version.
+    """
+
     version_label: Optional[int] = None
     semantic_version: Optional[str] = None
     version_name: Optional[str] = None
@@ -485,7 +508,7 @@ class AgentClient(BaseWXOClient):
             f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}/deploy",
             data={"environment_id": environment_id},
         )
-        return self._poll_v2_deployment_status(agent_id, environment_id, mode=ReleaseMode.DEPLOY)
+        return self._poll_v2_deployment_status(agent_id, environment_id, mode=ReleaseMode.DEPLOY.value)
 
     def undeploy_version(self, agent_id: str, semantic_version: str, environment_id: str) -> bool:
         """
@@ -500,7 +523,7 @@ class AgentClient(BaseWXOClient):
             True if undeployment succeeded, False otherwise
         """
         self._post(f"{self.v2_base_endpoint}/{agent_id}/versions/{semantic_version}/undeploy")
-        return self._poll_v2_deployment_status(agent_id, environment_id, mode=ReleaseMode.UNDEPLOY)
+        return self._poll_v2_deployment_status(agent_id, environment_id, mode=ReleaseMode.UNDEPLOY.value)
 
     def get_deployment(self, agent_id: str, environment_id: str) -> dict:
         """
