@@ -288,6 +288,21 @@ class ToolkitController:
                 else:
                     self.publish_toolkit(toolkit=toolkit, toolkit_artifact=zip_file_path)
 
+    def _extract_error_detail(self, e: ClientAPIException) -> str:
+        """Extract the human-readable detail from a ClientAPIException response body."""
+        try:
+            if e.response is not None and hasattr(e.response, 'text'):
+                response_text = e.response.text
+                if response_text:
+                    try:
+                        error_data = json.loads(response_text)
+                        return error_data.get('detail', response_text)
+                    except Exception:
+                        return response_text
+        except Exception:
+            pass
+        return str(e)
+
     def publish_toolkit(self, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
 
         # Create toolkit metadata
@@ -305,25 +320,7 @@ class ToolkitController:
                 progress.add_task(description="Creating toolkit...", total=None)
                 new_toolkit = self.get_client().create_toolkit(payload)
         except ClientAPIException as e:
-            error_msg = "Unknown error"
-            try:
-                # Don't rely on truthiness of response object - check if it's not None
-                if e.response is not None and hasattr(e.response, 'text'):
-                    response_text = e.response.text
-                    if response_text:
-                        try:
-                            error_data = json.loads(response_text)
-                            error_msg = error_data.get('detail', response_text)
-                        except:
-                            error_msg = response_text
-                    else:
-                        error_msg = str(e)
-                else:
-                    error_msg = str(e)
-            except Exception:
-                error_msg = str(e)
-            
-            logger.error(f"Failed to create toolkit: {error_msg}")
+            logger.error(f"Failed to create toolkit: {self._extract_error_detail(e)}")
             sys.exit(1)
 
         toolkit_id = new_toolkit["id"]
@@ -337,7 +334,16 @@ class ToolkitController:
                 console=console,
             ) as progress:
                 progress.add_task(description="Uploading toolkit zip file...", total=None)
-                self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=toolkit_artifact)
+                try:
+                    self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=toolkit_artifact)
+                except ClientAPIException as e:
+                    # Clean up the orphaned toolkit record created above before exiting.
+                    try:
+                        self.get_client().delete(toolkit_id=toolkit_id)
+                    except Exception:
+                        pass
+                    logger.error(f"Failed to upload toolkit '{toolkit.__toolkit_spec__.name}': {self._extract_error_detail(e)}")
+                    sys.exit(1)
 
         logger.info(f"Successfully imported tool kit {toolkit.__toolkit_spec__.name}")
 
@@ -358,25 +364,7 @@ class ToolkitController:
                 progress.add_task(description="Updating toolkit...", total=None)
                 new_toolkit = self.get_client().update_toolkit(toolkit_id, payload)
         except ClientAPIException as e:
-            error_msg = "Unknown error"
-            try:
-                # Don't rely on truthiness of response object - check if it's not None
-                if e.response is not None and hasattr(e.response, 'text'):
-                    response_text = e.response.text
-                    if response_text:
-                        try:
-                            error_data = json.loads(response_text)
-                            error_msg = error_data.get('detail', response_text)
-                        except:
-                            error_msg = response_text
-                    else:
-                        error_msg = str(e)
-                else:
-                    error_msg = str(e)
-            except Exception:
-                error_msg = str(e)
-            
-            logger.error(f"Failed to update toolkit: {error_msg}")
+            logger.error(f"Failed to update toolkit: {self._extract_error_detail(e)}")
             sys.exit(1)
 
         # Upload zip file
@@ -388,7 +376,12 @@ class ToolkitController:
                 console=console,
             ) as progress:
                 progress.add_task(description="Uploading toolkit zip file...", total=None)
-                self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=toolkit_artifact)
+                try:
+                    self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=toolkit_artifact)
+                except ClientAPIException as e:
+                    # Leave the pre-existing toolkit record intact; only the new artifact failed.
+                    logger.error(f"Failed to upload toolkit '{toolkit.__toolkit_spec__.name}': {self._extract_error_detail(e)}")
+                    sys.exit(1)
 
         logger.info(f"Successfully updated toolkit {toolkit.__toolkit_spec__.name}")
 
