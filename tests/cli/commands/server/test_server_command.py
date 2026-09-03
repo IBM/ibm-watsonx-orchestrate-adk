@@ -1,3 +1,9 @@
+# NOTE: NativeDockerManager uses shutil.which("docker") in its constructor to verify that a
+# docker binary is available on the host. In unit tests we pass ensure_installed=False to skip
+# this check — the tests are verifying command-level error handling behaviour, not whether
+# docker is installed on the machine running the tests.
+#
+
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -719,7 +725,7 @@ def test_server_purge_failure(monkeypatch):
         mock_logger.error.assert_any_call("Failed to Delete VM.")
 
 def test_server_purge_native():
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager(ensure_installed=False)):
         result = runner.invoke(server_app, ["purge"], catch_exceptions=True)
         assert result.exit_code == 1
         assert str(result.exception) == "Cannot delete VM host when using user managed docker"
@@ -764,7 +770,7 @@ def test_server_edit_failure(monkeypatch):
 
 
 def test_server_edit_native():
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager(ensure_installed=False)):
         result = runner.invoke(server_app, ["edit", "--memory", "4"], catch_exceptions=True)
         assert result.exit_code == 1
         assert str(result.exception) == "Cannot edit VM host configs when using user managed docker"
@@ -805,7 +811,7 @@ def test_server_attach_docker_failure(monkeypatch):
 
 
 def test_server_attach_docker_native():
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager(ensure_installed=False)):
         result = runner.invoke(server_app, ["attach-docker"], catch_exceptions=True)
         assert result.exit_code == 1
         assert str(result.exception) == "Cannot switch docker context when using user managed docker"
@@ -851,7 +857,7 @@ def test_server_release_docker_failure(monkeypatch):
 
 
 def test_server_release_docker_native():    
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager(ensure_installed=False)):
         result = runner.invoke(server_app, ["release-docker"], catch_exceptions=True)
         assert result.exit_code == 1
         assert str(result.exception) == "Cannot switch docker context when using user managed docker"
@@ -898,7 +904,7 @@ def test_server_ssh_success(monkeypatch):
 
 
 def test_server_ssh_native():    
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager(ensure_installed=False)):
         result = runner.invoke(server_app, ["ssh"], catch_exceptions=True)
         assert result.exit_code == 1
         assert str(result.exception) == "Cannot ssh into VM when using user managed docker"
