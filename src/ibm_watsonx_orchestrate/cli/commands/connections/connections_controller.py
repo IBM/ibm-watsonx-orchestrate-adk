@@ -323,11 +323,6 @@ def _get_credentials(type: ConnectionType, **kwargs):
                     raise BadRequest(f"Cannot parse '{e}' into a valid key value entry")
                 env[entry.key] = entry.value
 
-            server_cert = kwargs.get("server_cert")
-            if server_cert is not None:
-                server_cert = server_cert.replace("\\n", "\n")
-                if "server_cert" not in env:
-                    env["server_cert"] = server_cert
             return KeyValueConnectionCredentials(
                 env
             )

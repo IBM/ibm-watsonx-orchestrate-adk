@@ -2042,3 +2042,63 @@ def test_langflow_tool_update():
 
         mock_update.assert_called_once_with(tool_id=tool_id,tool=tools[0],tool_artifact=None,skip_workspace_param=False)
     
+
+
+# ---------------------------------------------------------------------------
+# is_mcp_flow branch tests
+# ---------------------------------------------------------------------------
+
+MCP_FLOW_SPEC = {
+    "name": "my_toolkit:my_flow",
+    "id": "mcp_tool_id_123",
+    "description": "mcp flow tool",
+    "permission": "admin",
+    "binding": {"mcp": {"sub_type": "flow"}},
+    "toolkit_id": None,
+}
+
+
+def test_export_mcp_flow_tool_calls_tempus(caplog):
+    """is_mcp_flow=True: TempusClient.get_flow_model is called with the tool's id."""
+    tc = ToolsController()
+    tc.client = MockToolClient(get_draft_by_name_response=[MCP_FLOW_SPEC])
+
+    mock_tempus = mock.MagicMock()
+    mock_tempus.get_flow_model.return_value = {"data": {"id": "mcp_tool_id_123", "name": "my_flow"}}
+
+    from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
+
+    with mock.patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client",
+        return_value=mock_tempus,
+    ) as mock_instantiate, \
+    mock.patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client",
+        return_value=MockConnectionClient(get_drafts_by_ids_response=[]),
+    ), \
+    mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
+        mock_zipfile().__enter__().infolist.return_value = [mock.MagicMock()]
+        tc.export_tool(name="my_toolkit:my_flow", output_path="out.zip")
+
+    mock_instantiate.assert_called_once_with(TempusClient)
+    mock_tempus.get_flow_model.assert_called_once_with("mcp_tool_id_123")
+
+
+def test_export_mcp_flow_tool_get_flow_model_failure_exits_nonzero(caplog):
+    """is_mcp_flow=True: when get_flow_model raises, sys.exit(1) is called — not a silent return."""
+    tc = ToolsController()
+    tc.client = MockToolClient(get_draft_by_name_response=[MCP_FLOW_SPEC])
+
+    mock_tempus = mock.MagicMock()
+    mock_tempus.get_flow_model.side_effect = RuntimeError("network timeout")
+
+    with mock.patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client",
+        return_value=mock_tempus,
+    ), \
+    mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client"), \
+    pytest.raises(SystemExit) as exc_info:
+        tc.export_tool(name="my_toolkit:my_flow", output_path="out.zip")
+
+    assert exc_info.value.code != 0
+    assert "Could not fetch flow model for MCP flow tool 'my_toolkit:my_flow' (id=mcp_tool_id_123)" in caplog.text
