@@ -1526,6 +1526,8 @@ services:
       WXAI_VERSION: ${WXAI_VERSION:-}
       WXAI_PROVIDER: ${WXAI_PROVIDER:-openai}
       GLOBAL_WORKER_DOCLING_PIPELINE: ${GLOBAL_WORKER_DOCLING_PIPELINE:-true}
+      # This is a temporary flag to stop memory leaks. Will be removed in WDU 2.19.1 or up
+      MALLOC_ARENA_MAX=2
 
     profiles:
       - docproc
