@@ -2127,9 +2127,17 @@ class TestReferenceSkills:
 
 
 class TestDereferenceNativeAgentDependenciesSkills:
-    """Verify dereference_native_agent_dependencies calls dereference_skills."""
+    """dereference_native_agent_dependencies must NOT call dereference_skills.
 
-    def test_skills_are_dereferenced_on_import(self):
+    dereference_skills (name→UUID) is intentionally disabled on the import path
+    because the 2.16.0 server-side validator rejects skill UUIDs on POST /agents.
+    Passing skill names through unchanged restores the pre-2.16 behaviour where
+    import succeeds (skills binding is not live, but import does not error).
+    Re-enable once the server-side fix ships — see issue #82318.
+    """
+
+    def test_skills_are_not_dereferenced_on_import(self):
+        """dereference_skills must not be called regardless of skills content."""
         agent = Agent(
             spec_version=SpecVersion.V1,
             kind=AgentKind.NATIVE,
@@ -2141,16 +2149,12 @@ class TestDereferenceNativeAgentDependenciesSkills:
 
         ac = AgentsController()
 
-        with patch.object(ac, "dereference_skills", wraps=ac.dereference_skills) as deref_skills_spy, \
-             patch.object(ac, "get_skills_controller") as mock_get_sc:
-            mock_sc = MagicMock()
-            mock_sc.get_all_skills.return_value = [{"id": "id-skill-1", "name": "skill-one"}]
-            mock_get_sc.return_value = mock_sc
-
+        with patch.object(ac, "dereference_skills") as deref_skills_mock:
             result = ac.dereference_native_agent_dependencies(agent)
 
-        deref_skills_spy.assert_called_once_with(agent)
-        assert result.skills == ["id-skill-1"]
+        deref_skills_mock.assert_not_called()
+        # Skill names must pass through unchanged
+        assert result.skills == ["skill-one"]
 
     def test_skills_not_called_when_empty(self):
         agent = Agent(
