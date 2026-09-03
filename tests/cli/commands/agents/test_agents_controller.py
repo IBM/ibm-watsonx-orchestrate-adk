@@ -2304,34 +2304,38 @@ class TestCreateVersionAfterImport:
 
     def test_called_on_update_with_version(self, native_agent_content):
         """Test that publish_or_update_agents calls _create_version_after_import with the correct agent ID and version when updating."""
-        ac = AgentsController()
-        agent_id = "agent-uuid-123"
-        mock_native = MagicMock()
-        mock_native.get_draft_by_name.return_value = [
-            {"name": "test_native_agent", "id": agent_id, "description": "x"}
-        ]
-        mock_native.list_versions.return_value = []
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False):
+            ac = AgentsController()
+            agent_id = "agent-uuid-123"
+            mock_native = MagicMock()
+            mock_native.get_draft_by_name.return_value = [
+                {"name": "test_native_agent", "id": agent_id, "description": "x"}
+            ]
+            mock_native.list_versions.return_value = []
 
-        with patch.object(ac, "get_native_client", return_value=mock_native), \
-             patch.object(ac, "get_external_client", return_value=MagicMock(
-                 get_draft_by_name=MagicMock(return_value=[]))), \
-             patch.object(ac, "get_assistant_client", return_value=MagicMock(
-                 get_draft_by_name=MagicMock(return_value=[]))), \
-             patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a), \
-             patch.object(ac, "update_agent"), \
-             patch.object(ac, "_create_version_after_import") as mock_create_ver:
+            with patch.object(ac, "get_native_client", return_value=mock_native), \
+                patch.object(ac, "get_external_client", return_value=MagicMock(
+                    get_draft_by_name=MagicMock(return_value=[]))), \
+                patch.object(ac, "get_assistant_client", return_value=MagicMock(
+                    get_draft_by_name=MagicMock(return_value=[]))), \
+                patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a), \
+                patch.object(ac, "update_agent"), \
+                patch.object(ac, "_create_version_after_import") as mock_create_ver:
 
-            agent = Agent(**native_agent_content)
-            agent.tools = []
-            agent.collaborators = []
-            ac.publish_or_update_agents([agent], version="1.2.3")
+                agent = Agent(**native_agent_content)
+                agent.tools = []
+                agent.collaborators = []
+                ac.publish_or_update_agents([agent], version="1.2.3")
 
-        mock_create_ver.assert_called_once_with(
-            agent_id=agent_id,
-            agent_name="test_native_agent",
-            import_version="1.2.3",
-            native_client=mock_native,
-        )
+            mock_create_ver.assert_called_once_with(
+                agent_id=agent_id,
+                agent_name="test_native_agent",
+                import_version="1.2.3",
+                native_client=mock_native,
+            )
 
     def test_semantic_version_passed_when_valid_semver(self):
         """_create_version_after_import should set semantic_version for valid semver strings."""
