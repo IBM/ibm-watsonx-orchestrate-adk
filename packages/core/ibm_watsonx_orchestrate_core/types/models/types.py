@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 from pydantic import Field, BaseModel, ConfigDict, model_validator
-
+from pathlib import Path
 
 class ModelProvider(str, Enum):
     OPENAI = 'openai'
@@ -67,6 +67,7 @@ class ProviderConfig(BaseModel):
     metadata: Optional[Dict[str, str]] = None
     request_timeout: Optional[int] = Field(None, alias="requestTimeout")
     transform_to_form_data: Optional[bool] = Field(None, alias="transformToFormData")
+    server_cert: Optional[str] = Field(None, alias="serverCert")
 
     # Azure specific
     azure_resource_name: Optional[str] = Field(None, alias="resourceName")
@@ -172,6 +173,24 @@ class ProviderConfig(BaseModel):
         "extra": "forbid",  # Same as before
         "json_schema_extra": lambda schema: schema.get("properties", {}).pop("provider", None)
     }
+
+    @model_validator(mode="before")
+    @classmethod
+    def load_server_cert(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        values = values.copy()
+
+        server_cert_file = values.pop("server_cert_file", None)
+
+        if server_cert_file:
+            try:
+                values["serverCert"] = Path(server_cert_file).read_text()
+            except Exception as e:
+                raise ValueError(f"Failed to read server_cert_file at '{server_cert_file}': {e}")
+
+        return values
 
     def update(self, new_config: "ProviderConfig") -> "ProviderConfig":
         old_config_dict = dict(self)
