@@ -152,6 +152,8 @@ class OpenApiToolBinding(BaseModel):
     callback: Optional[CallbackBinding] = None
     acknowledgement: Optional[AcknowledgementBinding] = None
     plugin_hook: Optional[str] = None
+    context_request_body_path: Optional[str] = None # Sourced from x-ibm-orchestrate-inject-context.request_body_path in the OpenAPI spec.
+    context_response_body_path: Optional[str] = None # Sourced from x-ibm-orchestrate-inject-context.response_body_path in the OpenAPI spec.
 
 
 class PythonToolBinding(BaseModel):
@@ -186,8 +188,9 @@ class ClientSideToolBinding(BaseModel):
 
 class McpToolBinding(BaseModel):
     server_url: Optional[str] = None
-    source: str | None
-    connections: Dict[str, str] | None
+    source: str | None = None
+    connections: Dict[str, str] | None = None
+    sub_type: Optional[Literal["flow"]] = None
 
 class FlowToolBinding(BaseModel):
     flow_id: Optional[str] = None
