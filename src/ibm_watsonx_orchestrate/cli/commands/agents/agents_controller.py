@@ -24,7 +24,7 @@ from packaging.version import Version, InvalidVersion
 import requests
 import rich
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -91,17 +91,7 @@ class CustomAgentConfig(BaseModel):
     entrypoint: str
     agent_name: str
     agent_description: str
-    requirements: List[str] = []
     file_count: int
-
-    @field_validator('requirements', mode='before')
-    @classmethod
-    def parse_requirements(cls, v):
-        """Convert requirements from string to list if needed."""
-        if isinstance(v, str):
-            if '\n' in v:
-                return [r.strip() for r in v.split('\n') if r.strip()]
-        return [v] if v is not None else []
 
 
 class CustomAgentUploadResponse(BaseModel):
@@ -1709,7 +1699,6 @@ class AgentsController:
         config_table.add_row("Entrypoint", config.entrypoint)
         config_table.add_row("Agent Name", config.agent_name)
         config_table.add_row("Agent Description", config.agent_description)
-        config_table.add_row("Requirements", '\n'.join(config.requirements) if config.requirements else "None")
         config_table.add_row("Files in Package", str(config.file_count))
 
         console.print(config_table)
