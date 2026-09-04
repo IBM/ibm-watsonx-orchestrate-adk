@@ -38,6 +38,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
 from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name, should_use_workspaces
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
@@ -169,6 +170,7 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "custom_join_tool": args.get("custom_join_tool"),
         "structured_output": args.get("structured_output"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     collaborators = args.get("collaborators", [])
@@ -217,6 +219,7 @@ def parse_create_external_args(name: str, kind: AgentKind, description: str | No
         "nickname": args.get("nickname"),
         "app_id": args.get("app_id"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     context_variables = args.get("context_variables", [])
@@ -236,6 +239,7 @@ def parse_create_assistant_args(name: str, kind: AgentKind, description: str | N
         "config": args.get("config", {}),
         "nickname": args.get("nickname"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     context_variables = args.get("context_variables", [])
@@ -1360,8 +1364,10 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
-        if agent.skills and len(agent.skills) > 0:
-            agent = self.dereference_skills(agent)
+        # NOTE: dereference_skills (name→UUID) is intentionally skipped here.
+        # The server-side validator on POST /agents rejects skill UUIDs on 2.16.0
+        # tenants. Re-enable once the server fix ships.
+        # Tracking: https://github.ibm.com/WatsonOrchestrate/wxo-clients/issues/82318
 
         return agent
     
@@ -2081,20 +2087,24 @@ class AgentsController:
             case _:
                 return ([], [[f"Invalid Agent kind '{target_agent_kind}'"]])
         
-        # Use client method directly - it handles workspace_id parameter 
+        # Use client method directly - it handles workspace_id parameter
         response = agent_client.get(workspace_id=workspace_id, include_global=include_global)
         
-        agents = []
-        for agent in response:
-            try:
-                agents.append(target_kind_class.model_validate(agent))
-            except Exception as e:
-                name = agent.get('name', None)
-                parse_errors.append([
-                    f"{target_kind_display_name} '{name}' could not be parsed",
-                    json.dumps(agent),
-                    e
-                ])
+        token = validation_context.set("list")
+        try:
+            agents = []
+            for agent in response:
+                try:
+                    agents.append(target_kind_class.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([
+                        f"{target_kind_display_name} '{name}' could not be parsed",
+                        json.dumps(agent),
+                        e
+                    ])
+        finally:
+            validation_context.reset(token)
         return (agents, parse_errors)
 
     def _get_all_unique_agent_resources(self, agents: List[Agent], target_attr: str) -> List[str]:
@@ -2597,19 +2607,23 @@ class AgentsController:
         return agent_spec
 
     def get_agent(self, name: str, kind: AgentKind, workspace_id: Optional[str] = None) -> Agent | ExternalAgent | AssistantAgent:
-        match kind:
-            case AgentKind.NATIVE:
-                client = self.get_native_client()
-                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
-                agent = Agent.model_validate(agent_details)
-            case AgentKind.EXTERNAL:
-                client = self.get_external_client()
-                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
-                agent = ExternalAgent.model_validate(agent_details)
-            case AgentKind.ASSISTANT:
-                client = self.get_assistant_client()
-                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
-                agent = AssistantAgent.model_validate(agent_details)
+        token = validation_context.set("get")
+        try:
+            match kind:
+                case AgentKind.NATIVE:
+                    client = self.get_native_client()
+                    agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
+                    agent = Agent.model_validate(agent_details)
+                case AgentKind.EXTERNAL:
+                    client = self.get_external_client()
+                    agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
+                    agent = ExternalAgent.model_validate(agent_details)
+                case AgentKind.ASSISTANT:
+                    client = self.get_assistant_client()
+                    agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
+                    agent = AssistantAgent.model_validate(agent_details)
+        finally:
+            validation_context.reset(token)
         
         return agent
     
@@ -2618,17 +2632,21 @@ class AgentsController:
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()
 
-        # Use client methods directly - they handle workspace_id parameter 
+        # Use client methods directly - they handle workspace_id parameter
         native_result = native_client.get_draft_by_id(id, workspace_id=workspace_id)
         external_result = external_client.get_draft_by_id(id, workspace_id=workspace_id)
         assistant_result = assistant_client.get_draft_by_id(id, workspace_id=workspace_id)
 
-        if native_result:
-            return Agent.model_validate(native_result)
-        if external_result:
-            return ExternalAgent.model_validate(external_result)
-        if assistant_result:
-            return AssistantAgent.model_validate(assistant_result)
+        token = validation_context.set("get_by_id")
+        try:
+            if native_result:
+                return Agent.model_validate(native_result)
+            if external_result:
+                return ExternalAgent.model_validate(external_result)
+            if assistant_result:
+                return AssistantAgent.model_validate(assistant_result)
+        finally:
+            validation_context.reset(token)
 
     def get_agent_by_names(self, names: List[str]) -> List[dict]:
         native_client = self.get_native_client()
