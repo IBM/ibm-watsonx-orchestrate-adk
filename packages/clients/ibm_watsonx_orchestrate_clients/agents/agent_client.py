@@ -48,7 +48,7 @@ class CreateVersionRequest(BaseModel):
     Attributes:
         bump_type: Which version component to increment (major, minor, or patch).
         semantic_version: Explicit version string to use instead of auto-incrementing
-            (e.g. ``"2.0.0"``). Mutually exclusive with ``bump_type`` auto-increment
+            (e.g. "2.0.0"). Mutually exclusive with `bump_type` auto-increment
             behaviour — supply one or the other.
         version_name: Optional human-readable display name for this version.
         version_description: Optional free-text description of what changed in this version.
