@@ -9,7 +9,8 @@ for flow_tool in \
 	text_extraction_doc_struct_flow.py \
 	text_extraction_kvps_flow.py \
 	text_extraction_doc_struct_object_flow.py \
-	text_extraction_and_summary_flow.py
+	text_extraction_and_summary_flow.py \
+	text_extraction_signature_detection_flow.py
 do
   orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool} 
 done
