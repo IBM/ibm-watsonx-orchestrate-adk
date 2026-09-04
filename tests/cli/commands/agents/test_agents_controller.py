@@ -2338,7 +2338,7 @@ class TestCreateVersionAfterImport:
     def _make_controller(self):
         return AgentsController()
 
-    def test_called_on_update_with_version(self, native_agent_content):
+    def test_called_on_update_with_version(self, native_agent_content, join_tool_spec):
         """Test that publish_or_update_agents calls _create_version_after_import with the correct agent ID and version when updating."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
@@ -2348,7 +2348,12 @@ class TestCreateVersionAfterImport:
             agent_id = "agent-uuid-123"
             mock_native = MagicMock()
             mock_native.get_draft_by_name.return_value = [
-                {"name": "test_native_agent", "id": agent_id, "description": "x"}
+                {
+                    "name": "test_native_agent",
+                    "id": agent_id,
+                    "description": "x",
+                    "llm": "test_llm",
+                }
             ]
             mock_native.list_versions.return_value = []
 
@@ -2358,6 +2363,9 @@ class TestCreateVersionAfterImport:
                 patch.object(ac, "get_assistant_client", return_value=MagicMock(
                     get_draft_by_name=MagicMock(return_value=[]))), \
                 patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a), \
+                patch.object(ac, "get_tool_client", return_value=MockToolClient(
+                    get_draft_by_id_response=join_tool_spec
+                )), \
                 patch.object(ac, "update_agent"), \
                 patch.object(ac, "_create_version_after_import") as mock_create_ver:
 
@@ -2522,7 +2530,7 @@ class TestVersionIgnoredForNonNativeAgents:
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id",
            return_value="conn-id")
-    def test_no_warning_for_native_agent(self, _mock_conn, native_agent_content, caplog):
+    def test_no_warning_for_native_agent(self, _mock_conn, native_agent_content, join_tool_spec, caplog):
         """Test that publish_or_update_agents does not emit the --version unsupported warning for native agents."""
         ac = AgentsController()
         mock_native = MagicMock()
@@ -2535,6 +2543,9 @@ class TestVersionIgnoredForNonNativeAgents:
              patch.object(ac, "get_assistant_client", return_value=MagicMock(
                 get_draft_by_name=MagicMock(return_value=[]))), \
              patch.object(ac, "publish_agent"), \
+             patch.object(ac, "get_tool_client", return_value=MockToolClient(
+                 get_draft_by_id_response=join_tool_spec
+             )), \
              patch.object(ac, "_create_version_after_import"), \
              patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a):
 
