@@ -423,7 +423,6 @@ def export_agent(
         Optional[str],
         typer.Option(
             "--version",
-            "-v",
             help="(Native agents only) Export a specific semantic version of the agent (e.g. '1.2.0'). "
                  "Warning: this will overwrite the agent's current draft state on the server.",
         ),
