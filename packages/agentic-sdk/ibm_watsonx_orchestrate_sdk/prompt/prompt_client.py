@@ -16,7 +16,18 @@ from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession
 
 logger = logging.getLogger(__name__)
 
-_BASE = "/v1/agentops-v3/prompt"
+
+# local service don't have the agentops-v3 prefix.
+# the proxy maps v1/agentops-v3/prompt to v1/prompt
+_CLUSTER_BASE = "/v1/agentops-v3/prompt"
+_LOCAL_BASE = "/v1/prompt"
+
+
+
+def _is_local_url(url: str) -> bool:
+    from urllib.parse import urlparse
+    host = urlparse(url).hostname or ""
+    return host in ("localhost", "127.0.0.1", "0.0.0.0") or host.startswith("192.168.")
 
 
 class PromptClient(BaseAgenticClient):
@@ -40,6 +51,7 @@ class PromptClient(BaseAgenticClient):
             idx = self.base_url.find("/v1")
         if idx != -1:
             self.base_url = self.base_url[:idx]
+        self._base = _LOCAL_BASE if _is_local_url(self.base_url) else _CLUSTER_BASE
         self._agent_id = agent_id
         # Server reassembles instructions + guidelines into a single string,
         # so this already contains the full prompt.
@@ -62,7 +74,7 @@ class PromptClient(BaseAgenticClient):
     def connect(self) -> None:
         try:
             resp = self._post(
-                f"{_BASE}/connect",
+                f"{self._base}/connect",
                 data={"agent_id": self._agent_id},
             )
             self._connected = resp.get("status") == "connected"
@@ -71,7 +83,7 @@ class PromptClient(BaseAgenticClient):
 
     def load_active_prompt(self) -> str | None:
         try:
-            resp = self._get(f"{_BASE}/agents/{self._agent_id}/active-prompt")
+            resp = self._get(f"{self._base}/agents/{self._agent_id}/active-prompt")
             # "instructions" includes the full reassembled prompt (instructions + guidelines)
             prompt = (resp.get("instructions") or "").strip()
             if prompt:
@@ -86,7 +98,7 @@ class PromptClient(BaseAgenticClient):
         if cached is not None:
             return cached
         try:
-            resp = self._get(f"{_BASE}/optimization/runs/{run_id}/candidate-prompt")
+            resp = self._get(f"{self._base}/optimization/runs/{run_id}/candidate-prompt")
             instructions = resp.get("instructions")
             if instructions:
                 self._candidate_cache[run_id] = instructions
@@ -99,7 +111,7 @@ class PromptClient(BaseAgenticClient):
     def _ack(self, run_id: str, version: int) -> None:
         try:
             self._post(
-                f"{_BASE}/optimization/runs/{run_id}/prompt-ack",
+                f"{self._base}/optimization/runs/{run_id}/prompt-ack",
                 data={"version": version},
             )
         except Exception:
