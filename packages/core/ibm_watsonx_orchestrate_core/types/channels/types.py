@@ -245,6 +245,11 @@ class SlackChannel(BaseChannel):
         client_secret: Slack API client secret
         signing_secret: Slack API signing secret
         teams: List of Slack teams/workspaces with their bot tokens
+        sso_enabled: Whether SSO is enabled for this channel
+        sso_url: SSO provider URL
+        sso_user_prompt_text: Text shown to users in the SSO prompt
+        sso_user_prompt_label: Label appearing on the SSO link button shown to users
+        sso_cert: SSO certificate (PEM format)
     """
 
     channel: Literal["byo_slack"] = "byo_slack"
@@ -274,6 +279,26 @@ class SlackChannel(BaseChannel):
     teams: Optional[list[SlackTeam]] = Field(
         None,
         description="List of Slack teams/workspaces with their bot access tokens"
+    )
+    sso_enabled: Optional[bool] = Field(
+        None,
+        description="Whether SSO is enabled for this channel"
+    )
+    sso_url: Optional[str] = Field(
+        None,
+        description="SSO provider URL"
+    )
+    sso_user_prompt_text: Optional[str] = Field(
+        None,
+        description="Text shown to users in the SSO prompt"
+    )
+    sso_user_prompt_label: Optional[str] = Field(
+        None,
+        description="Label appearing on the SSO link button shown to users"
+    )
+    sso_cert: Optional[str] = Field(
+        None,
+        description="SSO certificate (PEM format)"
     )
 
     @model_validator(mode='after')
