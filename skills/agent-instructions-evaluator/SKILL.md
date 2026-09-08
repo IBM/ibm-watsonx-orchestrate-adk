@@ -222,7 +222,7 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
 
    **SK-3 — Routing Clarity (Name + Description)**: Is the skill `name` specific enough to be meaningfully different from all other skill names? Is the `description` frontmatter clear, specific, and complete enough that the agent — without reading the body — can decide whether this skill applies to a given user turn? A description that requires the agent to already know the domain details to understand it is circular. A description that is vague enough to match multiple domains is ambiguous. Check: does the description explicitly state what intents it covers AND what intents it does NOT cover (boundary conditions)?
 
-   **SK-3 — Frontmatter validation (hard limits that prevent the skill from loading):**
+   **SK-3a — Frontmatter validation (hard limits that prevent the skill from loading):**
    - **Name length**: The `name` field must be ≤ 64 characters. A name exceeding 64 characters will prevent the skill from importing. Flag immediately as a hard failure — the skill will not be reachable at all.
    - **Description length**: The `description` field must be ≤ 1024 characters. Past this limit the skill will not load. Flag immediately as a hard failure.
    - **Unmatched `{{placeholder}}` tokens**: Any `{{identifier}}` in the description or body with no matching `param` entry quietly becomes a hole — the model reads a sentence with a gap in it. Scan both the description and the body for `{{...}}` patterns and verify each has a matching `param`. Flag unmatched placeholders as a hard failure.
@@ -257,10 +257,20 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
    - Count implicit state variables (apply Rule A)
    A skill that individually exceeds any Rule C/E/F threshold is a complexity risk, regardless of how the agent-level instructions score. Report each skill's complexity signals separately.
 
-   **SK-6 — Skill Correlation and Consolidation**: Are any two skills so closely related in domain or trigger conditions that the agent will need to load them in immediate succession within a single user turn? Assess each skill pair for:
+   **SK-6 — Skill Correlation, Consolidation, and Tool-Shadowing**: Assess each skill pair for sequential-load coupling, and separately assess the agent's tool declarations for shadowing gaps.
+
+   **Tool declaration model (check this first):** Every tool any skill uses must be declared in `agent tools:` — that is the authoritative registry. A skill's `allowed-tools` restricts which declared tools are visible in the skill's context. This produces three categories:
+   - **Agent-only tools** (in `agent tools:`, not in any `allowed-tools`): callable at base level ✓
+   - **Skill-filtered tools** (in `agent tools:` AND in one or more `allowed-tools`): callable only inside those skill contexts — **shadowed at agent base level** ✗
+   - **Skill-only tools** (skill-filtered AND not referenced in agent `instructions:`/`guidelines:`): informational only — no execution gap because the agent never intended to call them at base level
+
+   **Correlation checks (per skill pair):**
    - **Adjacent trigger intents**: Intents that users commonly express together in one message (e.g. "show my balance and last transactions") may span two skills, forcing sequential `load_skill` calls. Each call replaces the active skill body — the first skill's instructions are gone by the time the second loads.
    - **Cross-body `load_skill` references**: A skill body that instructs the agent to `load_skill` another skill before the first body's own work is complete creates an instruction-loss risk (see SK-4). This is a coupling signal, not just a performance signal.
-   - **Tool-binding shadow**: If a tool appears in any skill's `allowed-tools`, it is removed from the agent's base tool set. Check whether any tool is listed in a skill's `allowed-tools` AND also bound at the agent's top-level `tools:`. If so, the agent cannot call that tool when no skill is active — a silent execution gap.
+
+   **Tool-shadowing execution gap (Trigger 3 — High severity):** Cross-reference every tool named in the agent's `instructions:` or `guidelines:` against `shadowed_resolved_tools`. If any match, the agent has written an instruction it cannot execute at base level — the tool is declared but unreachable outside a skill context. This is a **deterministic silent execution gap**. Flag every affected tool individually. Fix: either remove the tool from the relevant skill's `allowed-tools` (making it callable at base level), or move the agent-level instruction into the skill body where the tool is accessible.
+
+   **Zero-tool base coverage (Trigger 3a — intentionality check):** Check whether `active_resolved_tools` is empty (all declared tools are skill-filtered). If so, the agent has no tools before any skill loads. **This is a valid and common design for a pure skill-routing agent** — it is not an error. Check whether the agent `instructions:` contain an explicit statement confirming that every user intent is handled through a skill. If yes: record as confirmed, no note needed. If no such statement exists: raise a lightweight intentionality note asking the author to confirm. Either way, **Trigger 3a does not lower any dimension score**.
 
    **Consolidation recommendation rule**: Recommend merging two skills into one when:
    - They have SK-2 Moderate or High overlap AND their intents plausibly co-occur in a single user turn, OR
@@ -275,22 +285,11 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
    - **Per-load token cost**: estimated tokens for the largest skill body likely to be loaded in one turn (>2,000: Medium; >4,000: High)
    Report each component with its measured value and risk rating, then produce an overall skill load overhead rating (Low / Medium / High).
 
-   **SK-8 — No Platform-Duplicated Content**: Does the skill body or the agent instructions repeat content that the platform already writes automatically? Platform-generated content appearing in author-written text wastes tokens on every turn and creates two places for the same information to drift apart.
+   **SK-8 — Redundant or conflicting platform content**: Does the skill body or the agent instructions contain content that the platform already injects, or describe fixed platform behavior the author cannot change? Both produce token waste and risk in-context contradictions when the author's description drifts from actual platform behavior.
 
-   **Content the platform already provides — never write these in a skill body or agent instructions:**
-   - When to call `load_skill`, and instructions not to reload the skill that is already active
-   - That loading a skill replaces the previous one
-   - How to invoke a skill's scripts and what arguments they take
-   - How to read a reference file, and instructions not to read one twice
-   - The skill's own name and purpose as a header at the top of the body
-   - Routing trigger phrases — these belong in the `description` frontmatter only; repeating them in agent instructions pays catalog tokens twice and creates drift
+   > **Canonical item list and triggers: see Rule J2 in [`signal-rules.md`](signal-rules.md).** Items are organized into three categories: A (platform-injected content), B (fixed behavior the author cannot override), and C (content misplaced in the wrong location). Apply each trigger as defined there.
 
-   **Signals to check:**
-   - Agent instructions that document `load_skill` mechanics (when to load, that loading replaces the previous skill, how to call the platform back) → flag as redundant platform documentation
-   - Skill body that opens with the skill's name or a restatement of its purpose → flag as redundant preamble
-   - Agent instructions that repeat verbatim phrases already present in skill `description` frontmatter → flag as duplicated routing signal
-
-   **Effect:** Flag as token waste and drift risk. Recommend removing the duplicated content from the author-written file.
+   **Effect:** Category A — remove (already provided). Category B — remove (conflict risk). Category C — move to the right location or omit.
 
    **Structural checks for each skill:**
    - **`description`** (frontmatter): Does it give the agent enough signal to decide when to load this skill (SK-3)? Vague descriptions cause misdirected routing.
@@ -320,8 +319,10 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
 - **Skill routing behaviors**: Each skill listed adds at least 1 conditional routing decision (when to `load_skill`) plus the full instruction surface of that skill's `SKILL.md` body
 - **Per-skill complexity**: Count lines, nested branches, active rules, and implicit state for each skill's `SKILL.md` body independently — report these separately from agent-level counts (SK-5)
 - **Skill overlap pairs**: Count the number of skill description pairs with detectable scope overlap (SK-2)
-- **Correlated skill pairs**: Count pairs where adjacent intents make sequential loading likely, or where a mid-body `load_skill` creates inseparable coupling (SK-6)
-- **Tool-binding shadows**: Count tools that appear in any skill's `allowed-tools` AND also in the agent's top-level `tools:` (SK-6)
+- **Correlated skill pairs**: Count pairs where adjacent intents make sequential loading likely, or where a mid-body `load_skill` creates inseparable coupling (SK-6 Triggers 1 and 2)
+- **Tool-shadowing execution gaps**: For each tool named in agent `instructions:` or `guidelines:`, check whether it also appears in `shadowed_resolved_tools`. Each match is a SK-6 Trigger 3 violation (High severity — agent instruction it cannot execute at base level). Count each affected tool separately.
+- **Zero-tool base coverage**: Check whether `active_resolved_tools` is empty — SK-6 Trigger 3a (intentionality check only; valid design pattern; raise a lightweight note if no explicit confirmation in agent instructions; no score impact either way)
+- **Skill-only tools**: Count tools in `skill_only_tools` — informational only; not a violation (SK-6 Trigger 3b)
 - **Skill performance surface**: Compute the six SK-7 components and their aggregate risk rating
 
 **Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_tool_info.py`](scripts/extract_tool_info.py)) to extract tool, collaborator, and skill metadata before scoring the "Execution & Tool Grounding" dimension. Both scripts live under `scripts/` relative to this skill file — not the top-level workspace. `extract_agent_info.py` now resolves both collaborator agent YAMLs (co-located first, then `--search-root`) and skills (SKILL.md). Pass `--search-root` pointing at the project root when collaborator YAMLs or SKILL.md files are not co-located with the agent YAML. If collaborators, tools, or skills are referenced but their formal definitions cannot be extracted, note this as a limitation and proceed — recommend that the user provide definitions and re-run for a complete assessment.
@@ -360,7 +361,7 @@ For each resolved skill, additionally extract:
 - **SK-3**: Whether the `description` explicitly states covered intents AND boundary conditions (what it does NOT cover)
 - **SK-4**: Case 1 — backward state assumptions (explicit or implicit references to another skill's prior execution). Case 2 — mid-body `load_skill` calls (note position: before or at terminal step; flag if before). Case 3 — terminal `load_skill` handoffs (document neutrally, note chain depth if > 1 hop). **Plus**: build the forward-pointer graph across all skills and check for cycles — report any loop as a separate finding with all skills in the cycle named.
 - **SK-5**: Per-skill Rule A/B/C/E/F signal counts (lines, branches, active rules, exact phrases, implicit state)
-- **SK-6**: Correlated skill pairs — adjacent intent co-occurrence, cross-body `load_skill` references; any tool-binding shadows (tool in skill `allowed-tools` also bound at agent level); consolidation recommendation (yes/no with justification)
+- **SK-6**: Correlated skill pairs (Triggers 1–2) — adjacent intent co-occurrence, cross-body `load_skill` references; **tool-shadowing execution gaps (Trigger 3 — High)** — for each tool named in agent `instructions:`/`guidelines:`, check `shadowed_resolved_tools` for a match (each match = agent cannot execute that instruction at base level); **zero-tool base coverage (Trigger 3a — intentionality check, no score impact)** — is `active_resolved_tools` empty? if yes, is skill-only operation confirmed in agent instructions?; **skill-only tools (Trigger 3b — informational)** — tools in `skill_only_tools` (filtered but never referenced in agent text); consolidation recommendation (yes/no with justification)
 - **SK-7**: Skill architecture performance surface — all six components with measured values and risk ratings; overall skill-load overhead rating
 
 Document the analysis mode in the report:
@@ -395,10 +396,11 @@ Apply the deterministic signal rules from [`signal-rules.md`](signal-rules.md) t
 
 **Important: skill health findings are reported in the per-skill reports, not as caps on the agent's five dimension scores.** A single bad skill does not make the whole agent unachievable — it only affects the achievability of that skill's own domain. The agent report shows a **Skill Health Summary table** (pass/warn/fail per SK criterion per skill) as context, but the agent's five dimension scores reflect only the agent's own instructions, guidelines, tools, and collaborators.
 
-**The one exception** is where a skill defect directly affects the agent's routing behavior (SK-2 overlap, SK-3 description failures, SK-6 tool-binding shadow) — these affect the agent's Dimension 2 (Scope & Applicability) and Dimension 3 (Execution & Tool Grounding) because they degrade the agent's ability to route and call tools correctly, not because of the skill's internal complexity:
+**The one exception** is where a skill defect directly affects the agent's routing or execution behavior (SK-2 overlap, SK-3/SK-3a description failures, SK-6 Trigger 3) — these affect the agent's Dimension 2 (Scope & Applicability) and Dimension 3 (Execution & Tool Grounding):
 - SK-2 Exact or High overlap findings: lower agent Dimension 2 — the agent cannot reliably determine which skill to load
-- SK-3 hard-limit failures (name too long, description too long, unmatched placeholders): lower agent Dimension 3 — the skill is unreachable
-- SK-6 tool-binding shadow: lower agent Dimension 3 — a tool the agent expects to call is silently unavailable outside that skill
+- SK-3a hard-limit failures (name too long, description too long, unmatched placeholders): lower agent Dimension 3 — the skill is unreachable
+- SK-6 Trigger 3 (agent `instructions:`/`guidelines:` references a skill-filtered tool): lower agent Dimension 3 — the agent has written an instruction it cannot execute at base level (deterministic silent gap — **High** severity)
+- SK-6 Trigger 3a (zero `active_resolved_tools`): **intentionality note only — does not lower any dimension score**; valid design for a pure skill-routing agent; raise a lightweight note if unconfirmed
 
 All other SK findings (SK-1, SK-4, SK-5, SK-7, SK-8) stay in the per-skill report only:
 - SK-1 violations are noted in the skill's own report; they do not cap agent Dimension 4
@@ -553,7 +555,6 @@ Refer to these files for detailed guidance:
 - [`dimension-definitions.md`](dimension-definitions.md): Complete scoring rubrics for all five dimensions
 - [`signal-rules.md`](signal-rules.md): Deterministic rules to reduce subjectivity (Rules A-N)
 - [`report-template.md`](report-template.md): Required report structure and section order
-- [`example-finding.md`](example-finding.md): Sample finding with all required elements
 - [`rules-summary.md`](rules-summary.md): Standalone rules reference document — copy into every report set so reviewers can interpret scores without accessing the skill directory
 
 ## Output Requirements

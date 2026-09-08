@@ -13,7 +13,7 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 
 **Why it matters:** LLMs cannot reliably maintain hidden counters or conversation status across turns. Any rule that depends on this produces guaranteed compliance failures.
 
-**Red-flag phrases:** "mentally update the current status", "avoid requesting information already known", "max ONE retry per request", "never ask twice in a call"
+**Red-flag phrases:** "remember what was said earlier", "avoid asking for information already provided", "max ONE retry per request", "never ask the same question twice"
 
 **Score bounds triggered:**
 - State & Conflict Manageability ≤ **2**
@@ -158,6 +158,14 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 
 ---
 
+### Rule J2 — Redundant or conflicting platform content (SK-8)
+
+> **Single source of truth: [`signal-rules.md`](signal-rules.md) — Rule J2.** That file defines the three item categories (A: platform-injected; B: fixed platform behavior; C: misplaced content), all four triggers, and the per-category remediation. Refer to `signal-rules.md` for the complete rule when evaluating or reviewing an SK-8 finding.
+
+**Score bounds:** No dimension penalty — this is a token and maintainability issue, not an achievability issue. Report via Rule O (token optimization). Do **not** recommend adding any of the listed items to author-written files.
+
+---
+
 ### Rule K — Cross-skill state dependency and dependency loops (SK-4)
 **What it checks:** Whether a skill's body assumes state or results from a prior skill (unidirectional dependency), or whether two or more skills form a circular dependency where no valid first skill exists.
 
@@ -175,27 +183,38 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 
 **Why it matters:** Skills are not exempt from the complexity rules that govern agent instructions. A skill body is an instruction set — it is subject to attention drift (E), nested branch overload (C), active rule budget limits (F), hidden state failure (A), exact phrase brittleness (B), and tool underspecification (D). An unachievable skill degrades the whole agent's achievability.
 
-**Score bounds:** Apply the same bounds as Rules A–F to the skill body in isolation. These bounds apply to the **skill's own dimension scores** in the per-skill report. They do not automatically cap the agent's five dimension scores — skill body complexity is a per-skill finding, not an agent-level cap. The only skill findings that reach the agent's scorecard are SK-2 Exact/High overlap (→ agent Dimension 2), SK-3 hard-limit failures (→ agent Dimension 3), and SK-6 tool-binding shadows (→ agent Dimension 3).
+**Score bounds:** Apply the same bounds as Rules A–F to the skill body in isolation. These bounds apply to the **skill's own dimension scores** in the per-skill report. They do not automatically cap the agent's five dimension scores — skill body complexity is a per-skill finding, not an agent-level cap. The skill findings that reach the agent's scorecard are: SK-2 Exact/High overlap (→ agent Dimension 2); SK-3 hard-limit failures (→ agent Dimension 3); SK-6 Trigger 3 — agent instructions reference a skill-filtered tool (→ agent Dimension 3, **High severity**). SK-6 Trigger 3a (zero `active_resolved_tools`) is an intentionality note only — it does not lower any dimension score regardless of whether it is confirmed. SK-6 Trigger 3b (skill-only tools) is informational only.
 
 **Additional trigger:** A skill body that tracks retry counts or step state without an explicit state object (Rule A pattern) is doubly risky — the hidden state lives inside a dynamically loaded/unloaded module.
 
 ---
 
 ### Rule M — Skill correlation and consolidation signal (SK-6)
-**What it checks:** Whether two or more skills are so closely related in domain, tool coverage, or trigger conditions that they are likely to fire in the same turn or be loaded in immediate succession.
+**What it checks:** Whether two or more skills are so closely related in domain, tool coverage, or trigger conditions that they are likely to fire in the same turn or be loaded in immediate succession. Also checks for the tool-shadowing execution gap described below.
 
-**Note on shared tools:** Two skills listing the same tool in their `allowed-tools` is normal and expected — a tool is only visible while its skill is active. Shared tools alone are not a correlation signal and do not trigger this rule.
+**Platform model:** Every tool any skill needs must be declared in `agent tools:` — that list is the authoritative registry. A skill's `allowed-tools` is a *filter* restricting which of those declared tools are visible inside the skill. Three resulting categories:
+
+- **Agent-only tool**: in `agent tools:`, not in any skill's `allowed-tools` → callable at base level, not in skill context
+- **Skill-filtered tool**: in `agent tools:` AND in one or more skills' `allowed-tools` → **only callable inside those skill contexts; shadowed at agent base level**
+- **Skill-only tool** (subset of skill-filtered, informational): skill-filtered AND the agent `instructions:`/`guidelines:` never reference it → no execution gap; the agent never intended to call it at base level
+
+The critical implication: **if the agent's `instructions:` or `guidelines:` direct it to call a skill-filtered tool, that call silently fails whenever no skill is active** — the tool is declared but unreachable at the base level.
+
+**Note on shared tools:** Two skills listing the same tool in their `allowed-tools` is expected — the tool is visible inside each of those skill contexts. Shared entries are not a correlation signal and do not trigger this rule.
 
 **Triggers:**
 1. **Adjacent trigger intents:** Two skills cover adjacent user intents that commonly occur in the same turn — each intent requires its own `load_skill` call; the first body is replaced when the second loads.
 2. **Mid-body `load_skill` reference:** A skill body instructs the agent to call `load_skill` for another skill before that body's own work is complete (SK-4 violation + coupling signal).
-3. **Tool-binding shadow:** A tool that appears in any skill's `allowed-tools` is also bound at the agent's top-level `tools:`. When the tool appears in `allowed-tools`, it is removed from the agent's base tool set — the agent cannot call it when no skill is active. This is a silent execution gap.
+3. **Agent instruction references a skill-filtered tool (silent execution gap — High):** The agent's `instructions:` or `guidelines:` names a tool that also appears in at least one skill's `allowed-tools`. That tool is unreachable at the agent's base level. This is a deterministic reliability violation. Detect by cross-referencing agent text against `shadowed_resolved_tools` (excluding `skill_only_tools`). Fix: either remove the tool from the skill's `allowed-tools` (keep it in agent base set), or move the agent-level instruction into the skill body.
+4. **Zero-tool base coverage — intentionality check:** Every tool in `agent tools:` is filtered by at least one skill's `allowed-tools`, leaving `active_resolved_tools` empty. **This is a valid design** for a pure skill-routing agent. Raise a lightweight intentionality note if the agent `instructions:` contain no explicit statement confirming that every user intent is handled through a skill. If the author confirms the intent, record it as confirmed — no finding and no score impact.
 
 **Consolidation trigger:** Both skills have SK-2 Moderate/High overlap AND cover intents likely to co-occur in a single turn, OR one skill's body issues a mid-body `load_skill` call to the other (inseparable sequential dependency).
 
 **Risk ratings:**
-- 1 correlated pair: skill-load overhead risk is **Medium**
-- 2+ correlated pairs: skill-load overhead risk is **High**; also note Instruction Followability risk from combined active-rule budget
+- 1 correlated pair (Trigger 1 or 2): skill-load overhead risk is **Medium**
+- 2+ correlated pairs: skill-load overhead risk is **High**
+- Any Trigger 3 violation: **High** — lowers agent Dimension 3 (Execution & Tool Grounding)
+- Trigger 3a (zero `active_resolved_tools`, unconfirmed): intentionality note only — no score impact
 
 ---
 
