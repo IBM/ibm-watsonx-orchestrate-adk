@@ -1,30 +1,35 @@
 # Report Template Structure
 
-This file defines **seven templates** that together form the **complete report set** produced for every evaluation.
+This file defines **nine templates** that together form the **complete report set** produced for every evaluation.
 
-> ⚠️ **All seven reports are mandatory.** An evaluation that omits any of these files is incomplete.
+> ⚠️ **The seven core reports (Templates 1–7) are mandatory.** Collaborator reports (Template 8) and the extracted JSON snapshot (Template 9) are conditional — produced only when the agent has resolved collaborators. An evaluation that omits any applicable file is incomplete.
 
 ## Required report set
 
-| # | Template | Filename | Always produced? |
+| # | Template | Filename | Mandatory? |
 |---|---|---|---|
-| 1 | Agent report | `agent_<name>_report.md` + `agent_<name>_report_harness.json` | ✓ Yes |
-| 2 | Skill report (one per skill) | `skill_<skill-name>_report.md` + `skill_<skill-name>_report_harness.json` | ✓ Yes — one per resolved skill |
-| 3 | Index | `index.md` | ✓ Yes — written last |
-| 4 | Token optimization report | `token_optimization_report.md` | ✓ Yes — even if no issues found |
-| 5 | Performance optimization report | `performance_optimization_report.md` | ✓ Yes — even if no issues found |
-| 6 | **Reliability optimization report** | **`reliability_optimization_report.md`** | ✓ **Yes — even if no issues found** |
-| 7 | Rules reference copy | `rules-summary.md` | ✓ Yes — copied from skill directory |
+| 1 | Agent report | `agent_<name>_report.md` + `agent_<name>_report_harness.json` | ✓ Always |
+| 2 | Skill report (one per skill) | `skill_<skill-name>_report.md` + `skill_<skill-name>_report_harness.json` | ✓ Always — one per resolved skill |
+| 3 | Index | `index.md` | ✓ Always — written last |
+| 4 | Token optimization report | `token_optimization_report.md` | ✓ Always — even if no issues found |
+| 5 | Performance optimization report | `performance_optimization_report.md` | ✓ Always — even if no issues found |
+| 6 | **Reliability optimization report** | **`reliability_optimization_report.md`** | ✓ **Always — even if no issues found** |
+| 7 | Rules reference copy | `rules-summary.md` | ✓ Always — copied from skill directory |
+| 8 | Collaborator report (one per resolved collaborator at any depth) | `collaborator_<name>_report.md` + `collaborator_<name>_report_harness.json` | ✓ Conditional — one per resolved collaborator; omit only when the agent has no collaborators |
+| 9 | Extracted agent JSON snapshot | `agent_<name>_extracted.json` | ✓ Conditional — required when `extract_agent_info.py` was run; omit only when the agent was evaluated without the extraction script |
+
+> **Collaborator reports are mandatory deliverables whenever collaborators are present.** They are not optional depth-N output — they are the primary deliverable for each collaborator's CO-1 through CO-7 analysis. Every resolved collaborator at every depth level gets its own report file, written flat into the same `eval/` directory. The depth and parent context are encoded inside the report's header metadata, not in the file path.
 
 All files go in `eval/` relative to the agent YAML's directory. Each report is saved to disk as soon as it is complete. Skill reports are produced in **batches of at most 2 at a time** — complete and save 2 skill reports before starting the next pair. Do not evaluate all skills in parallel.
 
 **Writing order:**
-1. Agent report (first — establishes cross-skill context)
-2. Skill reports in batches of 2
-3. Token optimization report (Template 4)
-4. Performance optimization report (Template 5)
-5. **Reliability optimization report (Template 6) — do not skip**
-6. Index (last — references all of the above)
+1. Agent report (first — establishes cross-skill and cross-collaborator context)
+2. Collaborator reports, depth-first (one per resolved collaborator; include extracted JSON per collaborator if available)
+3. Skill reports in batches of 2
+4. Token optimization report (Template 4)
+5. Performance optimization report (Template 5)
+6. **Reliability optimization report (Template 6) — do not skip**
+7. Index (last — references all of the above)
 
 ---
 
@@ -119,10 +124,27 @@ All files go in `eval/` relative to the agent YAML's directory. Each report is s
 |---|---|---|---|
 | [skill-name] | [skill-name] | [Adjacent intents / Mid-body load_skill reference] | [Yes — reason / No] |
 
-### Tool-binding shadows (omit if none found)
-| Tool | Skill listing it in allowed-tools | Also in agent tools:? | Impact |
+### SK-6 Tool-shadowing analysis
+
+> **Platform model:** Every tool any skill uses must be declared in `agent tools:` (the authoritative registry). A skill's `allowed-tools` restricts which declared tools are visible inside the skill. A skill-filtered tool is callable only while that skill is active — it is permanently unavailable at the agent's base level.
+
+**Trigger 3 — Agent instructions reference a skill-filtered tool (omit block if none found)**
+| Tool | Referenced in agent instructions/guidelines? | In `shadowed_resolved_tools`? | Impact |
 |---|---|---|---|
-| [tool-name] | [skill-name] | Yes | Agent cannot call [tool-name] when no skill is active — silent execution gap |
+| [tool-name] | Yes — "[quote from instructions]" | Yes | Agent cannot call [tool-name] at base level — silent execution gap (High) |
+
+**Trigger 3a — Zero-tool base coverage (omit if `active_resolved_tools` is non-empty)**
+| Check | Result |
+|---|---|
+| `active_resolved_tools` (tools callable at agent base level) | [list, or "empty"] |
+| Explicit skill-only confirmation in agent instructions? | [Yes — confirmed, no note needed / Not found — raise intentionality note] |
+
+> **Note:** Zero-tool base coverage is a valid design for a pure skill-routing agent. This check only asks whether the choice is intentional. It does not lower any dimension score.
+
+**Trigger 3b — Skill-only tools (informational)**
+| Tool | Skill(s) filtering it | Referenced in agent instructions? | Note |
+|---|---|---|---|
+| [tool-name] | [skill-name(s)] | No | Skill-only — no execution gap; agent never intended to call at base level |
 
 ### Performance interpretation
 [Short paragraph explaining whether instruction complexity is likely to increase runtime cost, latency, tool-call count, or response variance. Distinguish deterministic evidence from judgment-based conclusions. When skills are present, include: expected per-turn skill-load cost, whether any skill pairs require sequential loads in the same turn, and whether the skill architecture as a whole adds measurable latency overhead.]
@@ -178,14 +200,14 @@ All files go in `eval/` relative to the agent YAML's directory. Each report is s
 
 ## Skill Health Summary (omit section if no skills)
 
-> Per-skill dimension scores and deep analysis appear in individual skill reports. This table is a cross-skill health overview. Only SK-2 (overlap), SK-3 hard-limit failures, and SK-6 tool-binding shadows have direct impact on the agent's five dimension scores. All other SK findings are contained in the per-skill reports.
+> Per-skill dimension scores and deep analysis appear in individual skill reports. This table is a cross-skill health overview. SK-2 (overlap), SK-3 hard-limit failures, and SK-6 Trigger 3 findings have direct impact on the agent's five dimension scores. SK-6 Trigger 3a (zero-tool base coverage) is an intentionality check only — it never lowers a dimension score. All other SK findings are contained in the per-skill reports.
 
 ### Skill Health Summary Table
 | Skill | SK-1 | SK-2 | SK-3 | SK-4 | SK-5 | SK-6 | SK-7 | SK-8 |
 |---|---|---|---|---|---|---|---|---|
-| [skill-name] | [P/W/F] | [P/W/F] | [P/W/F — incl. hard-limit] | [P/W/F] | [P/W/F] | [P/W/F — incl. shadow] | [P/W/F] | [P/W/F] |
+| [skill-name] | [P/W/F] | [P/W/F] | [P/W/F — incl. hard-limit] | [P/W/F] | [P/W/F] | [P/W/F — T3 gap / W — T3a] | [P/W/F] | [P/W/F] |
 
-> P = Pass, W = Warn, F = Fail. Hard-limit failures in SK-3 and tool-binding shadows in SK-6 are marked F and noted in agent Dimension 3. SK-2 Exact/High failures are marked F and noted in agent Dimension 2.
+> P = Pass, W = Warn, F = Fail. SK-6 rating key: **F** = Trigger 3 violation (agent instructions reference a skill-filtered tool — deterministic execution gap); **N** (note) = Trigger 3a only (zero `active_resolved_tools`, unconfirmed — valid design; intentionality note only, no score impact); **P** = neither T3 nor T3a (or T3a confirmed). Hard-limit failures in SK-3 are marked F. SK-2 Exact/High failures are marked F. Trigger 3b (skill-only tools, not referenced in agent text) does NOT produce a Fail, Warn, or Note.
 
 **Rating guide:**
 - **Pass**: No issue detected
@@ -195,7 +217,9 @@ All files go in `eval/` relative to the agent YAML's directory. Each report is s
 **Agent dimension impact from skill findings:**
 - **SK-2 Exact/High** → lowers agent Dimension 2 (Scope & Applicability): ambiguous routing
 - **SK-3 Fail (hard limit)** → lowers agent Dimension 3 (Execution & Tool Grounding): skill is unreachable
-- **SK-6 tool-binding shadow** → lowers agent Dimension 3 (Execution & Tool Grounding): tool silently unavailable
+- **SK-6 Trigger 3** (agent `instructions:`/`guidelines:` references a skill-filtered tool) → lowers agent Dimension 3 (Execution & Tool Grounding): **High severity** — deterministic silent execution gap per affected tool; fix required
+- **SK-6 Trigger 3a** (zero `active_resolved_tools`) → **no dimension score impact**; intentionality note only; valid design for a pure skill-routing agent; raise a lightweight note if unconfirmed
+- **SK-6 Trigger 3b** (skill-only tools, not referenced in agent text) → **informational only**, no dimension impact
 - **All other SK Fails** → contained in per-skill reports; do not affect agent dimension scores
 
 ### Cross-skill overlap pairs (SK-2)
@@ -212,7 +236,7 @@ For each pair meeting the consolidation trigger threshold (SK-2 Moderate/High ov
 - **How to consolidate**: [Merge strategy: union the `allowed-tools` lists, merge the body sections, deduplicate rules, update the `description` to cover both intent sets and their combined boundary conditions]
 
 ### Skill health findings (agent-visible issues only)
-[For SK-2, SK-3 hard-limit, or SK-6 tool-binding shadow Fail ratings, produce a full finding: Evidence, Why it matters, Deterministic or judgment-based, Agent dimension impact, Recommended change. For all other Warn/Fail ratings, note: "See [skill_X_report.md] for full analysis."]
+[For SK-2, SK-3 hard-limit, or SK-6 Trigger 3 (agent instruction references skill-filtered tool) Fail ratings, produce a full finding: Evidence (quote the agent instruction and name the tool + skill), Why it matters, Deterministic or judgment-based, Agent dimension impact, Recommended change. For SK-6 Trigger 3a (zero `active_resolved_tools`, unconfirmed), produce a lightweight intentionality note — not a scored finding, no dimension impact — asking the author to confirm pure skill-routing intent. For SK-6 Trigger 3b (skill-only tools) produce an informational note only. For all other Warn/Fail ratings, note: "See [skill_X_report.md] for full analysis."]
 
 ## Findings
 
@@ -490,7 +514,7 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 | [Any mandatory pre-routing tool call] | — | ~[N] | Always / Conditional |
 | **Agent floor total** | | **~[N] (`agent_floor_est_tokens`)** | **Paid on every turn** |
 
-> **Tool-binding shadow — token scoping (SK-6):** When a skill lists a tool in its `allowed-tools`, the wxO platform removes that tool from the agent's base tool set. Its spec is therefore **not present in the L1 context** — `extract_agent_info.py` automatically excludes shadowed tools from `tool_list_est_tokens`, `tools_spec_est_tokens`, and `agent_floor_est_tokens`. The floor reflects only the tools that are truly active at the agent level. Shadowed tools are reported separately in `shadowed_resolved_tools` for the SK-6 reliability diagnostic (report in the reliability report, not the token optimization report).
+> **Skill-filtered tools — token scoping (SK-6):** Tools in `agent tools:` that also appear in any skill's `allowed-tools` are filtered from the agent's base tool set by the platform (visible only when that skill is active). `extract_agent_info.py` automatically excludes these from `tool_list_est_tokens`, `tools_spec_est_tokens`, and `agent_floor_est_tokens`. The floor reflects only `active_resolved_tools`. Having tools filtered this way is the correct and expected pattern — it is not a reliability gap in itself. The reliability gaps are: **SK-6 Trigger 3** (agent instructions reference a skill-filtered tool — the tool is declared but unreachable at base level; see SK-6 Tool-shadowing analysis section above); **SK-6 Trigger 3a** (`active_resolved_tools` empty — no tools at all at base level). Neither is a token issue; both are execution reliability issues.
 
 #### Level 2 — Skill context (added on top of Level 1 when a skill is loaded)
 
@@ -582,7 +606,7 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 - Combined: [High / Medium / Low]
 
 **Recommendation:** [Add or lower `top_k`/`max_results` to ≤ 3–5 / Condition the KB call on intent type / Restrict query scope / Merge with a prior tool call]
-- **Target:** [e.g., "limit to top_k=3 on billing intent turns; remove KB call entirely on account-status turns"]
+- **Target:** [e.g., "limit to top_k=3 on lookup intent turns; remove KB call entirely on simple-status turns"]
 - **Estimated saving (token):** ~[N] lines removed (~[X]% of [component] current size) → ~[Z] tokens per [intent type] turn; ~[N]% of all turns affected
 - **Estimated saving (latency):** [qualitative — "measurable latency reduction on [intent type] turns" — exact figures require runtime profiling]
 
@@ -953,8 +977,8 @@ Use this structure for `reliability_optimization_report.md`. This report is **al
 
 **Category:** [Implicit state / Exact-phrase / Scope-routing / Conflicting rules / Tool underspecification / Skill body / Workflow encoding]
 **Severity:** [Critical / High / Medium / Low]
-**Current cost:** [What goes wrong, under what specific conditions — e.g. "On every voice channel first turn, the LLM may omit or corrupt the required prefix, causing the post-invoke plugin to skip personalisation silently"]
-**Frequency:** [Fraction of production turns affected — e.g. "every voice call first turn", "~15% of cancellation turns", "rare — neutral-phrasing edge cases only"]
+**Current cost:** [What goes wrong, under what specific conditions — e.g. "On every first turn the LLM may omit or corrupt the required prefix, causing the post-invoke plugin to skip personalisation silently"]
+**Frequency:** [Fraction of production turns affected — e.g. "every first turn", "~15% of multi-step confirmation turns", "rare — neutral-phrasing edge cases only"]
 
 **Evidence:**
 > [Direct quote from agent instructions or skill body] *(line N)*
@@ -1220,7 +1244,7 @@ For skill reports, the Runtime Performance Risk section covers only the cost of 
 SK-2, SK-6, and SK-7 are cross-skill checks and belong in the agent report only. Skill reports contain SK-1, SK-3, SK-4, and SK-5 for the skill in question. Do not attempt to assess SK-2/SK-6/SK-7 in isolation inside a skill report — they require the full skill set to be meaningful.
 
 ### Skill Health Summary (agent report only)
-Place this section immediately after Dimension Analysis and before Findings in the agent report. The summary table uses P/W/F codes — full analysis is in per-skill reports. Agent dimension adjustments apply only for SK-2 Exact/High overlap, SK-3 hard-limit failures, and SK-6 tool-binding shadows. Consolidation recommendations must include a concrete merge strategy: which `allowed-tools` to carry forward, how to combine the body sections, what to do with the `description` frontmatter.
+Place this section immediately after Dimension Analysis and before Findings in the agent report. The summary table uses P/W/F/N codes — full analysis is in per-skill reports. Agent dimension adjustments apply only for SK-2 Exact/High overlap, SK-3 hard-limit failures, and SK-6 Trigger 3 (agent instruction references a skill-filtered tool). SK-6 Trigger 3a (zero `active_resolved_tools`) produces an intentionality note only — no dimension adjustment. Consolidation recommendations must include a concrete merge strategy: which `allowed-tools` to carry forward, how to combine the body sections, what to do with the `description` frontmatter.
 
 ### Token Optimization Report
 This report is always produced — it synthesizes evidence gathered across the agent report and all skill reports. Produce it after all individual reports are written. Run the full Rule O checklist and record a severity (High / Medium / Low / None found) for each pattern. When no issues are found, record the current token budget as a verified baseline and close with the standard baseline statement; do not produce an empty file. Follow Template 4.

@@ -13,10 +13,10 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 **Why:** LLMs cannot reliably maintain hidden counters or conversation status across turns. This creates guaranteed compliance failures.
 
 **Example red flags:**
-- "mentally update the current status"
-- "avoid requesting information already known again"
+- "remember what was said earlier"
+- "avoid asking for information already provided"
 - "max ONE retry per request" (without external counter)
-- "never ask twice in a call" (without external flag)
+- "never ask the same question twice" (without external flag)
 
 ---
 
@@ -259,32 +259,48 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 
 ---
 
-## Rule J2: Platform-duplicated content (SK-8)
+## Rule J2: Redundant or conflicting platform content (SK-8)
 
-**What this rule checks:** Whether a skill body or the agent instructions repeat content that the platform automatically injects into the prompt. The platform writes certain content unconditionally — an author duplicating it pays for those tokens on every turn, and creates two authoritative sources for the same information that can drift apart over time.
+**What this rule checks:** Whether a skill body or the agent instructions contain content that is either (a) already injected by the platform, or (b) describes fixed platform behavior that the author cannot change. Both categories produce the same failure modes: wasted tokens on every turn and a second authoritative source that can drift from reality.
 
-**Platform-generated content — flag any of the following if found in author-written files:**
+**Why repeating platform behavior is worse than just redundant:** When an author's description of a fixed behavior disagrees even slightly with what the platform actually does, both versions are simultaneously in the agent's context. The agent has no way to resolve the contradiction and may behave unpredictably. The platform always wins — the author's text never overrides it.
 
-| Platform-provided item | Where authors should NOT write it |
+**Items to flag — organized by category:**
+
+**Category A — Content the platform injects automatically (true duplicates):**
+
+| Item | Where NOT to write it |
 |---|---|
-| When to call `load_skill`; instruction not to reload the active skill | Agent instructions, skill body |
-| That loading a skill replaces the previous one | Agent instructions, skill body |
-| How to invoke a skill's scripts and what arguments they take | Skill body |
-| How to read a reference file; instruction not to read one twice | Skill body |
-| The skill's own name and purpose at the top of its body | Skill body (preamble) |
-| Routing trigger phrases (what user intents load this skill) | Agent instructions — these belong only in the skill's `description` frontmatter |
+| How to invoke a skill's scripts: syntax, argument names, invocation pattern | Skill body — the platform already injects this |
+| How to read a reference file | Skill body — the platform already injects read mechanics |
 
-**Trigger 1:** A skill body opens with the skill's name or a restatement of its purpose.
-**Trigger 2:** Agent instructions contain `load_skill` mechanics (when to call it, that it replaces, how it works).
-**Trigger 3:** Agent instructions repeat verbatim routing phrases already present in a skill's `description` frontmatter.
-**Trigger 4:** A skill body contains instructions about calling scripts (invocation syntax, argument names) that the platform already provides.
-**Trigger 5:** A skill body contains instructions about reading references (how to read, not to re-read) that the platform already provides.
+**Category B — Fixed platform behavior the author cannot change (conflict risk):**
 
-**Effect:** Flag as token waste and content drift risk. Recommend removing from the author-written file.
+| Item | Where NOT to write it | Risk if written |
+|---|---|---|
+| When to call `load_skill`; that the active skill should not be reloaded | Agent instructions, skill body | Platform controls `load_skill` dispatch — author text cannot change when it fires; any mismatch is an in-context contradiction |
+| That loading a skill replaces the previous one | Agent instructions, skill body | This is structural platform behavior; a subtly wrong description creates a contradiction the agent cannot resolve |
+| That a reference file should not be read twice | Skill body | Platform manages reference state; instructing the agent not to re-read does nothing the platform does not already enforce, and an incorrect description conflicts |
 
-**Scoring bounds:** No dimension penalty — this is a token and maintainability issue, not an achievability issue. Report via Rule O (token optimization). Note in findings that the evaluator must **not recommend adding** any of the above items to author-written files.
+**Category C — Content that belongs in a different location (misplaced):**
 
-**Why:** Every turn pays for the agent instructions and skill catalog in full. Content the platform already writes for free adds no value when duplicated by the author — it costs tokens on every call and creates a maintenance burden when the canonical platform behavior changes.
+| Item | Wrong location | Right location | Why |
+|---|---|---|---|
+| The skill's own name and purpose as a preamble | Top of skill body | Nowhere — omit entirely | The agent already knows which skill is loaded; a body preamble restating the name wastes tokens on every load |
+| Routing trigger phrases (which user intents load this skill) | Agent instructions | Skill `description` frontmatter only | Writing them in agent instructions pays catalog tokens twice and creates two places for routing signal to drift apart |
+
+**Triggers:**
+- **Trigger 1 (Category A):** Skill body contains `load_skill` invocation mechanics, script invocation syntax, or reference read mechanics that the platform already injects.
+- **Trigger 2 (Category B):** Agent instructions or skill body describe when `load_skill` fires, that it replaces the prior skill, or that references should not be read twice — fixed behaviors the author cannot override.
+- **Trigger 3 (Category C — preamble):** Skill body opens with the skill's own name or a restatement of its purpose.
+- **Trigger 4 (Category C — routing duplication):** Agent instructions repeat verbatim routing phrases already present in a skill's `description` frontmatter.
+
+**Effect:**
+- Category A: Flag as token waste. Recommend removing — the platform already provides this.
+- Category B: Flag as conflict risk. Removing eliminates both the token cost and the possibility of an in-context contradiction.
+- Category C: Flag as misplacement. Move to the right location (frontmatter) or remove entirely (preamble).
+
+**Scoring bounds:** No dimension penalty — this is a token and maintainability issue, not an achievability issue. Report via Rule O (token optimization). Do **not** recommend adding any of the above items to author-written files.
 
 ---
 
@@ -355,30 +371,52 @@ Build a directed graph using forward `load_skill` pointers: draw an edge A → B
 
 **What this rule measures:** Whether two or more skills are so closely related in domain or trigger conditions that the agent will need to load them in sequential `load_skill` calls within a single user turn. Because each `load_skill` call replaces the active skill body, sequential loads carry two costs: each call adds a context-window write and inference pass, and the first skill's instructions are gone by the time the second loads.
 
-**Note on shared tools:** Two skills listing the same tool in their `allowed-tools` is normal and expected — a tool is only visible while its skill is active. Shared tools alone are not a correlation signal and do not trigger this rule.
+**Platform model — how tools and skills interact:** In watsonx Orchestrate, tools must always be declared at the agent level first (`agent tools:`). This list is the authoritative registry — every tool any skill needs must appear here. A skill's `allowed-tools` is then a *filter*: it restricts which of the agent's declared tools are visible in that skill's context window. The following three categories result:
+
+| Category | Declared in `agent tools:`? | In any skill's `allowed-tools`? | Callable at agent base level (no skill loaded)? | Callable inside the skill? |
+|---|---|---|---|---|
+| **Agent-only tool** | ✓ | ✗ | ✓ | ✗ (not in scope) |
+| **Skill-filtered tool** | ✓ | ✓ (one or more skills) | ✗ — **shadowed** | ✓ (while that skill is active) |
+| **Undeclared tool** | ✗ | ✓ | ✗ (doesn't exist) | ✗ (cannot be used) |
+
+The critical implication: **a tool that appears in any skill's `allowed-tools` is removed from the agent's base tool set for the duration of that skill's activity — and at base level it is permanently unavailable.** An agent that references a skill-filtered tool in its own `instructions:` or `guidelines:` has a silent execution gap: the instruction looks valid but the tool is unreachable at the agent level.
+
+**Note on shared tools:** Two skills listing the same tool in their `allowed-tools` is normal and expected — the tool is visible inside each of those skill contexts. Shared `allowed-tools` entries alone are not a correlation signal and do not trigger this rule.
 
 **Trigger 1 — Adjacent trigger conditions:** Two skills cover adjacent user intents that commonly occur in the same turn (e.g., "check balance" and "recent transactions" are separate skills but users often ask both in one message). Each intent requires its own `load_skill` call; the first load is replaced when the second fires.
 
 **Trigger 2 — Mid-body `load_skill` reference:** A skill body instructs the agent to call `load_skill` for another skill before that body's own work is complete. This is both a SK-4 violation (instruction-loss risk) and a coupling signal — the two skills cannot operate independently.
 
-**Trigger 3 — Tool-binding shadow:** A tool that appears in any skill's `allowed-tools` is removed from the agent's base tool set. If that same tool is also bound at the agent's top-level `tools:`, the agent cannot call it when no skill is active — a silent execution gap. Check each skill's `allowed-tools` against the agent's `tools:` list and flag every match.
+**Trigger 3 — Agent-level instruction references a skill-filtered tool (silent execution gap):** The agent's `instructions:` or `guidelines:` explicitly directs the agent to call a tool that also appears in at least one skill's `allowed-tools`. Because that tool is shadowed at the agent's base level, the call will silently fail whenever no skill is active. This is a **deterministic reliability violation** — the agent author has written an instruction the agent cannot execute in base context.
 
-**Trigger 3a — Skill-only shadow (SK-6 subset, deterministic reliability signal):** A stricter subclassification of Trigger 3. A shadowed tool is **skill-only** when its bare name also does not appear anywhere in the agent's `instructions:` or `guidelines:` text. This confirms the agent author did not write any instruction to call it at the agent level — it belongs exclusively in the skill context.
+How to detect: for each tool named in agent `instructions:` or `guidelines:`, check whether it also appears in any skill's `allowed-tools`. Every match is a Trigger 3 violation. `extract_agent_info.py` surfaces these as tools that appear in `shadowed_resolved_tools` but NOT in `skill_only_tools` (i.e., the agent text does reference them — confirming the author's intent — but they are still shadowed).
 
-**Token impact:** None. The tool spec appears once in L1 context (from `agent tools:`) and is not double-loaded. This is a **reliability-only** signal.
+Fix: either (a) remove the tool from the relevant skill's `allowed-tools` so it stays in the agent's base set, or (b) move the agent-level instruction that uses it into the skill body where the tool is accessible.
 
-**Reliability impact:** High confidence. The tool is listed in `agent tools:` but is unreachable there whenever any skill is active, and the agent instructions contain no evidence the author intended to call it at the agent level. The fix is straightforward: remove it from `agent tools:` entirely. The skill's `allowed-tools` is the correct and sufficient place.
+**Trigger 3a — Zero-tool base coverage (intentionality check):** A broader coverage check. If **every** tool in `agent tools:` appears in at least one skill's `allowed-tools`, then `active_resolved_tools` is empty — the agent has no tools at all before any skill loads. **This is a valid design for a pure skill-routing agent.** It is not an error. The evaluator's only job here is to confirm it is deliberate: look for an explicit statement in the agent `instructions:` that every user intent is handled through a skill, or that the agent does not act at base level. If such a statement exists, record the pattern as confirmed and move on — no finding, no score impact. If no such statement exists, raise a lightweight intentionality note asking the author to confirm.
 
-`extract_agent_info.py` reports these under `skill_only_tools`. The `agent_callable_tools` list contains the complement — tools legitimately at L1 (not skill-owned, or explicitly referenced in agent text).
+Example: Agent declares tools `{a, b, c, d, e}`. Skill 1 has `allowed-tools: [a]`, Skill 2 has `[b]`, Skill 3 has `[c]`, Skill 4 has `[d]`, Skill 5 has `[e]`. Every tool is skill-filtered → `active_resolved_tools` is empty → agent enters each turn with zero tools. This is fine if every valid user intent routes through a skill. The author should confirm this is intentional, either explicitly in the instructions or by acknowledging it in the evaluation.
+
+**Trigger 3b — Skill-only tool (informational, not a violation):** A tool is **skill-only** when (a) it is filtered by one or more skills' `allowed-tools` AND (b) its name does not appear anywhere in the agent's `instructions:` or `guidelines:` text. This means the agent never intended to call it at the base level — there is no execution gap and no author error. Note it in the report for authoring clarity; do not flag it as a violation.
+
+**Token impact:** None. A tool declared in `agent tools:` contributes to the L1 token floor (its name and spec are loaded every turn at L1). If the same tool is also listed in a skill's `allowed-tools`, the spec is not double-counted — the `allowed-tools` filter is a runtime visibility restriction, not a second injection.
+
+**Reliability impact summary:**
+- **Trigger 3** (agent instruction references a skill-filtered tool): **High** — deterministic silent failure. The agent cannot execute the instruction. Fix required.
+- **Trigger 3a** (zero `active_resolved_tools`, unconfirmed): **Intentionality note** — valid design pattern; raise only if no explicit confirmation is present in the agent instructions. No score impact when confirmed.
+- **Trigger 3b** (skill-only tool, no agent reference): **None** — informational only.
+
+`extract_agent_info.py` reports `active_resolved_tools` (truly accessible at L1), `shadowed_resolved_tools` (filtered by a skill), `skill_only_tools` (filtered AND not referenced in agent text — Trigger 3b), and `agent_callable_tools` (not filtered, or explicitly referenced in agent text).
 
 **Consolidation recommendation trigger:** If both skills exhibit SK-2 Moderate/High overlap AND cover intents likely to co-occur in a single turn, OR if one skill's body issues a mid-body `load_skill` call to the other, recommend consolidation.
 
-**Effect:** Note sequential-load performance risk. Log tool-binding shadows as execution gaps. Log correlated pairs with evidence.
+**Effect:** Note sequential-load performance risk. Log Trigger 3 violations as silent execution gaps (High severity). Log Trigger 3a as an intentionality check — raise a lightweight note if unconfirmed; no finding and no score impact if the author confirms pure skill-routing intent. Log correlated pairs with evidence.
 
-**Scoring bounds (performance, not achievability):**
+**Scoring bounds:**
 - 1 correlated pair (Trigger 1 or 2): skill-load overhead risk is **Medium**
 - 2+ correlated pairs: skill-load overhead risk is **High**
-- Any Trigger 3 (tool-binding shadow): flag as silent execution gap regardless of pair count
+- Any Trigger 3 violation (agent instruction references a skill-filtered tool): **High** — lowers agent Dimension 3 (Execution & Tool Grounding)
+- Trigger 3a (zero `active_resolved_tools`, unconfirmed): **Intentionality note only** — does not lower any dimension score. Confirmed = no action needed.
 
 **Why:** Loading a skill means injecting its `SKILL.md` body into the context window and replacing the previous one. When a user turn requires two sequential skill loads, the agent pays two context-window writes, and the first skill's instructions are completely absent during the second load. No instruction interference between the two bodies occurs — the first body is simply gone. The cost is latency (two inference passes), potential instruction loss, and routing complexity.
 
@@ -725,7 +763,7 @@ Rule Q is distinct from the five achievability dimensions: the main evaluation s
 2. **Category** — implicit state / exact-phrase / scope-routing / conflicting rules / tool underspecification / skill body / workflow encoding / instruction-layer security
 3. **Severity** — Critical / High / Medium / Low (see severity classification above)
 4. **Current cost** — the specific wrong output or compliance failure this pattern produces (what goes wrong, under what conditions)
-5. **Frequency** — estimated fraction of production turns where this failure will manifest (e.g. "every SIP first turn", "~15% of cancellation turns", "rare — only on neutral-phrasing edge cases")
+5. **Frequency** — estimated fraction of production turns where this failure will manifest (e.g. "every first turn", "~15% of turns requiring multi-step confirmation", "rare — only on neutral-phrasing edge cases")
 6. **Evidence** — direct quote from agent instructions or skill body; line number if available; non-English quotes must include `[Translation]`
 7. **Root cause** — why the design produces this failure (missing state object / missing plugin / missing tool contract / overlapping descriptions / competing rules)
 8. **Recommendation** — specific rewrite: what to change, where, and what the result should look like

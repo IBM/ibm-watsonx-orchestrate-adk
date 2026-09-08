@@ -59,7 +59,7 @@ import yaml
 import json
 import argparse
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 
 # Import tool extraction helpers from the sibling script.  We add the script's
 # directory to sys.path at import time so this works regardless of cwd.
@@ -92,6 +92,196 @@ def _estimate_tokens(text: str) -> int:
     if not text:
         return 0
     return max(1, round(len(text) / _CHARS_PER_TOKEN))
+
+
+def _guidelines_text(guidelines_list: list) -> str:
+    """Serialise guidelines to a single string (used for tool-reference corpus only).
+
+    Includes display_name + condition + action for every entry so that tool
+    name references inside any guideline field are detected correctly.
+    """
+    if not guidelines_list:
+        return ''
+    parts: List[str] = []
+    for g in guidelines_list:
+        if not isinstance(g, dict):
+            parts.append(str(g))
+            continue
+        pieces = [
+            str(g.get('display_name', '') or ''),
+            str(g.get('condition', '') or ''),
+            str(g.get('action', '') or ''),
+        ]
+        parts.append(' '.join(p for p in pieces if p))
+    return ' '.join(parts)
+
+
+def _guidelines_token_costs(guidelines_list: list) -> Dict[str, Any]:
+    """Compute the realistic per-turn token cost model for a guidelines list.
+
+    The platform evaluates guidelines in two phases each turn:
+
+      Phase 1 — Relevance screening (always, every turn):
+        For each guideline the LLM reads display_name + condition to decide
+        whether to fire it.  All N guidelines are scanned on every turn.
+        Cost = sum of (display_name + condition) tokens across all guidelines.
+
+      Phase 2 — Action injection (conditional, worst-case = largest action):
+        Only the guideline(s) whose condition matches are appended to the
+        instructions.  At most one guideline fires per turn in the common case.
+        We use the *largest single action* as the worst-case per-turn addition.
+
+    Returns a dict with:
+      screening_chars          — total chars for all (display_name + condition)
+      screening_est_tokens     — token estimate for phase 1 (every turn)
+      max_action_chars         — chars of the largest single action body
+      max_action_est_tokens    — token estimate for the worst-case fired action
+      max_action_display_name  — display_name of that largest-action guideline
+      total_est_tokens         — screening_est_tokens + max_action_est_tokens
+                                 (realistic worst-case per-turn cost)
+    """
+    if not guidelines_list:
+        return {
+            'screening_chars': 0,
+            'screening_est_tokens': 0,
+            'max_action_chars': 0,
+            'max_action_est_tokens': 0,
+            'max_action_display_name': '',
+            'total_est_tokens': 0,
+        }
+
+    screening_text_parts: List[str] = []
+    max_action_chars = 0
+    max_action_display_name = ''
+
+    for g in guidelines_list:
+        if not isinstance(g, dict):
+            # Non-dict entry: treat the whole string as both phases.
+            s = str(g)
+            screening_text_parts.append(s)
+            if len(s) > max_action_chars:
+                max_action_chars = len(s)
+                max_action_display_name = s[:60]
+            continue
+
+        display_name = str(g.get('display_name', '') or '')
+        condition = str(g.get('condition', '') or '')
+        action = str(g.get('action', '') or '')
+
+        screening_text_parts.append(display_name + ' ' + condition)
+
+        action_chars = len(action)
+        if action_chars > max_action_chars:
+            max_action_chars = action_chars
+            max_action_display_name = display_name
+
+    screening_chars = sum(len(p) for p in screening_text_parts)
+    screening_est_tokens = _estimate_tokens(' '.join(screening_text_parts))
+    max_action_est_tokens = _estimate_tokens(' ' * max_action_chars)  # chars→tokens
+
+    return {
+        'screening_chars': screening_chars,
+        'screening_est_tokens': screening_est_tokens,
+        'max_action_chars': max_action_chars,
+        'max_action_est_tokens': max_action_est_tokens,
+        'max_action_display_name': max_action_display_name,
+        'total_est_tokens': screening_est_tokens + max_action_est_tokens,
+    }
+
+
+def _check_guidelines_overlap(guidelines_list: list) -> List[Dict[str, Any]]:
+    """Detect overlapping or duplicate guidelines via two deterministic checks.
+
+    Check 1 — Duplicate display_name (exact, case-insensitive):
+        Two guidelines with the same display_name are definitively duplicates.
+        The LLM may fire both on the same turn, producing redundant or
+        conflicting constraint passes. severity: high.
+
+    Check 2 — Condition word-overlap (Jaccard similarity ≥ 0.6):
+        Tokenise each condition into a lowercase word set (strip punctuation).
+        When two conditions share ≥ 60 % of their combined vocabulary, they
+        will likely match the same user inputs. severity: medium.
+
+    Returns a list of finding dicts, one per overlapping pair:
+        {
+            'index_a': int,
+            'index_b': int,
+            'display_name_a': str,
+            'display_name_b': str,
+            'type': 'duplicate_name' | 'condition_overlap',
+            'similarity': float,   # 1.0 for duplicate_name
+            'severity': 'high' | 'medium',
+        }
+    """
+    findings: List[Dict[str, Any]] = []
+    if not guidelines_list or len(guidelines_list) < 2:
+        return findings
+
+    # Normalise entries into (display_name, condition) pairs.
+    entries: List[tuple] = []
+    for g in guidelines_list:
+        if isinstance(g, dict):
+            entries.append((
+                (g.get('display_name') or '').strip(),
+                (g.get('condition') or '').strip(),
+            ))
+        else:
+            entries.append(('', str(g)))
+
+    _punct = re.compile(r'[^\w\s]')
+
+    def _word_set(text: str) -> set:
+        return set(_punct.sub(' ', text.lower()).split())
+
+    seen_names: Dict[str, int] = {}  # lower display_name → first index
+
+    for i, (name_i, cond_i) in enumerate(entries):
+        # Check 1 — duplicate display_name
+        key = name_i.lower()
+        if key and key in seen_names:
+            findings.append({
+                'index_a': seen_names[key],
+                'index_b': i,
+                'display_name_a': entries[seen_names[key]][0],
+                'display_name_b': name_i,
+                'type': 'duplicate_name',
+                'similarity': 1.0,
+                'severity': 'high',
+            })
+        else:
+            if key:
+                seen_names[key] = i
+
+        # Check 2 — condition word-overlap with all prior entries
+        words_i = _word_set(cond_i)
+        if not words_i:
+            continue
+        for j in range(i):
+            words_j = _word_set(entries[j][1])
+            if not words_j:
+                continue
+            union = words_i | words_j
+            if not union:
+                continue
+            jaccard = len(words_i & words_j) / len(union)
+            if jaccard >= 0.6:
+                # Avoid double-reporting a pair already flagged as duplicate_name.
+                already = any(
+                    f['index_a'] == j and f['index_b'] == i and f['type'] == 'duplicate_name'
+                    for f in findings
+                )
+                if not already:
+                    findings.append({
+                        'index_a': j,
+                        'index_b': i,
+                        'display_name_a': entries[j][0],
+                        'display_name_b': entries[i][0],
+                        'type': 'condition_overlap',
+                        'similarity': round(jaccard, 3),
+                        'severity': 'medium',
+                    })
+
+    return findings
 
 
 # ---------------------------------------------------------------------------
@@ -371,10 +561,7 @@ def _find_skill_file(skill_name: str, search_root: Path) -> Optional[Path]:
     # Pass 1 — match by frontmatter 'name'
     for candidate in candidates:
         try:
-            content = candidate.read_text(encoding='utf-8')
-            if skill_name not in content:  # fast pre-filter
-                continue
-            fm = _parse_frontmatter(content)
+            fm = _parse_frontmatter(candidate.read_text(encoding='utf-8'))
             if fm and fm.get('name') == skill_name:
                 return candidate
         except Exception:
@@ -429,9 +616,13 @@ def _resolve_skill(
 
     skill_dir = skill_file.parent
 
-    # Frontmatter
+    # Read once — reused for frontmatter parsing, body extraction, and placeholder scan.
     try:
-        fm = _parse_frontmatter(skill_file.read_text(encoding='utf-8')) or {}
+        skill_raw = skill_file.read_text(encoding='utf-8')
+    except Exception:
+        skill_raw = ''
+    try:
+        fm = _parse_frontmatter(skill_raw) or {}
     except Exception:
         fm = {}
 
@@ -471,9 +662,7 @@ def _resolve_skill(
     description_est_tokens: int = _estimate_tokens(description)
     catalog_est_tokens: int = name_est_tokens + description_est_tokens
 
-    # Body token estimate — read the full SKILL.md text (excluding frontmatter)
-    skill_raw = skill_file.read_text(encoding='utf-8')
-    # Strip YAML frontmatter block (--- ... ---) to get only the body
+    # Body token estimate — strip YAML frontmatter block (--- ... ---) to get only the body
     body_text = re.sub(r'^---\n.*?\n---\n', '', skill_raw, count=1, flags=re.DOTALL)
     body_chars: int = len(body_text)
     body_est_tokens: int = _estimate_tokens(body_text)
@@ -486,6 +675,7 @@ def _resolve_skill(
         m for m in placeholder_pattern.findall(all_text) if m not in params
     ]
 
+    resolved_allowed_tools = _enrich_tools(allowed_tools, tool_specs or {})
     return {
         'name': skill_name,
         'description': description,
@@ -498,9 +688,9 @@ def _resolve_skill(
         'description_too_long': description_length > 1024,
         'unmatched_placeholders': sorted(set(unmatched_placeholders)),
         'allowed_tools': allowed_tools,
-        'resolved_allowed_tools': _enrich_tools(allowed_tools, tool_specs or {}),
+        'resolved_allowed_tools': resolved_allowed_tools,
         'allowed_tools_spec_est_tokens': sum(
-            t['spec_est_tokens'] for t in _enrich_tools(allowed_tools, tool_specs or {})
+            t['spec_est_tokens'] for t in resolved_allowed_tools
         ),
         'body_chars': body_chars,
         'body_est_tokens': body_est_tokens,
@@ -556,6 +746,9 @@ def _resolve_collaborator(
     agent_dir: Path,
     search_root: Path,
     tool_specs: Optional[Dict[str, Dict[str, Any]]] = None,
+    visited: Optional[Set[str]] = None,
+    depth: int = 1,
+    parent_name: str = '',
 ) -> Dict[str, Any]:
     """
     Locate the agent YAML for collaborator_name and extract its key metadata:
@@ -566,15 +759,64 @@ def _resolve_collaborator(
       - tools               (raw list of tool name strings)
       - resolved_tools      (enriched list with spec_chars/spec_est_tokens per tool)
       - tools_spec_est_tokens (sum of spec tokens across all tools)
-      - collaborators       (collaborators list — nested collaborators)
-      - skills              (skills list — skill names)
+      - collaborators       (raw name list from the YAML)
+      - resolved_collaborators (recursively resolved collaborator dicts at depth+1)
+      - resolved_skills     (list of fully resolved skill dicts)
+      - skills              (raw skill name list from the YAML)
       - instructions_length (line count of instructions field)
       - guidelines_count    (number of guidelines entries)
       - collocated          (True if found in the same directory as the parent agent)
       - collaborator_file   (absolute path to the YAML, or None)
       - resolved            (True if the YAML was found)
+      - depth               (nesting depth; 1 = direct child of the root agent)
+      - parent_name         (name of the parent agent or collaborator)
+      - cycle_detected      (True if this collaborator was already in the visited set)
+
+    Recursion is bounded by a *visited* set keyed on canonical file path (or
+    collaborator name when the file cannot be found).  Any collaborator whose
+    key is already present in *visited* is returned as a stub with
+    ``cycle_detected=True`` and no further recursion, preventing infinite loops.
     """
+    if visited is None:
+        visited = set()
+
     collab_file = _find_collaborator_file(collaborator_name, agent_dir, search_root)
+
+    # Cycle-guard key: prefer absolute file path so renames don't confuse the
+    # guard; fall back to the name string if the file was not found.
+    cycle_key = str(collab_file.resolve()) if collab_file else collaborator_name
+
+    if cycle_key in visited:
+        # Back-edge detected — return a stub and stop recursion.
+        return {
+            'name': collaborator_name,
+            'display_name': collaborator_name,
+            'name_est_tokens': _estimate_tokens(collaborator_name),
+            'description': None,
+            'description_est_tokens': 0,
+            'routing_est_tokens': _estimate_tokens(collaborator_name),
+            'kind': None,
+            'llm': None,
+            'tools': [],
+            'resolved_tools': [],
+            'tools_spec_est_tokens': 0,
+            'collaborators': [],
+            'resolved_collaborators': [],
+            'resolved_skills': [],
+            'skills': [],
+            'instructions_length': 0,
+            'instructions_chars': 0,
+            'instructions_est_tokens': 0,
+            'guidelines_count': 0,
+            'guidelines_costs': _guidelines_token_costs([]),
+            'guidelines_overlap': [],
+            'collocated': False,
+            'collaborator_file': str(collab_file.resolve()) if collab_file else None,
+            'resolved': False,
+            'depth': depth,
+            'parent_name': parent_name,
+            'cycle_detected': True,
+        }
 
     if not collab_file:
         return {
@@ -590,14 +832,21 @@ def _resolve_collaborator(
             'resolved_tools': [],
             'tools_spec_est_tokens': 0,
             'collaborators': [],
+            'resolved_collaborators': [],
+            'resolved_skills': [],
             'skills': [],
             'instructions_length': 0,
             'instructions_chars': 0,
             'instructions_est_tokens': 0,
             'guidelines_count': 0,
+            'guidelines_costs': _guidelines_token_costs([]),
+            'guidelines_overlap': [],
             'collocated': False,
             'collaborator_file': None,
             'resolved': False,
+            'depth': depth,
+            'parent_name': parent_name,
+            'cycle_detected': False,
         }
 
     try:
@@ -614,12 +863,46 @@ def _resolve_collaborator(
     instructions_chars: int = len(instructions_text)
     instructions_est_tokens: int = _estimate_tokens(instructions_text)
 
+    collab_guidelines_list = data.get('guidelines', []) or []
+    collab_guidelines_costs: Dict[str, Any] = _guidelines_token_costs(collab_guidelines_list)
+    collab_guidelines_overlap: List[Dict[str, Any]] = _check_guidelines_overlap(collab_guidelines_list)
+
     # Routing overhead: name + description are used by the supervisor to select
     # this collaborator — these tokens are paid on every supervisor turn.
     name_est_tokens: int = _estimate_tokens(collaborator_name)
     description_est_tokens: int = _estimate_tokens(description)
     routing_est_tokens: int = name_est_tokens + description_est_tokens
 
+    # Mark this collaborator as visited before recursing into its children,
+    # so any back-edge (direct or transitive) is caught.
+    child_visited = set(visited)
+    child_visited.add(cycle_key)
+
+    # Recursively resolve nested collaborators.
+    nested_collab_names: List[str] = data.get('collaborators', []) or []
+    collab_dir = collab_file.parent.resolve()
+    resolved_nested_collaborators: List[Dict[str, Any]] = [
+        _resolve_collaborator(
+            name,
+            collab_dir,
+            search_root,
+            tool_specs,
+            visited=child_visited,
+            depth=depth + 1,
+            parent_name=collaborator_name,
+        )
+        for name in nested_collab_names
+    ]
+
+    # Resolve skills attached to this collaborator.
+    skill_names: List[str] = data.get('skills', []) or []
+    resolved_skills: List[Dict[str, Any]] = [
+        _resolve_skill(sname, search_root, tool_specs)
+        for sname in skill_names
+    ]
+
+    collab_tools: List[str] = data.get('tools', []) or []
+    resolved_collab_tools = _enrich_tools(collab_tools, tool_specs or {})
     return {
         'name': collaborator_name,
         'display_name': display_name,
@@ -629,23 +912,27 @@ def _resolve_collaborator(
         'routing_est_tokens': routing_est_tokens,
         'kind': data.get('kind', None),
         'llm': data.get('llm', None),
-        'tools': data.get('tools', []) or [],
-        'resolved_tools': _enrich_tools(data.get('tools', []) or [], tool_specs or {}),
-        'tools_spec_est_tokens': sum(
-            ((tool_specs or {}).get(_strip_namespace(t)) or (tool_specs or {}).get(t) or {}).get('spec_est_tokens', 0)
-            for t in (data.get('tools', []) or [])
-        ),
-        'collaborators': data.get('collaborators', []) or [],
-        'skills': data.get('skills', []) or [],
+        'tools': collab_tools,
+        'resolved_tools': resolved_collab_tools,
+        'tools_spec_est_tokens': sum(t['spec_est_tokens'] for t in resolved_collab_tools),
+        'collaborators': nested_collab_names,
+        'resolved_collaborators': resolved_nested_collaborators,
+        'resolved_skills': resolved_skills,
+        'skills': skill_names,
         'instructions_length': instructions_lines,
         'instructions_chars': instructions_chars,
         'instructions_est_tokens': instructions_est_tokens,
         'guidelines_count': (
             len(data.get('guidelines', [])) if data.get('guidelines') else 0
         ),
+        'guidelines_costs': collab_guidelines_costs,
+        'guidelines_overlap': collab_guidelines_overlap,
         'collocated': collocated,
         'collaborator_file': str(collab_file.absolute()),
         'resolved': True,
+        'depth': depth,
+        'parent_name': parent_name,
+        'cycle_detected': False,
     }
 
 
@@ -710,9 +997,16 @@ def extract_agent_info(
     # When both tools_dir and tools_root are provided, tools_dir entries win.
     # When neither is supplied, fall back to scanning search_root automatically so
     # callers get tool specs without having to know where the toolkit lives.
+    # Guard: skip the auto-scan entirely when tools_dir is supplied and tools_root
+    # is not — the caller has explicitly provided all tool specs they need; scanning
+    # search_root would waste time and then be overwritten anyway.
     tool_specs: Dict[str, Dict[str, Any]] = {}
-    scan_root = Path(tools_root).resolve() if tools_root else root
-    tool_specs = _scan_tools_root(scan_root)
+    if tools_root or not tools_dir:
+        # Run a live scan when:
+        #   a) tools_root is explicitly specified (caller directed us to scan there), OR
+        #   b) neither tools_dir nor tools_root was supplied (auto-scan fallback).
+        scan_root = Path(tools_root).resolve() if tools_root else root
+        tool_specs = _scan_tools_root(scan_root)
     if tools_dir:
         # Pre-extracted JSONs take priority — merge on top, overwriting any
         # same-named entries from the live scan.
@@ -731,9 +1025,9 @@ def extract_agent_info(
     instructions_est_tokens: int = _estimate_tokens(instructions_text)
 
     guidelines_list = agent_data.get('guidelines', []) or []
-    guidelines_text = ' '.join(
-        str(g) for g in guidelines_list
-    ) if guidelines_list else ''
+    guidelines_text = _guidelines_text(guidelines_list)
+    guidelines_costs: Dict[str, Any] = _guidelines_token_costs(guidelines_list)
+    guidelines_overlap: List[Dict[str, Any]] = _check_guidelines_overlap(guidelines_list)
 
     agent_tools: List[str] = agent_data.get('tools', []) or []
     agent_tools_set = set(agent_tools)
@@ -780,8 +1074,20 @@ def extract_agent_info(
         skill['tool_binding_shadows'] = shadowed
 
     collaborator_names: List[str] = agent_data.get('collaborators', []) or []
+    # Seed the visited set with the root agent's file path so that any
+    # collaborator that circles back to the root agent is caught as a cycle.
+    root_agent_key = str(yaml_file.resolve())
+    root_visited: Set[str] = {root_agent_key}
     resolved_collaborators = [
-        _resolve_collaborator(name, agent_dir, root, tool_specs)
+        _resolve_collaborator(
+            name,
+            agent_dir,
+            root,
+            tool_specs,
+            visited=root_visited,
+            depth=1,
+            parent_name=agent_data.get('name', 'unknown'),
+        )
         for name in collaborator_names
     ]
 
@@ -833,6 +1139,7 @@ def extract_agent_info(
 
     agent_floor_est_tokens: int = (
         instructions_est_tokens
+        + guidelines_costs['total_est_tokens']
         + skill_catalog_est_tokens
         + collaborator_routing_est_tokens
         + tool_list_est_tokens
@@ -863,6 +1170,8 @@ def extract_agent_info(
         'skill_catalog_est_tokens': skill_catalog_est_tokens,
         'collaborator_routing_est_tokens': collaborator_routing_est_tokens,
         'guidelines_count': len(agent_data.get('guidelines', [])) if agent_data.get('guidelines') else 0,
+        'guidelines_costs': guidelines_costs,
+        'guidelines_overlap': guidelines_overlap,
         'file_path': str(yaml_file.absolute()),
     }
 
@@ -870,6 +1179,34 @@ def extract_agent_info(
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
+
+def _format_guidelines_overlap(overlap: list, indent: str = '  ') -> List[str]:
+    """Return formatted text lines for a guidelines_overlap finding list."""
+    if not overlap:
+        return [f"{indent}Guidelines overlap:  none detected"]
+    high = [f for f in overlap if f.get('severity') == 'high']
+    medium = [f for f in overlap if f.get('severity') == 'medium']
+    lines: List[str] = [
+        f"{indent}Guidelines overlap:  {len(overlap)} issue(s) detected"
+        f"  ({len(high)} high, {len(medium)} medium)"
+    ]
+    for f in overlap:
+        sev_tag = '⚠ HIGH' if f['severity'] == 'high' else '~ medium'
+        if f['type'] == 'duplicate_name':
+            lines.append(
+                f"{indent}  [{sev_tag}] duplicate display_name  "
+                f"→ guideline #{f['index_a']} and #{f['index_b']}: "
+                f'"{f["display_name_a"]}"'
+            )
+        else:
+            lines.append(
+                f"{indent}  [{sev_tag}] condition overlap  "
+                f"similarity={f['similarity']:.0%}  "
+                f"→ #{f['index_a']} \"{f['display_name_a']}\"  "
+                f"vs #{f['index_b']} \"{f['display_name_b']}\""
+            )
+    return lines
+
 
 def format_output(info: Dict[str, Any], output_format: str = 'text', field: Optional[str] = None) -> str:
     """
@@ -903,11 +1240,20 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
         f"LLM:                 {info['llm']}",
         f"Description:         {info['description']}",
         f"Instructions Length: {info['instructions_length']} lines  |  {info.get('instructions_chars', '?')} chars  |  ~{info.get('instructions_est_tokens', '?')} est. tokens",
-        f"Guidelines Count:    {info['guidelines_count']}",
+        f"Guidelines Count:    {info['guidelines_count']}  "
+        f"|  screening ~{info.get('guidelines_costs', {}).get('screening_est_tokens', 0)} tokens (all {info['guidelines_count']} conditions, every turn)  "
+        f"|  worst-case action ~{info.get('guidelines_costs', {}).get('max_action_est_tokens', 0)} tokens  "
+        f'("{info.get("guidelines_costs", {}).get("max_action_display_name", "")}")',
+        *_format_guidelines_overlap(info.get('guidelines_overlap', []), indent='  '),
         f"Context Variables:   {len(info['context_variables'])}",
         "",
         f"── LEVEL 1 — Agent context (paid on every agent turn) ─────────────────────────────────────────",
         f"  Instructions:      ~{info.get('instructions_est_tokens', 0)} est. tokens",
+        f"  Guidelines:        ~{info.get('guidelines_costs', {}).get('total_est_tokens', 0)} est. tokens  "
+        f"({info.get('guidelines_count', 0)} guidelines — screening all conditions every turn "
+        f"+ worst-case 1 action: "
+        f'"{info.get("guidelines_costs", {}).get("max_action_display_name", "")}" '
+        f"~{info.get('guidelines_costs', {}).get('max_action_est_tokens', 0)} tokens)",
         f"  Skill catalog:     ~{info.get('skill_catalog_est_tokens', 0)} est. tokens  (name+desc of all {len(info.get('skills', []))} skills — agent needs these to decide which skill to load)",
         f"  Collab routing:    ~{info.get('collaborator_routing_est_tokens', 0)} est. tokens  (name+desc of all {len(info.get('collaborators', []))} collaborators — routing only; collab internals run in their own context)",
         f"  Agent tool list:   ~{info.get('tool_list_est_tokens', 0)} est. tokens  ({len(info.get('active_resolved_tools', []))} active tools — {len(info.get('shadowed_resolved_tools', []))} excluded: shadowed by skill)",
@@ -1017,9 +1363,16 @@ def format_output(info: Dict[str, Any], output_format: str = 'text', field: Opti
         lines.append(
             f"    instructions: {c['instructions_length']} lines  "
             f"|  {c.get('instructions_chars', '?')} chars  "
-            f"|  ~{c.get('instructions_est_tokens', '?')} est. tokens  "
-            f"|  guidelines: {c['guidelines_count']}"
+            f"|  ~{c.get('instructions_est_tokens', '?')} est. tokens"
         )
+        gc = c.get('guidelines_costs', {})
+        lines.append(
+            f"    guidelines:   {c.get('guidelines_count', 0)} entries  "
+            f"|  screening ~{gc.get('screening_est_tokens', 0)} tokens  "
+            f"|  worst-case action ~{gc.get('max_action_est_tokens', 0)} tokens  "
+            f"|  total ~{gc.get('total_est_tokens', 0)} tokens"
+        )
+        lines.extend(_format_guidelines_overlap(c.get('guidelines_overlap', []), indent='    '))
         # Routing tokens: name + description injected on every supervisor turn
         # so the supervisor can decide whether to dispatch to this collaborator.
         lines.append(

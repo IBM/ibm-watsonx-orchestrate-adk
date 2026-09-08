@@ -118,7 +118,7 @@ Key scoping rules:
 - **Tool list** (`tool_list_est_tokens`): agent-level tool names, present every turn for tool routing decisions — separate from tool spec bodies
 - **Allowed-tools** in skills: names and schemas are owned by the skill and injected **only when that skill loads** — not part of the agent L1 floor
 - Only one skill body is active at a time; sequential skill loads replace the previous body, not sum
-- **Shadowed tools excluded from L1 floor:** any tool in `agent tools:` that also appears in any skill's `allowed-tools` is removed from the agent's base tool set by the platform. Its spec is **not loaded at L1** and is excluded from `tool_list_est_tokens` and `tools_spec_est_tokens`. Only truly active (non-shadowed) tools are counted. Shadowed tools are still reported in `shadowed_resolved_tools` for the SK-6 reliability diagnostic.
+- **Skill-filtered tools excluded from L1 floor:** In wxO, `agent tools:` is the authoritative declaration — tools must be listed there first. A skill's `allowed-tools` is a *filter* restricting which of those agent-owned tools are visible in the skill's context. Any tool in `agent tools:` that also appears in a skill's `allowed-tools` is removed from the agent's base tool set by the platform (it is only accessible while that skill is active). Its spec is **not loaded at L1** and is excluded from `tool_list_est_tokens` and `tools_spec_est_tokens`. Only `active_resolved_tools` (tools not filtered by any skill) are counted in the L1 floor. This is the expected and correct behaviour — it is not a defect. When `active_resolved_tools` is empty (every agent-level tool is skill-filtered), the evaluator raises a lightweight intentionality note only — this is a valid pure skill-routing design and does not lower any dimension score.
 
 #### Unresolved tool fallback
 
@@ -138,16 +138,16 @@ When a tool definition cannot be found (file not in scan path, unsupported forma
 | `tool_list_est_tokens` | Sum of token cost of all agent-level tool names — L1 cost |
 | `tools_spec_est_tokens` | Sum of spec body tokens for all agent-level tools — L1 cost |
 | `agent_floor_est_tokens` | Total L1 floor — excludes shadowed tools (removed from base set by platform) |
-| `active_resolved_tools` | Tools in `agent tools:` that are NOT in any skill's `allowed-tools` — truly present at L1; their tokens are counted |
-| `shadowed_resolved_tools` | Tools in `agent tools:` that ARE in a skill's `allowed-tools` — removed from base set; NOT counted in L1 floor; reported for SK-6 reliability diagnostic |
-| `skill_only_tools` | Subset of `shadowed_resolved_tools` where the tool is also not referenced in agent instructions/guidelines — highest-confidence candidates to remove from `agent tools:` |
-| `agent_callable_tools` | Complement of `skill_only_tools`: shadowed tools that ARE referenced in agent text, or tools not skill-owned at all |
+| `active_resolved_tools` | Tools in `agent tools:` that are NOT filtered by any skill's `allowed-tools` — truly accessible at L1 (agent base context); their tokens are counted in the L1 floor |
+| `shadowed_resolved_tools` | Tools in `agent tools:` that ARE filtered by at least one skill's `allowed-tools` — accessible only when that skill is active, not at the agent's base L1; excluded from L1 floor. This is the correct/expected pattern — listing these does not indicate a defect. |
+| `skill_only_tools` | Subset of `shadowed_resolved_tools` where the tool name also does not appear in agent instructions/guidelines text — informational signal that the tool is used exclusively in skill contexts. Not a violation; just useful for authoring clarity. |
+| `agent_callable_tools` | Complement: tools in `agent tools:` that ARE referenced in agent instructions/guidelines text, or are not filtered by any skill's `allowed-tools` — tools the agent can plausibly call at the base level |
 | `resolved_tools` | Each tool with `spec_chars`, `spec_est_tokens`, `resolved`, `file_path` |
 | `resolved_collaborators` | Each collaborator with `routing_est_tokens`, `instructions_est_tokens`, `collocated`, etc. |
 | `skills[].catalog_est_tokens` | L1 cost for this skill (name + description, paid every turn) |
 | `skills[].body_est_tokens` | L2 load cost — skill body only |
 | `skills[].allowed_tools_spec_est_tokens` | L2 load cost — allowed-tool schemas (uses 200-token fallback for unresolved tools) |
-| `skills[].tool_binding_shadows` | Tools that appear in both `allowed-tools` and the agent's top-level `tools:` (SK-6 Trigger 3 violation) |
+| `skills[].tool_binding_shadows` | Tools that appear in both this skill's `allowed-tools` and the agent's top-level `tools:` — used to populate `shadowed_resolved_tools`. A non-empty list is normal and expected (every skill-used tool must be declared in `agent tools:` first). Becomes a **SK-6 Trigger 3 violation** only when the agent's `instructions:` or `guidelines:` also reference one of these tools (the instruction cannot be executed at base level). Becomes a **SK-6 Trigger 3a configuration risk** only when no tools are left in `active_resolved_tools`. |
 | `skills[].name_too_long` | `true` if name exceeds 64-char hard limit (SK-3 hard failure) |
 | `skills[].description_too_long` | `true` if description exceeds 1024-char hard limit (SK-3 hard failure) |
 | `skills[].unmatched_placeholders` | `{{identifier}}` tokens with no matching `param` entry |
@@ -308,7 +308,6 @@ Rule Q synthesises agent and skill report findings into a prioritised, implement
 | [`dimension-definitions.md`](dimension-definitions.md) | Detailed scoring rubrics for all five dimensions, with skill-specific guidance |
 | [`signal-rules.md`](signal-rules.md) | Deterministic rules A–Q (agent-level A–G, skill-level H–N, optimization O–Q) |
 | [`report-template.md`](report-template.md) | Report templates: agent, skill, index, token optimization, performance optimization, reliability optimization |
-| [`example-finding.md`](example-finding.md) | Sample finding with all required elements; finding categories |
 | [`rules-summary.md`](rules-summary.md) | Standalone rules reference — copied into every `eval/` directory |
 | [`scripts/extract_agent_info.py`](scripts/extract_agent_info.py) | Extract agent metadata + auto-discover tools + resolve skills from agent YAML |
 | [`scripts/extract_tool_info.py`](scripts/extract_tool_info.py) | Extract tool signatures from .py / .json / .yaml tool files |
