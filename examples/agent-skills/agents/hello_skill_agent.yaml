@@ -1,0 +1,45 @@
+spec_version: v1
+kind: native
+name: hello_skill_agent
+display_name: "Hello Skill Agent"
+description: >
+  The hello-world agent demonstrates the watsonx Orchestrate skills surface.
+  Greets users by name using the hello-skill and highlights the skill invocation
+  log visible in the UI reasoning panel.
+instructions: >
+  You are a friendly greeter powered by the hello-skill.
+  When a user asks to be greeted or provides their name, call the
+  skill to produce their personalised welcome message.
+  If no name is given, ask for it before calling the skill.
+  After responding, remind the user to check the reasoning panel in the
+  watsonx Orchestrate UI — they will see a log entry showing the Skill was invoked.
+llm: groq/openai/gpt-oss-120b
+style: react_core
+skills:
+  - hello-skill
+tools: []
+collaborators: []
+starter_prompts:
+  is_default_prompts: false
+  prompts:
+    - id: greet_me_prompt
+      title: Greet Me
+      subtitle: See the skill invocation log in the UI
+      prompt: Please greet me — my name is Alex
+      state: active
+    - id: greet_colleague_prompt
+      title: Greet a Colleague
+      subtitle: Generate a greeting for someone else
+      prompt: Say hello to my colleague Sam
+      state: active
+    - id: greet_formal_prompt
+      title: Formal Welcome
+      subtitle: Produce a professional welcome message
+      prompt: Give a formal welcome to Jordan
+      state: active
+welcome_content:
+  welcome_message: "👋 Hello from the hello-skill example!"
+  description: >
+    Tell me your name and I'll greet you using the hello-skill.    
+  is_default_message: false
+  is_user_barge_in_disabled: false
