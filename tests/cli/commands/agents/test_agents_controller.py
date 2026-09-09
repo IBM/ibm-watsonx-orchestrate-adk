@@ -445,6 +445,7 @@ class MockAgent:
 
 class TestImportPythonAgent:
     def test_import_python_agent(self, native_agent_content):
+        """Test that importing a Python file containing a native agent returns the agent and triggers tool/knowledge-base imports."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_tool") as python_tool_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_knowledge_base") as python_knowledge_base_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.inspect.getmembers") as getmembers_mock, \
@@ -466,6 +467,7 @@ class TestImportPythonAgent:
             assert len(agents) == 1
 
     def test_import_python_external_agent(self, external_agent_content):
+        """Test that importing a Python file containing an external agent returns the agent and triggers tool/knowledge-base imports."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_tool") as python_tool_import_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_knowledge_base") as python_knowledge_base_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.inspect.getmembers") as getmembers_mock, \
@@ -485,30 +487,35 @@ class TestImportPythonAgent:
 
 class TestCreateAgentFromSpec:
     def test_create_native_agent_from_spec(self):
+        """Test that create_agent_from_spec delegates to Agent.from_spec when kind is NATIVE."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.Agent.from_spec") as mock:
             create_agent_from_spec("test.yaml", AgentKind.NATIVE)
 
             mock.assert_called_once_with("test.yaml")
         
     def test_create_native_agent_from_spec_no_kind(self):
+        """Test that create_agent_from_spec defaults to Agent.from_spec when kind is None."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.Agent.from_spec") as mock:
             create_agent_from_spec("test.yaml", None)
 
             mock.assert_called_once_with("test.yaml")
 
     def test_create_external_agent_from_spec(self):
+        """Test that create_agent_from_spec delegates to ExternalAgent.from_spec when kind is EXTERNAL."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExternalAgent.from_spec") as mock:
             create_agent_from_spec("test.yaml", AgentKind.EXTERNAL)
 
             mock.assert_called_once_with("test.yaml")
 
     def test_create_assistant_agent_from_spec(self):
+        """Test that create_agent_from_spec delegates to AssistantAgent.from_spec when kind is ASSISTANT."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AssistantAgent.from_spec") as mock:
             create_agent_from_spec("test.yaml", AgentKind.ASSISTANT)
 
             mock.assert_called_once_with("test.yaml")
 
     def test_create_invalid_agent_from_spec(self):
+        """Test that create_agent_from_spec raises BadRequest for an unrecognised kind value."""
         with pytest.raises(BadRequest) as e:
             create_agent_from_spec("test.yaml", "fake")
 
@@ -518,6 +525,7 @@ class TestCreateAgentFromSpec:
 
 class TestParseFile:
     def test_parse_file_yaml(self, native_agent_content):
+        """Test that parse_file reads a YAML file and creates a native agent via Agent.from_spec."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.Agent.from_spec") as from_spec_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml.load") as mock_loader:
@@ -531,6 +539,7 @@ class TestParseFile:
             mock_loader.assert_called_once()
 
     def test_parse_file_json(self, native_agent_content):
+        """Test that parse_file reads a JSON file and creates a native agent via Agent.from_spec."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.Agent.from_spec") as from_spec_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.json.load") as mock_loader:
@@ -544,6 +553,7 @@ class TestParseFile:
             mock_loader.assert_called_once()
 
     def test_parse_file_yaml_external(self, external_agent_content):
+        """Test that parse_file reads a YAML file and creates an external agent via ExternalAgent.from_spec."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExternalAgent.from_spec") as from_spec_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml.load") as mock_loader:
@@ -557,6 +567,7 @@ class TestParseFile:
             mock_loader.assert_called_once()
 
     def test_parse_file_json_external(self, external_agent_content):
+        """Test that parse_file reads a JSON file and creates an external agent via ExternalAgent.from_spec."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExternalAgent.from_spec") as from_spec_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.json.load") as mock_loader:
@@ -570,6 +581,7 @@ class TestParseFile:
             mock_loader.assert_called_once()
 
     def test_parse_file_py(self):
+        """Test that parse_file handles a Python file by delegating to import_python_agent and returns an empty list when no agents are found."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_tool") as python_tool_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_knowledge_base") as python_knowledge_base_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.inspect.getmembers") as getmembers_mock, \
@@ -586,12 +598,14 @@ class TestParseFile:
             assert len(agents) == 0
 
     def test_parse_file_invalid(self):
+        """Test that parse_file raises BadRequest for an unsupported file extension."""
         with pytest.raises(BadRequest) as e:
             parse_file("test.test")
             assert "file must end in .json, .yaml, .yml or .py" in str(e)
 
 class TestParseCreateNativeArgs:
     def test_parse_create_native_args(self):
+        """Test that parse_create_native_args returns a dict with correctly mapped fields and strips whitespace from list entries."""
         parsed_args = parse_create_native_args(
             name="test_agent",
             kind=AgentKind.NATIVE,
@@ -611,6 +625,7 @@ class TestParseCreateNativeArgs:
         assert parsed_args["tools"] == ["tool1", "tool2"]
 
     def test_parse_create_native_args_forwards_hidden(self):
+        """Test that parse_create_native_args preserves an explicit hidden=True value in the returned dict."""
         parsed_args = parse_create_native_args(
             name="test_agent",
             kind=AgentKind.NATIVE,
@@ -621,6 +636,7 @@ class TestParseCreateNativeArgs:
         assert parsed_args["hidden"] is True
 
     def test_parse_create_native_args_hidden_defaults_to_false(self):
+        """Test that parse_create_native_args sets hidden to False when not explicitly provided."""
         parsed_args = parse_create_native_args(
             name="test_agent",
             kind=AgentKind.NATIVE,
@@ -630,6 +646,7 @@ class TestParseCreateNativeArgs:
         assert parsed_args["hidden"] is False
 
     def test_parse_create_native_args_forwards_restrictions(self):
+        """Test that parse_create_native_args forwards an explicit restrictions value to the returned dict."""
         parsed_args = parse_create_native_args(
             name="test_agent",
             kind=AgentKind.NATIVE,
@@ -640,6 +657,7 @@ class TestParseCreateNativeArgs:
         assert parsed_args["restrictions"] == "non_editable"
 
     def test_parse_create_native_args_restrictions_defaults_to_editable(self):
+        """Test that parse_create_native_args defaults restrictions to 'editable' when not provided."""
         parsed_args = parse_create_native_args(
             name="test_agent",
             kind=AgentKind.NATIVE,
@@ -661,6 +679,7 @@ class TestParseCreateNativeArgs:
 
 class TestParseCreateExternalArgs:
     def test_parse_create_external_args(self):
+        """Test that parse_create_external_args returns a dict with all external agent fields correctly mapped."""
         parsed_args = parse_create_external_args(
             name="test_external_agent",
             kind=AgentKind.EXTERNAL,
@@ -699,6 +718,7 @@ class TestParseCreateExternalArgs:
 
 class TestParseCreateAssistantArgs:
     def test_parse_create_assistant_args(self):
+        """Test that parse_create_assistant_args returns a dict with all assistant agent fields correctly mapped."""
         parsed_args = parse_create_assistant_args(
             name="test_assistant_agent",
             kind=AgentKind.ASSISTANT,
@@ -733,6 +753,7 @@ class TestGetConnIdFromAppId:
     mock_conn_id = "test_conn_id"
 
     def test_get_conn_id_from_app_id(self):
+        """Test that get_conn_id_from_app_id returns the connection ID for a given app ID."""
         mock_connection_client = MockConnectionClient(
             get_draft_by_app_id_reponse=GetConnectionResponse(
                 connection_id=self.mock_conn_id
@@ -746,6 +767,7 @@ class TestGetConnIdFromAppId:
             assert response == self.mock_conn_id 
     
     def test_get_conn_id_from_app_id_no_connections(self, caplog):
+        """Test that get_conn_id_from_app_id exits with an error log when no connection matches the app ID."""
         mock_connection_client = MockConnectionClient()
         with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
@@ -763,6 +785,7 @@ class TestGetAppIdFromConnId:
     mock_conn_id = "test_conn_id"
 
     def test_get_app_id_from_conn_id(self):
+        """Test that get_app_id_from_conn_id returns the app ID for a given connection ID."""
         mock_connection_client = MockConnectionClient(
             get_draft_by_id_response=self.mock_app_id
         )
@@ -774,6 +797,7 @@ class TestGetAppIdFromConnId:
             assert response == self.mock_app_id 
     
     def test_get_app_id_from_conn_id_no_connections(self, caplog):
+        """Test that get_app_id_from_conn_id exits with an error log when no connection matches the connection ID."""
         mock_connection_client = MockConnectionClient()
         with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
@@ -790,6 +814,7 @@ class TestGetAgentDetails:
     mock_agent_name = "test_agent"
 
     def test_get_agent_details(self):
+        """Test that get_agent_details returns the agent record when the agent exists."""
         mock_agent_client = MockAgent(already_existing=True)
 
         response = get_agent_details(name=self.mock_agent_name, client = mock_agent_client)
@@ -797,6 +822,7 @@ class TestGetAgentDetails:
         assert response.get("name") == self.mock_agent_name
     
     def test_get_agent_details_no_agent(self, caplog):
+        """Test that get_agent_details exits with an error log when no agent matches the given name."""
         mock_agent_client = MockAgent(already_existing=False)
 
         with pytest.raises(SystemExit):
@@ -807,6 +833,7 @@ class TestGetAgentDetails:
         assert f"No agents with the name '{self.mock_agent_name}' found." in captured
     
     def test_get_agent_details_multiple_agents(self, caplog):
+        """Test that get_agent_details exits with an error log when multiple agents share the given name."""
         mock_agent_client = MagicMock(get_draft_by_name=MagicMock(return_value=[{}, {}]))
 
         with pytest.raises(SystemExit):
@@ -818,6 +845,7 @@ class TestGetAgentDetails:
 
 class TestAgentsControllerGetClients:
     def test_get_native_client(self):
+        """Test that get_native_client instantiates and stores an AgentClient on the controller."""
         ac = AgentsController()
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
             mock_instantiate_client.return_value = AgentClient("test")
@@ -825,6 +853,7 @@ class TestAgentsControllerGetClients:
         assert isinstance(ac.native_client, AgentClient)
     
     def test_get_external_client(self):
+        """Test that get_external_client instantiates and stores an ExternalAgentClient on the controller."""
         ac = AgentsController()
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
             mock_instantiate_client.return_value = ExternalAgentClient("test")
@@ -832,6 +861,7 @@ class TestAgentsControllerGetClients:
         assert isinstance(ac.external_client, ExternalAgentClient)
     
     def test_get_assistant_client(self):
+        """Test that get_assistant_client instantiates and stores an AssistantAgentClient on the controller."""
         ac = AgentsController()
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
             mock_instantiate_client.return_value = AssistantAgentClient("test")
@@ -839,6 +869,7 @@ class TestAgentsControllerGetClients:
         assert isinstance(ac.assistant_client, AssistantAgentClient)
     
     def test_get_tool_client(self):
+        """Test that get_tool_client instantiates and stores a ToolClient on the controller."""
         ac = AgentsController()
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
             mock_instantiate_client.return_value = ToolClient("test")
@@ -846,6 +877,7 @@ class TestAgentsControllerGetClients:
         assert isinstance(ac.tool_client, ToolClient)
     
     def test_get_knowledge_base_client(self):
+        """Test that get_knowledge_base_client instantiates and stores a KnowledgeBaseClient on the controller."""
         ac = AgentsController()
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
             mock_instantiate_client.return_value = KnowledgeBaseClient("test")
@@ -860,6 +892,7 @@ class TestAgentsControllerGenerateAgentSpec:
     mock_nickname = "test_nickname"
 
     def test_generate_native_agent_spec(self):
+        """Test that generate_agent_spec builds a valid native Agent with stripped collaborator/tool lists."""
         mock_llm = "test_llm"
         mock_collaborators = ["agent1", "    "]
         mock_tools = ["  tool1  ", "tool2"]
@@ -883,6 +916,7 @@ class TestAgentsControllerGenerateAgentSpec:
         assert agent.tools == ["tool1", "tool2"]
     
     def test_generate_external_agent_spec(self):
+        """Test that generate_agent_spec builds a valid ExternalAgent with all fields and resolves connection ID from app ID."""
         mock_api_url = "https://someurl.com"
         mock_chat_params = {"stream": True}
         mock_config = {"hidden": False, "enable_cot": False}
@@ -925,6 +959,7 @@ class TestAgentsControllerGenerateAgentSpec:
         assert agent.app_id == mock_app_id
     
     def test_generate_assistant_agent_spec(self):
+        """Test that generate_agent_spec builds a valid AssistantAgent with all fields correctly mapped."""
         mock_config = {"api_version": "2021-11-27", "assistant_id": "test_id", "crn": "test_crn", "instance_url": "test_instance_url", "environment_id": "test_env", "app_id": "test_app_id"}
 
         agent = AgentsController.generate_agent_spec(
@@ -954,6 +989,7 @@ class TestAgentsControllerGenerateAgentSpec:
             ]
     )
     def test_generate_agent_spec_invalid_kind(self, kind):
+        """Test that generate_agent_spec raises ValueError when kind is not a recognised agent kind."""
         with pytest.raises(ValueError) as e:
             AgentsController.generate_agent_spec(
                 name="test_agent",
@@ -968,6 +1004,7 @@ class TestAgentsControllerGetAllAgents:
     mock_agent_id= "1234"
 
     def test_get_all_agents(self):
+        """Test that get_all_agents returns a dict mapping agent names to their IDs."""
         mock_client = MockAgent(fake_agent = {
             "name": self.mock_agent_name,
             "id": self.mock_agent_id
@@ -979,6 +1016,7 @@ class TestAgentsControllerGetAllAgents:
 
 class TestAgentsControllerPublishOrUpdateAgents:
     def test_publish_or_update_native_agent_publish(self, native_agent_content, join_tool_spec):
+        """Test that publish_or_update_agents calls publish_agent when a native agent does not yet exist."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
@@ -1002,6 +1040,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
             publish_mock.assert_called_once()
 
     def test_publish_or_update_native_agent_update(self, native_agent_content, join_tool_spec):
+        """Test that publish_or_update_agents calls update_agent when a native agent already exists."""
         with patch("sys.exit") as sys_exit_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
@@ -1036,6 +1075,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
     def test_publish_or_update_external_agent_publish(self, mock_get_conn_id, external_agent_content):
+        """Test that publish_or_update_agents calls publish_agent when an external agent does not yet exist."""
         with patch("sys.exit") as sys_exit_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
@@ -1060,6 +1100,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
     def test_publish_or_update_external_agent_update(self, mock_get_conn_id, external_agent_content):
+        """Test that publish_or_update_agents calls update_agent when an external agent already exists."""
         with patch("sys.exit") as sys_exit_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
@@ -1093,6 +1134,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
     def test_publish_or_update_assistant_agent_publish(self, mock_get_conn_id, assistant_agent_content):
+        """Test that publish_or_update_agents calls publish_agent when an assistant agent does not yet exist."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
@@ -1113,6 +1155,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
     def test_publish_or_update_assistant_agent_update(self, mock_get_conn_id, assistant_agent_content):
+        """Test that publish_or_update_agents calls update_agent when an assistant agent already exists."""
         with patch("sys.exit") as sys_exit_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
@@ -1147,6 +1190,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
 
 class TestAgentsControllerPublishAgent:
     def test_publish_native_agent(self, native_agent_content, caplog):
+        """Test that publish_agent creates a native agent and logs a success message."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
             agent = Agent(**native_agent_content)
             native_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
@@ -1160,6 +1204,7 @@ class TestAgentsControllerPublishAgent:
             assert f"Agent '{agent.name}' imported successfully" in captured
     
     def test_publish_external_agent(self, external_agent_content, caplog):
+        """Test that publish_agent creates an external agent and logs a success message."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock:
             agent = ExternalAgent(**external_agent_content)
             external_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
@@ -1173,6 +1218,7 @@ class TestAgentsControllerPublishAgent:
             assert f"External Agent '{agent.name}' imported successfully" in captured
 
     def test_publish_assistant_agent(self, assistant_agent_content, caplog):
+        """Test that publish_agent creates an assistant agent and logs a success message."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock:
             
             agent = AssistantAgent(**assistant_agent_content)
@@ -1284,6 +1330,7 @@ class TestAgentsControllerPublishAgent:
 
 class TestAgentsControllerUpdateAgent:
     def test_update_native_agent(self, native_agent_content, caplog):
+        """Test that update_agent updates a native agent and logs a success message."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
             agent = Agent(**native_agent_content)
             native_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
@@ -1297,6 +1344,7 @@ class TestAgentsControllerUpdateAgent:
             assert f"Agent '{agent.name}' updated successfully" in captured
     
     def test_update_external_agent(self, external_agent_content, caplog):
+        """Test that update_agent updates an external agent and logs a success message."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock:
             agent = ExternalAgent(**external_agent_content)
             external_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
@@ -1310,6 +1358,7 @@ class TestAgentsControllerUpdateAgent:
             assert f"External Agent '{agent.name}' updated successfully" in captured
 
     def test_update_assistant_agent(self, assistant_agent_content, caplog):
+        """Test that update_agent updates an assistant agent and logs a success message."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock:
             
             agent = AssistantAgent(**assistant_agent_content)
@@ -1349,6 +1398,7 @@ class TestListAgents:
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_knowledge_base_names')
     def test_list_agents(self, get_agent_knowledge_base_names, mock_get_connections_client, mock_get_agent_tool_names, mock_get_agent_collaborator_names, mock_get_assistant_client, mock_get_external_client, mock_get_native_client, mock_get_knowledge_base_client, mock_get_tool_client):
+        """Test that list_agents fetches native, external, and assistant agents and resolves their tool and collaborator names."""
         mock_get_connections_client.return_value = MockConnectionClient()
         
         # Mock responses for collaborator and tool names
@@ -1419,6 +1469,7 @@ class TestListAgents:
 
 class TestRemoveAgent:
     def test_remove_native_agent(self, caplog):
+        """Test that remove_agent deletes a native agent and logs a success message."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
             native_client_mock.return_value = MockAgent(already_existing=True)
             name = "test_agent"
@@ -1430,6 +1481,7 @@ class TestRemoveAgent:
             assert f"Successfully removed agent {name}" in captured
     
     def test_remove_native_agent_non_existent(self, caplog):
+        """Test that remove_agent logs 'not found' and does not log success when the agent does not exist."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
             native_client_mock.return_value = MockAgent(already_existing=False)
             name = "test_agent"
@@ -1442,6 +1494,7 @@ class TestRemoveAgent:
             assert f"No agent named '{name}' found" in captured
     
     def test_remove_agent_invalid_kind(self, caplog):
+            """Test that remove_agent raises BadRequest when an unsupported kind is supplied."""
             name = "test_agent"
 
             with pytest.raises(BadRequest) as e:
@@ -1454,6 +1507,7 @@ class TestRemoveAgent:
             assert "'kind' must be 'native'" in str(e)
     
     def test_remove_agent_http_error(self, caplog):
+            """Test that remove_agent handles an HTTP error by logging the response message and exiting."""
             with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
                 name = "test_agent"
 
@@ -1471,6 +1525,7 @@ class TestRemoveAgent:
 
 class TestAgentsControllerGetSpecFileContent:
     def test_get_spec_file_content_native_agent(self, native_agent_content):
+        """Test that get_spec_file_content returns the correct fields for a native agent."""
         ac = AgentsController()
         ac.native_client = MockAgent()
         ac.external_client = MockAgent(return_get_drafts_by_ids=False)
@@ -1489,6 +1544,7 @@ class TestAgentsControllerGetSpecFileContent:
         assert spec_file_content["style"] == native_agent_content["style"]
 
     def test_get_spec_file_content_external_agent(self, external_agent_content):
+        """Test that get_spec_file_content returns the correct fields for an external agent, including resolving app_id to a connection."""
         ac = AgentsController()
         ac.native_client = MockAgent()
         ac.external_client = MockAgent(return_get_drafts_by_ids=False)
@@ -1514,6 +1570,7 @@ class TestAgentsControllerGetSpecFileContent:
 
 
     def test_get_spec_file_content_assistant_agent(self, assistant_agent_content):
+        """Test that get_spec_file_content returns the correct fields for an assistant agent."""
         ac = AgentsController()
         ac.native_client = MockAgent()
         ac.external_client = MockAgent(return_get_drafts_by_ids=False)
@@ -1543,6 +1600,7 @@ class TestAgentsControllerGetAgent:
             ]
     )
     def test_get_agent(self, kind, expected_agent_type, native_agent_content, external_agent_content, assistant_agent_content):
+        """Test that get_agent returns the correct agent type for each supported AgentKind."""
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content])
         ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content])
@@ -1556,6 +1614,7 @@ class TestAgentsControllerGetAgentById:
     mock_agent_id = "1234"
 
     def test_get_agent_by_id_native(self, native_agent_content):
+        """Test that get_agent_by_id returns a native Agent when the native client holds the matching record."""
         ac = AgentsController()
         ac.native_client = MockAgent(fake_agent=native_agent_content)
         ac.external_client = MockAgent()
@@ -1566,6 +1625,7 @@ class TestAgentsControllerGetAgentById:
         assert isinstance(agent, Agent)
     
     def test_get_agent_by_id_external(self, external_agent_content):
+        """Test that get_agent_by_id returns an ExternalAgent when the external client holds the matching record."""
         ac = AgentsController()
         ac.native_client = MockAgent()
         ac.external_client = MockAgent(fake_agent=external_agent_content)
@@ -1576,6 +1636,7 @@ class TestAgentsControllerGetAgentById:
         assert isinstance(agent, ExternalAgent)
     
     def test_get_agent_by_id_assistant(self, assistant_agent_content):
+        """Test that get_agent_by_id returns an AssistantAgent when the assistant client holds the matching record."""
         ac = AgentsController()
         ac.native_client = MockAgent()
         ac.external_client = MockAgent()
@@ -1600,6 +1661,7 @@ class TestAgentsControllerExportAgent:
             ]
     )
     def test_export_agent(self, caplog, kind, native_agent_content, external_agent_content, assistant_agent_content):
+        """Test that export_agent successfully exports an agent of each kind to a zip file with tools and knowledge bases."""
         native_agent_content["knowledge_base"] = ["kb_1"]
 
         ac = AgentsController()
@@ -1658,7 +1720,7 @@ class TestAgentsControllerExportAgent:
             ]
     )
     def test_export_agent_agent_only(self, caplog, kind, native_agent_content, external_agent_content, assistant_agent_content):
-
+        """Test that export_agent with agent_only_flag=True writes a YAML file containing only the agent definition."""
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
         ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
@@ -1688,6 +1750,7 @@ class TestAgentsControllerExportAgent:
         assert f"Exported agent definition for '{self.mock_agent_name}' to '{self.mock_yaml_file_path}'" in captured
 
     def test_export_agent_existing_agent(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        """Test that export_agent skips writing the agent entry and logs a skip message when the agent already exists in the zip."""
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
         ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
@@ -1723,6 +1786,7 @@ class TestAgentsControllerExportAgent:
         assert f"Skipping {native_agent_content.get('name')}, agent with that name already exists in the output folder" in captured
     
     def test_export_agent_existing_tool(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        """Test that export_agent skips a tool that already exists in the zip but still completes successfully."""
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
         ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
@@ -1765,6 +1829,7 @@ class TestAgentsControllerExportAgent:
         assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
     
     def test_export_agent_no_tool(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        """Test that export_agent completes successfully when the agent has no associated tools."""
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
         ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
@@ -1802,6 +1867,7 @@ class TestAgentsControllerExportAgent:
         assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
  
     def test_export_agent_missing_collaborators(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        """Test that export_agent logs a skip warning for collaborators not found and still completes the export."""
         native_agent_content["knowledge_base"] = ["kb_1"]
 
         ac = AgentsController()
@@ -1855,6 +1921,7 @@ class TestAgentsControllerExportAgent:
         assert f"Skipping {native_agent_content.get('collaborators')[0]}, no agent with id {native_agent_content.get('collaborators')[0]} found" in captured
 
     def test_export_agent_bad_file_type(self, caplog, native_agent_content):
+        """Test that export_agent exits when the output path does not end with .zip for a full export."""
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content])
         ac.external_client = MockAgent()
@@ -1874,6 +1941,7 @@ class TestAgentsControllerExportAgent:
         assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" not in captured
     
     def test_export_agent_agent_only_bad_file_type(self, caplog, native_agent_content):
+        """Test that export_agent exits when agent_only_flag=True but the output path does not end with .yaml or .yml."""
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content])
         ac.external_client = MockAgent()
@@ -1918,10 +1986,12 @@ class TestAgentCompactionSettings:
 
 class TestAgentWebchatCustomizations:
     def test_create_agent_with_welcome_content(self, agent_spec_with_welcome_content):
+        """Test that an agent spec with welcome_content produces a WelcomeContent instance on the agent."""
         test_agent=Agent(**agent_spec_with_welcome_content)
         assert type(test_agent.welcome_content) is WelcomeContent
 
     def test_create_agent_with_starter_prompt(self, agent_spec_with_starter_prompt):
+        """Test that an agent spec with a single starter prompt produces a StarterPrompts instance with one AgentPrompt."""
         test_agent=Agent(**agent_spec_with_starter_prompt)
         assert type(test_agent.starter_prompts) is StarterPrompts
         assert len(test_agent.starter_prompts.prompts) == 1
@@ -1929,6 +1999,7 @@ class TestAgentWebchatCustomizations:
             assert type(p) is AgentPrompt
 
     def test_create_agent_with_many_starter_prompts(self, agent_spec_with_starter_prompts):
+        """Test that an agent spec with multiple starter prompts produces a StarterPrompts instance with the correct number of AgentPrompt entries."""
         test_agent=Agent(**agent_spec_with_starter_prompts)
         assert type(test_agent.starter_prompts) is StarterPrompts
         assert len(test_agent.starter_prompts.prompts) == len(agent_spec_with_starter_prompts["starter_prompts"]["prompts"])
@@ -1936,6 +2007,7 @@ class TestAgentWebchatCustomizations:
             assert type(p) is AgentPrompt
 
     def test_create_Agent_with_all_webchat_customizations(self, agent_spec_with_webchat_customizations):
+        """Test that an agent spec with both welcome_content and starter_prompts produces correctly typed webchat customisation fields."""
         test_agent=Agent(**agent_spec_with_webchat_customizations)
         assert type(test_agent.welcome_content) is WelcomeContent
         assert type(test_agent.starter_prompts) is StarterPrompts
@@ -1945,6 +2017,7 @@ class TestAgentWebchatCustomizations:
     
 class TestAgentDeploy:
     def test_deploy_agent_success(self, caplog):
+        """Test that deploy_agent logs a success message when the deployment API returns True."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
@@ -1970,6 +2043,7 @@ class TestAgentDeploy:
             assert "Successfully deployed agent" in caplog.text
 
     def test_deploy_agent_failure(self, caplog):
+        """Test that deploy_agent logs an error message when the deployment API returns False."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
@@ -1995,6 +2069,7 @@ class TestAgentDeploy:
             assert "Error deploying agent" in caplog.text
 
     def test_undeploy_agent_success(self, caplog):
+        """Test that undeploy_agent logs a success message when the undeploy API returns True."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
@@ -2021,6 +2096,7 @@ class TestAgentDeploy:
             assert "Successfully undeployed agent" in caplog.text
 
     def test_undeploy_agent_failure(self, caplog):
+        """Test that undeploy_agent logs an error message when the undeploy API returns False."""
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
@@ -2062,6 +2138,7 @@ class TestDereferenceSkills:
         )
 
     def test_dereference_skills_replaces_names_with_ids(self):
+        """Test that dereference_skills replaces skill names with their corresponding IDs."""
         skill_records = [
             {"id": "id-skill-1", "name": "skill-one"},
             {"id": "id-skill-2", "name": "skill-two"},
@@ -2079,6 +2156,7 @@ class TestDereferenceSkills:
         mock_sc.get_all_skills.assert_called_once_with()
 
     def test_dereference_skills_missing_skill_exits(self, caplog):
+        """Test that dereference_skills exits with an error log when a skill name cannot be found."""
         agent = self._make_agent(["skill-missing"])
 
         ac = AgentsController()
@@ -2092,6 +2170,7 @@ class TestDereferenceSkills:
         assert "No skill found with the name 'skill-missing'" in caplog.text
 
     def test_dereference_skills_api_error_exits(self, caplog):
+        """Test that dereference_skills propagates a SystemExit raised by the skills controller."""
         agent = self._make_agent(["skill-one"])
 
         ac = AgentsController()
@@ -2116,6 +2195,7 @@ class TestReferenceSkills:
         )
 
     def test_reference_skills_replaces_ids_with_names(self):
+        """Test that reference_skills replaces skill IDs with their corresponding names."""
         skill_records = [
             {"id": "id-skill-1", "name": "skill-one"},
             {"id": "id-skill-2", "name": "skill-two"},
@@ -2133,6 +2213,7 @@ class TestReferenceSkills:
         mock_sc.get_all_skills.assert_called_once_with(None)
 
     def test_reference_skills_unknown_id_exits(self, caplog):
+        """Test that reference_skills exits with an error log when a skill ID cannot be resolved to a name."""
         agent = self._make_agent(["id-skill-unknown"])
 
         ac = AgentsController()
@@ -2146,6 +2227,7 @@ class TestReferenceSkills:
         assert "No skill found with the id 'id-skill-unknown'" in caplog.text
 
     def test_reference_skills_passes_workspace_id(self):
+        """Test that reference_skills forwards the workspace_id parameter to get_all_skills."""
         skill_records = [{"id": "id-skill-1", "name": "skill-one"}]
         agent = self._make_agent(["id-skill-1"])
 
@@ -2190,6 +2272,7 @@ class TestDereferenceNativeAgentDependenciesSkills:
         assert result.skills == ["skill-one"]
 
     def test_skills_not_called_when_empty(self):
+        """Test that dereference_native_agent_dependencies skips dereference_skills when the agent has no skills."""
         agent = Agent(
             spec_version=SpecVersion.V1,
             kind=AgentKind.NATIVE,
@@ -2206,6 +2289,351 @@ class TestDereferenceNativeAgentDependenciesSkills:
 
         deref_skills_mock.assert_not_called()
 
+
+# ---------------------------------------------------------------------------
+# Tests for agent versioning paths
+# ---------------------------------------------------------------------------
+
+class TestImportAgentReturnsTuple:
+    """import_agent() must return (agents, version) tuple — not mutate agent objects."""
+
+    def test_returns_tuple_with_version(self, native_agent_content):
+        """Test that import_agent returns a (agents, version) tuple containing the supplied version string."""
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.parse_file",
+            return_value=[Agent(**native_agent_content)],
+        ):
+            result = AgentsController.import_agent(file="agent.yaml", version="1.2.3")
+
+        agents, version = result
+        assert version == "1.2.3"
+        assert len(agents) == 1
+        # The version must NOT be attached as a dynamic attribute on the agent model
+        assert not hasattr(agents[0], "_import_version")
+
+    def test_returns_tuple_with_none_version(self, native_agent_content):
+        """Test that import_agent returns a (agents, None) tuple when no version is supplied."""
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.parse_file",
+            return_value=[Agent(**native_agent_content)],
+        ):
+            result = AgentsController.import_agent(file="agent.yaml")
+
+        agents, version = result
+        assert version is None
+
+    def test_zip_import_propagates_version(self):
+        """Test that import_agent propagates the version when importing from a zip bundle."""
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController._import_from_zip",
+            return_value=[],
+        ):
+            _, version = AgentsController.import_agent(file="bundle.zip", version="2.0.0")
+        assert version == "2.0.0"
+
+
+class TestCreateVersionAfterImport:
+    """_create_version_after_import passes the explicit semver to the API."""
+
+    def _make_controller(self):
+        return AgentsController()
+
+    def test_called_on_update_with_version(self, native_agent_content, join_tool_spec):
+        """Test that publish_or_update_agents calls _create_version_after_import with the correct agent ID and version when updating."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False):
+            ac = AgentsController()
+            agent_id = "agent-uuid-123"
+            mock_native = MagicMock()
+            mock_native.get_draft_by_name.return_value = [
+                {
+                    "name": "test_native_agent",
+                    "id": agent_id,
+                    "description": "x",
+                    "llm": "test_llm",
+                }
+            ]
+            mock_native.list_versions.return_value = []
+
+            with patch.object(ac, "get_native_client", return_value=mock_native), \
+                patch.object(ac, "get_external_client", return_value=MagicMock(
+                    get_draft_by_name=MagicMock(return_value=[]))), \
+                patch.object(ac, "get_assistant_client", return_value=MagicMock(
+                    get_draft_by_name=MagicMock(return_value=[]))), \
+                patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a), \
+                patch.object(ac, "get_tool_client", return_value=MockToolClient(
+                    get_draft_by_id_response=join_tool_spec
+                )), \
+                patch.object(ac, "update_agent"), \
+                patch.object(ac, "_create_version_after_import") as mock_create_ver:
+
+                agent = Agent(**native_agent_content)
+                agent.tools = []
+                agent.collaborators = []
+                ac.publish_or_update_agents([agent], version="1.2.3")
+
+            mock_create_ver.assert_called_once_with(
+                agent_id=agent_id,
+                agent_name="test_native_agent",
+                import_version="1.2.3",
+                native_client=mock_native,
+            )
+
+    def test_semantic_version_passed_when_valid_semver(self):
+        """_create_version_after_import should set semantic_version for valid semver strings."""
+        ac = AgentsController()
+        mock_client = MagicMock()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client.create_version.return_value = VersionResponse(
+            semantic_version="2.0.0", version_label=3
+        )
+
+        ac._create_version_after_import(
+            agent_id="aid",
+            agent_name="my_agent",
+            import_version="2.0.0",
+            native_client=mock_client,
+        )
+
+        call_args = mock_client.create_version.call_args
+        request = call_args[0][1]  # second positional arg is the CreateVersionRequest
+        assert request.semantic_version == "2.0.0"
+
+    def test_semantic_version_none_for_non_semver_label(self):
+        """_create_version_after_import should leave semantic_version=None for non-semver labels."""
+        ac = AgentsController()
+        mock_client = MagicMock()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client.create_version.return_value = VersionResponse(
+            semantic_version="0.0.1", version_label=1
+        )
+
+        ac._create_version_after_import(
+            agent_id="aid",
+            agent_name="my_agent",
+            import_version="v1-feature",
+            native_client=mock_client,
+        )
+
+        call_args = mock_client.create_version.call_args
+        request = call_args[0][1]
+        assert request.semantic_version is None
+
+    def test_api_failure_emits_warning_not_exception(self, caplog):
+        """Test that _create_version_after_import logs a warning instead of raising when the API call fails."""
+        ac = AgentsController()
+        mock_client = MagicMock()
+        mock_client.create_version.side_effect = Exception("server error")
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._create_version_after_import(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="1.0.0",
+                native_client=mock_client,
+            )
+
+        assert "Could not create version snapshot" in caplog.text
+
+
+class TestWarnOnVersionRegression:
+    """_warn_on_version_regression emits a warning when importing an older version."""
+
+    def test_warns_when_import_version_lower(self, caplog):
+        """Test that _warn_on_version_regression logs a warning when the import version is lower than the latest existing version."""
+        ac = AgentsController()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client = MagicMock()
+        mock_client.list_versions.return_value = [
+            VersionResponse(semantic_version="2.0.0"),
+            VersionResponse(semantic_version="1.5.0"),
+        ]
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._warn_on_version_regression(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="1.0.0",
+                native_client=mock_client,
+            )
+
+        assert "lower than the latest existing version" in caplog.text
+        assert "'1.0.0'" in caplog.text
+        assert "'2.0.0'" in caplog.text
+
+    def test_no_warning_when_import_version_higher(self, caplog):
+        """Test that _warn_on_version_regression does not log a warning when the import version is higher than all existing versions."""
+        ac = AgentsController()
+        from ibm_watsonx_orchestrate_clients.agents.agent_client import VersionResponse
+        mock_client = MagicMock()
+        mock_client.list_versions.return_value = [
+            VersionResponse(semantic_version="1.0.0"),
+        ]
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._warn_on_version_regression(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="2.0.0",
+                native_client=mock_client,
+            )
+
+        assert "lower than the latest existing version" not in caplog.text
+
+    def test_no_warning_when_no_existing_versions(self, caplog):
+        """Test that _warn_on_version_regression does not log a warning when there are no existing versions to compare against."""
+        ac = AgentsController()
+        mock_client = MagicMock()
+        mock_client.list_versions.return_value = []
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            ac._warn_on_version_regression(
+                agent_id="aid",
+                agent_name="my_agent",
+                import_version="1.0.0",
+                native_client=mock_client,
+            )
+
+        assert "lower than the latest existing version" not in caplog.text
+
+
+class TestVersionIgnoredForNonNativeAgents:
+    """publish_or_update_agents warns and skips versioning for non-native agent kinds."""
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id",
+           return_value="conn-id")
+    def test_warns_for_external_agent(self, _mock_conn, external_agent_content, caplog):
+        """Test that publish_or_update_agents warns that --version is unsupported when applied to a non-native (external) agent."""
+        ac = AgentsController()
+        with patch.object(ac, "get_native_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "get_external_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "get_assistant_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "publish_agent"), \
+             patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a):
+
+            import logging
+            with caplog.at_level(logging.WARNING):
+                ac.publish_or_update_agents(
+                    [ExternalAgent(**external_agent_content)], version="1.0.0"
+                )
+
+        assert "--version is only supported for native agents" in caplog.text
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id",
+           return_value="conn-id")
+    def test_no_warning_for_native_agent(self, _mock_conn, native_agent_content, join_tool_spec, caplog):
+        """Test that publish_or_update_agents does not emit the --version unsupported warning for native agents."""
+        ac = AgentsController()
+        mock_native = MagicMock()
+        mock_native.get_draft_by_name.return_value = []
+        mock_native.list_versions.return_value = []
+
+        with patch.object(ac, "get_native_client", return_value=mock_native), \
+             patch.object(ac, "get_external_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "get_assistant_client", return_value=MagicMock(
+                get_draft_by_name=MagicMock(return_value=[]))), \
+             patch.object(ac, "publish_agent"), \
+             patch.object(ac, "get_tool_client", return_value=MockToolClient(
+                 get_draft_by_id_response=join_tool_spec
+             )), \
+             patch.object(ac, "_create_version_after_import"), \
+             patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a):
+
+            agent = Agent(**native_agent_content)
+            agent.tools = []
+            agent.collaborators = []
+
+            import logging
+            with caplog.at_level(logging.WARNING):
+                ac.publish_or_update_agents([agent], version="1.0.0")
+
+        assert "--version is only supported for native agents" not in caplog.text
+
+
+class TestExportAgentSemanticVersion:
+    """export_agent calls load_version_to_draft when --version is supplied."""
+
+    mock_agent_name = "versioned_agent"
+    mock_yaml_path = "out.yaml"
+
+    def _make_native_content(self):
+        return {
+            "spec_version": SpecVersion.V1,
+            "kind": AgentKind.NATIVE,
+            "style": AgentStyle.REACT,
+            "name": self.mock_agent_name,
+            "description": "desc",
+            "llm": "test_llm",
+            "collaborators": [],
+            "tools": [],
+            "hidden": False,
+        }
+
+    def test_load_version_to_draft_called_on_export(self, caplog):
+        """Test that export_agent calls load_version_to_draft with the correct agent ID and semantic version when --version is supplied."""
+        content = self._make_native_content()
+        ac = AgentsController()
+        agent_id = "agent-uuid-export"
+        mock_native = MagicMock()
+        mock_native.get_draft_by_name.return_value = [
+            {**content, "id": agent_id}
+        ]
+        mock_native.load_version_to_draft.return_value = {}
+        ac.native_client = mock_native
+        ac.external_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.assistant_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.tool_client = MagicMock(get_drafts_by_ids=MagicMock(return_value=[]))
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()), \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_agent_details",
+                   return_value={**content, "id": agent_id}):
+
+            ac.export_agent(
+                name=self.mock_agent_name,
+                kind=AgentKind.NATIVE,
+                output_path=self.mock_yaml_path,
+                agent_only_flag=True,
+                semantic_version="1.5.0",
+            )
+
+        mock_native.load_version_to_draft.assert_called_once_with(agent_id, "1.5.0")
+
+    def test_no_load_version_without_flag(self, caplog):
+        """Test that export_agent does not call load_version_to_draft when no semantic_version is supplied."""
+        content = self._make_native_content()
+        ac = AgentsController()
+        agent_id = "agent-uuid-export"
+        mock_native = MagicMock()
+        mock_native.get_draft_by_name.return_value = [
+            {**content, "id": agent_id}
+        ]
+        ac.native_client = mock_native
+        ac.external_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.assistant_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        ac.tool_client = MagicMock(get_drafts_by_ids=MagicMock(return_value=[]))
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()):
+
+            ac.export_agent(
+                name=self.mock_agent_name,
+                kind=AgentKind.NATIVE,
+                output_path=self.mock_yaml_path,
+                agent_only_flag=True,
+            )
+
+        mock_native.load_version_to_draft.assert_not_called()
 
 class TestCustomAgentsMetadataRoundTrip:
     BASE_SPEC = {
