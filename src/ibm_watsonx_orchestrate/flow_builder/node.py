@@ -1119,8 +1119,8 @@ class DocClassifierNode(Node):
         return cast(DocClassifierSpec, self.spec)
 
     @staticmethod
-    def generate_config(llm: str, input_classes: type[BaseModel], min_confidence: float) -> DocClassifierConfig:
-        return DocClassifierConfig(llm=llm, classes=input_classes.__dict__.values(), min_confidence=min_confidence)
+    def generate_config(llm: str, input_classes: type[BaseModel], min_confidence: float, page_range: PageRange | None = None) -> DocClassifierConfig:
+        return DocClassifierConfig(llm=llm, classes=input_classes.__dict__.values(), min_confidence=min_confidence, page_range=page_range)
     
 class TimerNode(Node):
     def __repr__(self):
