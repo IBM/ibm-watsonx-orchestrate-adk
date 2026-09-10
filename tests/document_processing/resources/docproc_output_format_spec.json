@@ -524,10 +524,8 @@
     "TextExtractionObjectResponse": {
       "type": "object",
       "title": "TextExtractionObjectResponse",
-      "description": "The text extraction operation response when output_format is set to \"object\".\n\nThis class represents the structured response from a document text extraction operation,\ncontaining both the extracted plain text and the complete document structure metadata\ninherited from AssemblyJsonOutput.\n\nAttributes:\n    text (str): The extracted plain text content from the document. This is the \n               concatenated text from all pages and structures in reading order.\n               Empty string if no text could be extracted.\n\nNote:\n    - This response type is used when DocProcSpec.output_format is set to \n      DocProcOutputFormat.object\n    - For file reference responses, use TextExtractionResponse instead\n    - The text field contains only plain text; structured data is in inherited fields",
-      "required": [
-        "text"
-      ],
+      "description": "The text extraction operation response when output_format is set to \"object\".\n\nContains the content types that were requested via output_content_types.\nEach requested type is returned as its own optional field: text, markdown, html.\n\nNote:\n    - This response type is used when DocProcSpec.output_format is set to\n      DocProcOutputFormat.object\n    - For file reference responses, use TextExtractionResponse instead",
+      "required": [],
       "properties": {
         "metadata": {
           "description": "Document-level metadata including page count, title, author, language, and processing configuration. None if metadata extraction was not requested.",
@@ -2749,9 +2747,40 @@
           ]
         },
         "text": {
-          "type": "string",
           "title": "Text",
-          "description": "The raw text extracted from the input document"
+          "description": "The plain text extracted from the input document. Present when \"text\" is included in output_content_types.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "markdown": {
+          "title": "Markdown",
+          "description": "The markdown-formatted text extracted from the input document. Present when \"markdown\" is included in output_content_types.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "html": {
+          "title": "HTML",
+          "description": "The HTML-formatted text extracted from the input document. Present when \"html\" is included in output_content_types.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }
