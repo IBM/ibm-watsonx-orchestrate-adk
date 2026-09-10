@@ -38,7 +38,7 @@ from ..types import (
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
-    UserFormButton, LanguageCode
+    UserFormButton, LanguageCode, OutputContentType
 )
 from ..masking_utils import MaskingPolicy, InputPolicy, ChannelOverride
 from .constants import CURRENT_USER, START, END, ANY_USER
@@ -1249,8 +1249,10 @@ class Flow(Node):
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
             page_range: PageRange | None = None,
+            detect_signatures: bool | None = None,
             language: LanguageCode | None = None,
             output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref,
+            output_content_types: list[OutputContentType] | None = None,
             error_handler_config: NodeErrorHandlerConfig | None = None) -> DocProcNode:
 
         if name is None :
@@ -1290,9 +1292,11 @@ class Flow(Node):
             kvp_force_schema_name=kvp_force_schema_name,
             kvp_enable_text_hints=kvp_enable_text_hints,
             page_range=page_range,
+            detect_signatures=detect_signatures,
             language=language,
             output_format=output_format,
-            error_handler_config=error_handler_config
+            error_handler_config=error_handler_config,
+            output_content_types=output_content_types
         )
 
         node = DocProcNode(spec=task_spec)

@@ -460,6 +460,163 @@ class TestChannelFromPython:
         assert channels[0].signing_secret == "test_signing_secret"
 
 
+class TestSlackChannel:
+    """Tests for SlackChannel validation, including SSO fields."""
+
+    @pytest.fixture()
+    def valid_slack_channel(self):
+        return {
+            "channel": "byo_slack",
+            "name": "test_slack_channel",
+            "description": "Test Slack channel",
+            "client_id": "test_client_id",
+            "client_secret": "test_client_secret",
+            "signing_secret": "test_signing_secret",
+            "teams": [{"id": "T12345", "bot_access_token": "xoxb-test-token"}],
+        }
+
+    @pytest.fixture()
+    def valid_slack_channel_with_sso(self):
+        return {
+            "channel": "byo_slack",
+            "name": "test_slack_sso_channel",
+            "client_id": "test_client_id",
+            "client_secret": "test_client_secret",
+            "signing_secret": "test_signing_secret",
+            "teams": [{"id": "T12345", "bot_access_token": "xoxb-test-token"}],
+            "sso_enabled": True,
+            "sso_url": "https://sso.example.com/saml",
+            "sso_user_prompt_text": "Sign in with your company credentials",
+            "sso_user_prompt_label": "Company SSO",
+            "sso_cert": "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkq...\n-----END CERTIFICATE-----",
+        }
+
+    def test_valid_channel_creation(self, valid_slack_channel):
+        """Test creating a valid Slack channel without SSO."""
+        channel = SlackChannel(**valid_slack_channel)
+
+        assert channel.channel == "byo_slack"
+        assert channel.name == "test_slack_channel"
+        assert channel.client_id == "test_client_id"
+        assert channel.client_secret == "test_client_secret"
+        assert channel.signing_secret == "test_signing_secret"
+        assert len(channel.teams) == 1
+
+    def test_sso_fields_default_to_none(self, valid_slack_channel):
+        """Test that SSO fields default to None when not provided."""
+        channel = SlackChannel(**valid_slack_channel)
+
+        assert channel.sso_enabled is None
+        assert channel.sso_url is None
+        assert channel.sso_user_prompt_text is None
+        assert channel.sso_user_prompt_label is None
+        assert channel.sso_cert is None
+
+    def test_valid_channel_with_sso(self, valid_slack_channel_with_sso):
+        """Test creating a valid Slack channel with SSO fields."""
+        channel = SlackChannel(**valid_slack_channel_with_sso)
+
+        assert channel.sso_enabled is True
+        assert channel.sso_url == "https://sso.example.com/saml"
+        assert channel.sso_user_prompt_text == "Sign in with your company credentials"
+        assert channel.sso_user_prompt_label == "Company SSO"
+        assert channel.sso_cert == "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkq...\n-----END CERTIFICATE-----"
+
+    def test_sso_enabled_false(self, valid_slack_channel):
+        """Test that sso_enabled can be set to False."""
+        channel = SlackChannel(**valid_slack_channel, sso_enabled=False)
+
+        assert channel.sso_enabled is False
+
+    def test_missing_client_id(self):
+        """Test that missing client_id raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            SlackChannel(
+                channel="byo_slack",
+                name="test_channel",
+                client_secret="test_secret",
+                signing_secret="test_signing",
+                teams=[{"id": "T12345", "bot_access_token": "xoxb-test"}],
+            )
+
+        assert "client_id" in str(exc_info.value)
+
+    def test_missing_client_secret(self):
+        """Test that missing client_secret raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            SlackChannel(
+                channel="byo_slack",
+                name="test_channel",
+                client_id="test_client_id",
+                signing_secret="test_signing",
+                teams=[{"id": "T12345", "bot_access_token": "xoxb-test"}],
+            )
+
+        assert "client_secret" in str(exc_info.value)
+
+    def test_missing_signing_secret(self):
+        """Test that missing signing_secret raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            SlackChannel(
+                channel="byo_slack",
+                name="test_channel",
+                client_id="test_client_id",
+                client_secret="test_secret",
+                teams=[{"id": "T12345", "bot_access_token": "xoxb-test"}],
+            )
+
+        assert "signing_secret" in str(exc_info.value)
+
+    def test_missing_teams(self):
+        """Test that missing teams raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            SlackChannel(
+                channel="byo_slack",
+                name="test_channel",
+                client_id="test_client_id",
+                client_secret="test_secret",
+                signing_secret="test_signing",
+            )
+
+        assert "team" in str(exc_info.value)
+
+    def test_dumps_spec_excludes_none_sso_fields(self, valid_slack_channel):
+        """Test that None SSO fields are excluded from serialized output."""
+        channel = SlackChannel(**valid_slack_channel)
+        spec = channel.dumps_spec()
+
+        assert "sso_enabled" not in spec
+        assert "sso_url" not in spec
+        assert "sso_user_prompt_text" not in spec
+        assert "sso_user_prompt_label" not in spec
+        assert "sso_cert" not in spec
+
+    def test_dumps_spec_includes_sso_fields_when_set(self, valid_slack_channel_with_sso):
+        """Test that SSO fields appear in serialized output when set."""
+        channel = SlackChannel(**valid_slack_channel_with_sso)
+        spec = channel.dumps_spec()
+
+        assert "sso_enabled" in spec
+        assert "sso_url" in spec
+        assert "sso_user_prompt_text" in spec
+        assert "sso_user_prompt_label" in spec
+        assert "sso_cert" in spec
+
+    def test_extra_fields_forbidden(self, valid_slack_channel):
+        """Test that extra fields are rejected."""
+        with pytest.raises(ValidationError):
+            SlackChannel(**valid_slack_channel, unknown_field="value")
+
+    def test_channel_type_locked(self, valid_slack_channel):
+        """Test that channel type cannot be changed."""
+        channel = SlackChannel(**valid_slack_channel)
+
+        with pytest.raises(ValidationError):
+            channel.channel = "webchat"
+
+
+
+
 class TestGenesysBotConnectorChannel:
     """Tests for GenesysBotConnectorChannel validation."""
 
