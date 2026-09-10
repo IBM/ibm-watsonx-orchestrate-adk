@@ -261,7 +261,7 @@ services:
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
       AGENT_OPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENTS_OPS_RUNTIME_ENDPOINT: https://frontend-server:443
-      DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
+      DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:8080
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       EVALUATION_SERVICE_URL: https://wxo-doc-processing-evaluation:8080
@@ -1479,6 +1479,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-service
+      ISTIO_ENABLED: "true"
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
       SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
@@ -1498,7 +1499,7 @@ services:
     ports:
       - "18081:8080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      test: ["CMD-SHELL", "curl -fk http://localhost:8080/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -1633,7 +1634,7 @@ services:
       CIPHER_AES_REALM_KEY: "dGVzdHRlc3R0ZXN0dGVzdA=="
       SIDECAR_METERED_ENABLED: "false"
       DPI_DEBUG: "false"
-      DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
+      DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:8080
       DISABLE_TLS: true
       STANDALONE_DPI: "true"
       REDIS_HOST: wxo-server-redis
