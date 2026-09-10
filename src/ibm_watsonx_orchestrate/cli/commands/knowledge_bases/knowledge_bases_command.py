@@ -102,7 +102,7 @@ if KNOWLEDGE_CONNECTORS_ENABLED:
         controller.sync_knowledge_base(id=id, name=name)
 
 
-@knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml')
+@knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml. Does not export the documents contained in a knowledge base.')
 def knowledge_base_export(
     output_file: Annotated[
         str,
