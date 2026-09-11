@@ -1,6 +1,7 @@
 import typer
 from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
 
 knowledge_bases_app = typer.Typer(no_args_is_help=True)
 
@@ -24,11 +25,15 @@ def knowledge_base_import(
             help="Enable safe mode: prompt for confirmation before updating existing knowledge bases"
         )
     ] = False,
+    # NOTE: KNOWLEDGE_CONNECTORS_ENABLED is evaluated at import time; hidden is
+    # frozen when the CLI process starts and cannot be changed by patching the
+    # flag after import.
     sync: Annotated[
         bool,
         typer.Option(
             "--sync",
-            help="For connector-backed (content_source) knowledge bases: trigger an on-demand sync and wait for completion. Applied automatically on first import; required explicitly on updates."
+            help="For connector-backed (content_source) knowledge bases: trigger an on-demand sync and wait for completion. Applied automatically on first import; required explicitly on updates.",
+            hidden=not KNOWLEDGE_CONNECTORS_ENABLED,
         )
     ] = False
 ):
@@ -79,19 +84,23 @@ def knowledge_base_status(
     controller.knowledge_base_status(id=id, name=name, verbose=verbose)
 
 
-@knowledge_bases_app.command(name="sync", help="Trigger an on-demand sync for a connector-backed (content_source) knowledge base and wait for completion")
-def knowledge_base_sync(
-    name: Annotated[
-        str,
-        typer.Option("--name", "-n", help="Name of the knowledge base you wish to sync"),
-    ] = None,
-    id: Annotated[
-        str,
-        typer.Option("--id", "-i", help="ID of the knowledge base you wish to sync"),
-    ] = None,
-):
-    controller = KnowledgeBaseController()
-    controller.sync_knowledge_base(id=id, name=name)
+# NOTE: KNOWLEDGE_CONNECTORS_ENABLED is evaluated at import time.
+# The sync command is registered (or not) once when the CLI starts.
+if KNOWLEDGE_CONNECTORS_ENABLED:
+    @knowledge_bases_app.command(name="sync", help="Trigger an on-demand sync for a connector-backed (content_source) knowledge base and wait for completion")
+    def knowledge_base_sync(
+        name: Annotated[
+            str,
+            typer.Option("--name", "-n", help="Name of the knowledge base you wish to sync"),
+        ] = None,
+        id: Annotated[
+            str,
+            typer.Option("--id", "-i", help="ID of the knowledge base you wish to sync"),
+        ] = None,
+    ):
+        controller = KnowledgeBaseController()
+        controller.sync_knowledge_base(id=id, name=name)
+
 
 @knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml')
 def knowledge_base_export(
