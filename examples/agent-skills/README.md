@@ -31,18 +31,6 @@ skills/hello-skill/
     └── resource.md       # Reference data auto-uploaded with the skill
 ```
 
-## Prerequisites
-
-1. Install the ADK:
-   ```bash
-   pip install --upgrade ibm-watsonx-orchestrate
-   ```
-
-2. Create a `.env` file in this directory with your watsonx Orchestrate API key:
-   ```
-   WO_API_KEY=<your-api-key>
-   ```
-
 ## Steps to import
 
 1. Start the Developer Edition server:
