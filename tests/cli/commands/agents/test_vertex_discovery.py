@@ -86,12 +86,11 @@ class TestDiscoverAndRegisterVertexAgents:
         with patch(
             "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_cpd_env",
             return_value=False,
-        ):
+        ), patch("typer.confirm", return_value=True):
             controller = AgentsController()
             controller.discover_and_register_vertex_agents(
                 app_id="vertex-conn",
                 agents=None,
-                yes=True,
             )
 
         mock_list_agents.assert_called_once()
@@ -110,7 +109,7 @@ class TestDiscoverAndRegisterVertexAgents:
             controller = AgentsController()
             with pytest.raises(SystemExit):
                 controller.discover_and_register_vertex_agents(
-                    app_id="vertex-conn", agents=None, yes=True
+                    app_id="vertex-conn", agents=None
                 )
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False)
@@ -123,7 +122,7 @@ class TestDiscoverAndRegisterVertexAgents:
             controller = AgentsController()
             with pytest.raises(SystemExit):
                 controller.discover_and_register_vertex_agents(
-                    app_id="vertex-conn", agents=None, yes=True
+                    app_id="vertex-conn", agents=None
                 )
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False)
@@ -136,7 +135,7 @@ class TestDiscoverAndRegisterVertexAgents:
             controller = AgentsController()
             with pytest.raises(SystemExit):
                 controller.discover_and_register_vertex_agents(
-                    app_id=None, agents=None, yes=True
+                    app_id=None, agents=None
                 )
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client")
@@ -153,7 +152,7 @@ class TestDiscoverAndRegisterVertexAgents:
             controller = AgentsController()
             with pytest.raises(SystemExit):
                 controller.discover_and_register_vertex_agents(
-                    app_id="vertex-conn", agents=None, yes=True
+                    app_id="vertex-conn", agents=None
                 )
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client")
@@ -170,17 +169,17 @@ class TestDiscoverAndRegisterVertexAgents:
             controller = AgentsController()
             with pytest.raises(SystemExit):
                 controller.discover_and_register_vertex_agents(
-                    app_id="vertex-conn", agents=None, yes=True
+                    app_id="vertex-conn", agents=None
                 )
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client")
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents")
     @patch("ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery.VertexDiscoveryService.list_agents")
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False)
-    def test_discover_yes_skips_confirmation(
+    def test_discover_confirm_called(
         self, mock_local_dev, mock_list_agents, mock_publish, mock_get_conn
     ):
-        """typer.confirm is never called when yes=True."""
+        """typer.confirm is called and gates the import."""
         mock_get_conn.return_value = _mock_connections_client()
         mock_list_agents.return_value = [
             {
@@ -193,14 +192,14 @@ class TestDiscoverAndRegisterVertexAgents:
         with patch(
             "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_cpd_env",
             return_value=False,
-        ), patch("typer.confirm") as mock_confirm:
+        ), patch("typer.confirm", return_value=False) as mock_confirm:
             controller = AgentsController()
             controller.discover_and_register_vertex_agents(
-                app_id="vertex-conn", agents=None, yes=True
+                app_id="vertex-conn", agents=None
             )
 
-        mock_confirm.assert_not_called()
-        mock_publish.assert_called_once()
+        mock_confirm.assert_called_once()
+        mock_publish.assert_not_called()
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client")
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents")
@@ -219,7 +218,7 @@ class TestDiscoverAndRegisterVertexAgents:
         ):
             controller = AgentsController()
             controller.discover_and_register_vertex_agents(
-                app_id="vertex-conn", agents=None, yes=True
+                app_id="vertex-conn", agents=None
             )
 
         mock_publish.assert_not_called()
@@ -240,7 +239,7 @@ class TestDiscoverAndRegisterVertexAgents:
         ):
             controller = AgentsController()
             controller.discover_and_register_vertex_agents(
-                app_id="vertex-conn", agents=None, yes=True
+                app_id="vertex-conn", agents=None
             )
 
         call_kwargs = mock_list_agents.call_args
@@ -268,14 +267,13 @@ class TestAgentDiscoverCommandRouting:
         from ibm_watsonx_orchestrate.cli.commands.agents.agents_command import agents_app
 
         runner = CliRunner()
-        result = runner.invoke(
+        runner.invoke(
             agents_app,
-            ["discover", "--provider", "vertex_agent", "--app-id", "vertex-conn", "--yes"],
+            ["discover", "--provider", "vertex_agent", "--app-id", "vertex-conn"],
         )
         mock_vertex.assert_called_once_with(
             app_id="vertex-conn",
             agents=None,
-            yes=True,
         )
 
     @patch.object(AgentsController, "discover_and_import_agent")
@@ -286,7 +284,7 @@ class TestAgentDiscoverCommandRouting:
         from ibm_watsonx_orchestrate.cli.commands.agents.agents_command import agents_app
 
         runner = CliRunner()
-        result = runner.invoke(
+        runner.invoke(
             agents_app,
             ["discover", "--url", "https://example.com"],
         )
@@ -299,8 +297,8 @@ class TestAgentDiscoverCommandRouting:
 
     @patch.object(AgentsController, "discover_and_register_vertex_agents")
     @patch.object(AgentsController, "__init__", return_value=None)
-    def test_discover_agent_flag_passed_through(self, mock_init, mock_vertex):
-        """--agent foo --agent bar passes agents=['foo','bar'] to controller."""
+    def test_discover_name_flag_passed_through(self, mock_init, mock_vertex):
+        """--name foo --name bar passes agents=['foo','bar'] to controller."""
         from typer.testing import CliRunner
         from ibm_watsonx_orchestrate.cli.commands.agents.agents_command import agents_app
 
@@ -311,9 +309,8 @@ class TestAgentDiscoverCommandRouting:
                 "discover",
                 "--provider", "vertex_agent",
                 "--app-id", "vertex-conn",
-                "--agent", "foo",
-                "--agent", "bar",
-                "--yes",
+                "--name", "foo",
+                "--name", "bar",
             ],
         )
         call_kwargs = mock_vertex.call_args[1]

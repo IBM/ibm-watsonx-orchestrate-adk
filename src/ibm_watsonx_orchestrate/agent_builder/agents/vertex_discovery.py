@@ -72,7 +72,7 @@ class VertexDiscoveryService:
             timeout=self.timeout,
         )
         response.raise_for_status()
-        return response.json()["access_token"]
+        return str(response.json()["access_token"])
 
     # ------------------------------------------------------------------
     # Agent listing
@@ -213,12 +213,12 @@ class VertexDiscoveryService:
     # Context manager
     # ------------------------------------------------------------------
 
-    def close(self):
+    def close(self) -> None:
         """Close the underlying HTTP session."""
         self.session.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "VertexDiscoveryService":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type, exc_val: BaseException, exc_tb: object) -> None:
         self.close()

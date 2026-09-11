@@ -499,10 +499,6 @@ def agent_discover(
             help="Well-known endpoint path for the agent card (A2A only)"
         ),
     ] = ".well-known/agent-card.json",
-    name: Annotated[
-        Optional[str],
-        typer.Option("--name", "-n", help="Override agent name (defaults to name from agent card, A2A only)"),
-    ] = None,
     app_id: Annotated[
         Optional[str],
         typer.Option("--app-id", "-a", help="Connection app_id for credentials (required for --provider vertex_agent)"),
@@ -511,14 +507,10 @@ def agent_discover(
         Optional[str],
         typer.Option("--provider", "-p", help="External provider to discover from (e.g. vertex_agent)"),
     ] = None,
-    agent: Annotated[
+    name: Annotated[
         Optional[List[str]],
-        typer.Option("--agent", help="Agent display name(s) to import (repeatable). Omit to import all."),
+        typer.Option("--name", "-n", help="Agent name(s) to filter/import (repeatable). For A2A: overrides the agent name (single value). For Vertex AI: filters by displayName, case-insensitive."),
     ] = None,
-    yes: Annotated[
-        bool,
-        typer.Option("--yes", "-y", help="Skip confirmation prompt and import all discovered agents."),
-    ] = False,
 ):
     """
     Discover and import agents into your WXO workspace.
@@ -541,29 +533,27 @@ def agent_discover(
         # Discover all Vertex AI agents
         orchestrate agents discover --provider vertex_agent --app-id my-vertex-conn
 
-        # Discover specific Vertex AI agents by display name
+        # Discover specific Vertex AI agents by name
         orchestrate agents discover --provider vertex_agent --app-id my-vertex-conn \\
-            --agent "Customer Support" --agent "Sales Assistant"
-
-        # Discover Vertex AI agents without confirmation prompt
-        orchestrate agents discover --provider vertex_agent --app-id my-vertex-conn --yes
+            --name "Customer Support" --name "Sales Assistant"
     """
     agents_controller = AgentsController()
 
     if provider == AgentProvider.VERTEX_AGENT.value:
         agents_controller.discover_and_register_vertex_agents(
             app_id=app_id,
-            agents=agent,
-            yes=yes,
+            agents=name,
         )
     else:
         # A2A path — url is required here
         if url is None:
             typer.echo("Error: --url / -u is required for A2A discovery (or use --provider for other providers).")
             raise SystemExit(1)
+        # For A2A, --name is a single override value; take first element if provided
+        a2a_name = name[0] if name else None
         agents_controller.discover_and_import_agent(
             base_url=url,
             endpoint=endpoint,
-            agent_name=name,
+            agent_name=a2a_name,
             app_id=app_id,
         )

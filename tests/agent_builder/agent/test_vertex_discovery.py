@@ -211,6 +211,20 @@ class TestListAgents:
         _, kwargs = mock_get.call_args_list[1]
         assert kwargs["params"]["pageToken"] == "token_page2"
 
+    @patch("ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery.VertexDiscoveryService._list_agents")
+    @patch("ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery.VertexDiscoveryService._get_token")
+    def test_list_agents_orchestrates_token_and_listing(self, mock_get_token, mock_list_agents):
+        """list_agents() calls _get_token then passes the token to _list_agents."""
+        mock_get_token.return_value = "tok_from_sa"  # pragma: allowlist secret
+        mock_list_agents.return_value = [FAKE_AGENT_1]
+
+        with VertexDiscoveryService() as svc:
+            result = svc.list_agents("my-project", "us-central1", FAKE_SERVICE_ACCOUNT)
+
+        mock_get_token.assert_called_once_with(FAKE_SERVICE_ACCOUNT)
+        mock_list_agents.assert_called_once_with("my-project", "us-central1", "tok_from_sa")  # pragma: allowlist secret
+        assert result == [FAKE_AGENT_1]
+
 
 # ---------------------------------------------------------------------------
 # C. Field conversion

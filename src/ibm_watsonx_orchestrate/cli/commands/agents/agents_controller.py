@@ -3164,15 +3164,13 @@ class AgentsController:
         self,
         app_id: Optional[str],
         agents: Optional[List[str]],
-        yes: bool = False,
     ) -> None:
         """Discover Google Vertex AI agents and register them to WXO.
 
         Args:
             app_id: Connection app_id whose key_value credentials contain
-                    ``service_account_json``, ``project_id``, and ``location``.
-            agents: Display name filter list (case-insensitive).  ``None`` = all.
-            yes: Skip confirmation prompt when ``True``.
+                    `service_account_json`, `project_id`, and `location`.
+            agents: Display name filter list (case-insensitive). `None` = all.
         """
         from ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery import VertexDiscoveryService
         import json as _json
@@ -3269,14 +3267,13 @@ class AgentsController:
             )
         console.print(table)
 
-        # Confirm unless --yes
-        if not yes:
-            confirmed = typer.confirm(
-                f"Import {len(wxo_specs)} agent(s) into the active workspace?"
-            )
-            if not confirmed:
-                logger.info("Import cancelled.")
-                return
+        # Confirm before importing
+        confirmed = typer.confirm(
+            f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+        )
+        if not confirmed:
+            logger.info("Import cancelled.")
+            return
 
         # Validate and register
         try:
