@@ -534,6 +534,7 @@ class EnvService:
             
             if aws_creds:
                 PREFERRED_MODELS.append("bedrock/openai.gpt-oss-120b-1:0")
+                PREFERRED_MODELS.append("bedrock-mantle/google.gemma-4-31b")
                 # Only set as default if no other keys present
                 if not groq_key and not llm_value:
                     DEFAULT_LLM_MODEL = "bedrock/openai.gpt-oss-120b-1:0"
