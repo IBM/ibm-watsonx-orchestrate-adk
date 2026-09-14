@@ -46,9 +46,15 @@ def _sent(agent):
 
 class TestPlacement:
     def test_it_is_a_root_level_field(self):
+        """
+        tool_shortlisting is agent configuration, not a lifecycle hook.
+        """
         assert "tool_shortlisting" in AgentSpec.model_fields
 
     def test_it_is_not_nested_under_plugins(self):
+        """
+        Confirms the placement above by ruling out the other place it could live.
+        """
         assert "tool_shortlisting" not in Plugins.model_fields
 
     def test_it_does_not_reach_the_catalog_schema(self):
@@ -60,6 +66,9 @@ class TestPlacement:
 
 class TestWhatGetsSent:
     def test_a_full_block_is_sent_verbatim(self):
+        """
+        The ADK's only job here is to carry the block through unchanged.
+        """
         agent = AgentSpec(**_spec(tool_shortlisting={"enabled": True, "max_tools": 12}))
         assert _sent(agent)["tool_shortlisting"] == {"enabled": True, "max_tools": 12}
 
@@ -71,10 +80,16 @@ class TestWhatGetsSent:
         assert _sent(agent)["tool_shortlisting"] == {"max_tools": 7}
 
     def test_enabled_alone_does_not_fabricate_max_tools(self):
+        """
+        Mirror of the max_tools-alone case above, for the other field.
+        """
         agent = AgentSpec(**_spec(tool_shortlisting={"enabled": True}))
         assert _sent(agent)["tool_shortlisting"] == {"enabled": True}
 
     def test_an_explicit_false_survives_the_none_stripping(self):
+        """
+        `exclude_none=True` on the outer dump must not also drop a real `False`.
+        """
         agent = AgentSpec(**_spec(tool_shortlisting={"enabled": False}))
         assert _sent(agent)["tool_shortlisting"] == {"enabled": False}
 
@@ -85,6 +100,9 @@ class TestWhatGetsSent:
         assert "tool_shortlisting" not in _sent(AgentSpec(**_spec()))
 
     def test_it_survives_a_yaml_round_trip(self, tmp_path):
+        """
+        Specs are authored as YAML on disk, so the block must parse back identically.
+        """
         spec_file = tmp_path / "agent.yaml"
         AgentSpec(**_spec(tool_shortlisting={"enabled": True, "max_tools": 30})).dump_spec(
             str(spec_file)
@@ -101,6 +119,9 @@ class TestCustomerCare:
     """
 
     def test_the_block_is_accepted(self):
+        """
+        The block is not rejected for a style outside the python runtime's set.
+        """
         agent = AgentSpec(
             **_spec(
                 style=AgentStyle.CUSTOMER_CARE,
@@ -110,6 +131,9 @@ class TestCustomerCare:
         assert agent.tool_shortlisting.max_tools == 20
 
     def test_it_warns_that_only_the_v2_chat_api_applies_it(self, caplog):
+        """
+        The block is accepted but silently ignored outside the v2 chat API, so warn.
+        """
         with caplog.at_level(logging.WARNING):
             AgentSpec(
                 **_spec(
@@ -121,6 +145,9 @@ class TestCustomerCare:
 
     @pytest.mark.parametrize("style", [AgentStyle.REACT_CORE, AgentStyle.DEFAULT])
     def test_no_warning_for_styles_the_python_runtime_does_not_serve(self, caplog, style):
+        """
+        The warning is specific to CUSTOMER_CARE; other styles must stay quiet.
+        """
         with caplog.at_level(logging.WARNING):
             AgentSpec(**_spec(style=style, tool_shortlisting={"enabled": True}))
         assert not any("tool_shortlisting" in r.message for r in caplog.records)
@@ -140,6 +167,9 @@ class TestCustomerCare:
 
 class TestValidation:
     def test_max_tools_must_be_a_number(self):
+        """
+        Caught here rather than as a 422 from the server.
+        """
         with pytest.raises(Exception):
             AgentSpec(**_spec(tool_shortlisting={"max_tools": "twenty"}))
 
@@ -152,5 +182,8 @@ class TestValidation:
             AgentSpec(**_spec(tool_shortlisting={"max_tools": bad}))
 
     def test_unknown_keys_do_not_reach_the_server(self):
+        """
+        Pydantic drops unrecognized keys rather than passing them through verbatim.
+        """
         agent = AgentSpec(**_spec(tool_shortlisting={"enabled": True, "maxtools": 9}))
         assert "maxtools" not in _sent(agent)["tool_shortlisting"]
