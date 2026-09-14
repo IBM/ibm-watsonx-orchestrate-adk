@@ -242,7 +242,7 @@ class TestConvertToWxoExternalAgentDict:
             FAKE_AGENT_1, "us-central1"
         )
         assert result["api_url"] == (
-            "https://us-central1-aiplatform.googleapis.com/v1beta1/"
+            "https://agentregistry.googleapis.com/v1/"
             "projects/my-gcp-project/locations/us-central1/agents/agent-abc"
         )
 
@@ -255,11 +255,11 @@ class TestConvertToWxoExternalAgentDict:
         assert result["name"] == "my_cool_agent_v2"
 
     def test_convert_no_description_uses_fallback(self):
-        """Empty description falls back to 'Google Vertex AI agent: <displayName>'."""
+        """Empty description falls back to 'Google Gemini Enterprise agent: <displayName>'."""
         result = VertexDiscoveryService.convert_to_wxo_external_agent_dict(
             FAKE_AGENT_2, "us-central1"
         )
-        assert result["description"] == "Google Vertex AI agent: Sales Assistant"
+        assert result["description"] == "Google Gemini Enterprise agent: Sales Assistant"
 
     def test_convert_validates_as_external_agent(self):
         """Converted dict passes ExternalAgent.model_validate() without raising."""

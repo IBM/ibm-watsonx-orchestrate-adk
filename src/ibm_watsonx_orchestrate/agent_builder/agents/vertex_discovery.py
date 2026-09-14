@@ -10,13 +10,17 @@ logger = logging.getLogger(__name__)
 _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 _GOOGLE_TOKEN_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 _GOOGLE_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
-_VERTEX_API_BASE = "https://{location}-aiplatform.googleapis.com"
-_VERTEX_AGENTS_PATH = "/v1beta1/projects/{project_id}/locations/{location}/agents"
+# Agent Registry API — google.cloud.agentregistry.v1.AgentRegistry
+# This is the correct API for Gemini Enterprise Agent Platform discovery.
+# agentregistry.googleapis.com (not aiplatform.googleapis.com) is the service
+# that owns the AgentRegistry.ListAgents method used here.
+_AGENT_REGISTRY_BASE = "https://agentregistry.googleapis.com"
+_AGENT_REGISTRY_AGENTS_PATH = "/v1/projects/{project_id}/locations/{location}/agents"
 _NAME_MAX_LEN = 64
 
 
 class VertexDiscoveryService:
-    """Discover Google Vertex AI Agent Engine agents and convert them to WXO external agent specs."""
+    """Discover Gemini Enterprise Agent Platform agents via the Agent Registry API and register them to WXO."""
 
     def __init__(self, timeout: int = 30):
         self.timeout = timeout
@@ -79,7 +83,7 @@ class VertexDiscoveryService:
     # ------------------------------------------------------------------
 
     def _list_agents(self, project_id: str, location: str, token: str) -> list[dict]:
-        """Call the Vertex AI Agent Engine list API, following pagination.
+        """Call the Gemini Enterprise Agent Registry list API, following pagination.
 
         Args:
             project_id: GCP project ID.
@@ -92,9 +96,8 @@ class VertexDiscoveryService:
         Raises:
             requests.HTTPError: On any non-2xx response (403, 404, etc.).
         """
-        base_url = _VERTEX_API_BASE.format(location=location)
-        path = _VERTEX_AGENTS_PATH.format(project_id=project_id, location=location)
-        url = base_url + path
+        path = _AGENT_REGISTRY_AGENTS_PATH.format(project_id=project_id, location=location)
+        url = _AGENT_REGISTRY_BASE + path
 
         headers = {"Authorization": f"Bearer {token}"}
         agents: list[dict] = []
@@ -137,10 +140,10 @@ class VertexDiscoveryService:
 
     @staticmethod
     def convert_to_wxo_external_agent_dict(agent: dict, location: str) -> dict:
-        """Convert a raw Vertex AI agent dict to a WXO ExternalAgentSpec-compatible dict.
+        """Convert a raw Agent Registry agent dict to a WXO ExternalAgentSpec-compatible dict.
 
         Args:
-            agent: Raw agent dict from the Vertex AI list API.
+            agent: Raw agent dict from the Agent Registry list API.
             location: GCP region — used to construct the resource URL.
 
         Returns:
@@ -155,12 +158,12 @@ class VertexDiscoveryService:
 
         description = (
             agent.get("description")
-            or f"Google Vertex AI agent: {display_name}"
+            or f"Google Gemini Enterprise agent: {display_name}"
         )
 
         resource_name = agent.get("name", "")
         api_url = (
-            f"{_VERTEX_API_BASE.format(location=location)}/v1beta1/{resource_name}"
+            f"{_AGENT_REGISTRY_BASE}/v1/{resource_name}"
         )
 
         return {
