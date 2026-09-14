@@ -7,14 +7,12 @@ class TestAgentImport:
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.import_agent") as import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents") as publish_mock, \
              patch("os.path.exists", return_value=True):
-            import_mock.return_value = ([], None)
             agents_command.agent_import(file="test.yaml")
             import_mock.assert_called_once_with(
                 file="test.yaml",
                 app_id=None,
                 custom_agent_file_path=None,
-                custom_agent_config_file=None,
-                version=None
+                custom_agent_config_file=None
             )
             publish_mock.assert_called_once()
     
@@ -202,8 +200,7 @@ class TestAgentExport:
                 name="test_native_agent",
                 kind=AgentKind.NATIVE,
                 output_path="test_output.zip",
-                agent_only_flag=False,
-                semantic_version=None
+                agent_only_flag=False
             )
 
 class TestAgentDeploy:
