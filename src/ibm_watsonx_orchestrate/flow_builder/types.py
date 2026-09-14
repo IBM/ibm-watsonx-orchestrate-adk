@@ -385,6 +385,7 @@ class DocClassifierConfig(BaseModel):
     llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",title="LLM")
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
     classes: list[DocClassifierClass] = Field(default=[], max_length=30, description="Classes which are needed to classify provided by user", title="Classes")
+    page_range: PageRange | None = Field(description="Optional page range for document classification. When specified, only pages within the specified range are used for classification.", default=None)
 
 class DocProcCommonNodeSpec(NodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
@@ -494,6 +495,17 @@ class PlainTextReadingOrder(StrEnum):
     block_structure = auto()
     simple_line = auto()
 
+class OutputContentType(StrEnum):
+    '''
+    Content types that can be requested from the text extraction API.
+    - text: Plain text extraction (default)
+    - markdown: Markdown-formatted extraction
+    - html: HTML-formatted extraction
+    '''
+    text = auto()
+    markdown = auto()
+    html = auto()
+
 class DocProcOutputFormat(StrEnum):
     '''
     Output format for document processing results.
@@ -562,6 +574,10 @@ class DocProcSpec(DocProcCommonNodeSpec):
             When specified, only text from the specified page range will be extracted.
             Example: PageRange(start=1, end=5) extracts pages 1 through 5
             Default: None (extracts all pages)
+
+        detect_signatures (bool | None): Optional flag to enable signature detection.
+            When True, the pipeline returns a signatures array in the output.
+            Default: None (signature detection disabled)
 
         output_format (DocProcOutputFormat): Specifies the response format:
             - docref: Returns a reference URL to a file containing results (default)
@@ -645,6 +661,27 @@ class DocProcSpec(DocProcCommonNodeSpec):
                    "the specified page range will be extracted. Example: PageRange(start=1, end=5) "
                    "extracts pages 1 through 5. None extracts all pages."
     )
+    detect_signatures: bool | None = Field(
+        title="Detect Signatures",
+        default=None,
+        description="Optional flag to enable signature detection for text extraction. "
+                   "When True, the pipeline returns a signatures array in the output. "
+                   "None omits the field from the serialised spec entirely; "
+                   "False explicitly disables signature detection downstream."
+    )
+
+    output_content_types: List[OutputContentType] | None = Field(
+        title="Output Content Types",
+        default=None,
+        description="Content types to include in the text extraction response. "
+                   "Accepted values: 'text', 'markdown', 'html'. "
+                   "When not set (None), defaults to ['text'] for backward compatibility. "
+                   "Pass ['markdown'] or ['text', 'html'] to request specific formats. "
+                   "Pass an empty list [] to skip text extraction entirely (useful when only KVP "
+                   "extraction is needed). Each requested type is returned as a separate field in "
+                   "the response."
+    )
+
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "docproc"
@@ -665,8 +702,12 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["kvp_enable_text_hints"] = self.kvp_enable_text_hints
         if self.page_range is not None:
             model_spec["page_range"] = self.page_range
+        if self.detect_signatures is not None:
+            model_spec["detect_signatures"] = self.detect_signatures
         if self.output_format != DocProcOutputFormat.docref:
             model_spec["output_format"] = self.output_format
+        if self.output_content_types is not None:
+            model_spec["output_content_types"] = self.output_content_types
         return model_spec
 
 class StartNodeSpec(NodeSpec):
@@ -3588,6 +3629,7 @@ class Token(BaseModel):
     bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the token in the context of the page, expressed as pixel coordinates with respect to pages_metadata.page_image_height and pages_metadata.page_image_width")
     confidence: Optional[float] = Field(None, description="Confidence score for the token")
 
+
 class Structures(BaseModel):
     sections: Optional[List[Section]] = Field(
         default=None, description="All Section objects found in the document"
@@ -3639,6 +3681,9 @@ class Structures(BaseModel):
     )
     bar_codes: Optional[List[BarCode]] = Field(
         default=None, description="All BarCode objects found in the document"
+    )
+    signatures: Optional[List[dict]] = Field(
+        default=None, description="Signatures detected in the document. Populated when detect_signatures is True. Each element is a raw WDU picture object."
     )
     tokens: Optional[List[Token]] = Field(
         default=None, description="All Token objects found in the document"
@@ -3743,14 +3788,16 @@ class DocumentProcessingCommonInput(BaseModel):
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
-    This class represents the input of a Document processing task. 
+    This class represents the input of a Document processing task.
 
     Attributes:
         kvp_schemas (List[DocProcKVPSchema]): Optional list of key-value pair schemas to use for extraction. If not provided or None, no KVPs will be extracted. If an empty list is provided, we will use the internal schemas to extract KVPs.
         kvp_model_name (str | None): The LLM model to be used for key-value pair extraction
         kvp_force_schema_name (str | None): The name of the schema to use for KVP extraction. If not provided or None, the default schema will be used.
         kvp_enable_text_hints (bool): Whether to enable text hints for KVP extraction
-    
+        detect_signatures (bool | None): Optional runtime override for signature detection. When True, the pipeline returns a signatures array in the output. Overrides the value set in the node spec.
+        output_content_types (List[OutputContentType] | None): Runtime override for content types to request from the text extraction API. Accepted values: 'text', 'markdown', 'html'. Takes priority over the value set in the node spec. Falls back to the spec value, then defaults to ['text'].
+
     Inherited Attributes:
         document_ref (bytes|str): Document reference
         page_range (PageRange | None): Optional page range for text extractor and layout document extractor
@@ -3776,27 +3823,51 @@ class DocProcInput(DocumentProcessingCommonInput):
         description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
         default=True
     )
+    detect_signatures: bool | None = Field(
+        title='Detect Signatures',
+        description='Optional flag to enable signature detection for text extraction. When True, the pipeline returns a signatures array in the output. Overrides the value set in the node spec when provided at runtime.',
+        default=None,
+    )
+    output_content_types: List[OutputContentType] | None = Field(
+        title='Output Content Types',
+        description="Runtime override for content types to request from the text extraction API. "
+                   "Accepted values: 'text', 'markdown', 'html'. "
+                   "When provided, takes priority over the value set in the node spec. "
+                   "Falls back to the spec value if not set, then defaults to ['text'] for backward compatibility. "
+                   "Pass an empty list [] to skip text extraction (useful when only KVP extraction is needed).",
+        default=None
+    )
 
 class TextExtractionObjectResponse(AssemblyJsonOutput):
     '''
     The text extraction operation response when output_format is set to "object".
     
     This class represents the structured response from a document text extraction operation,
-    containing both the extracted plain text and the complete document structure metadata
+    containing the requested content types and the complete document structure metadata
     inherited from AssemblyJsonOutput.
     
-    Attributes:
-        text (str): The extracted plain text content from the document. This is the 
-                   concatenated text from all pages and structures in reading order.
-                   Empty string if no text could be extracted.
+    The fields returned depend on the output_content_types parameter:
+        - text (Optional[str]): Present when "text" is included in output_content_types.
+            The concatenated plain text from all pages in reading order.
+        - markdown (Optional[str]): Present when "markdown" is included in output_content_types.
+            The document content rendered as markdown.
+        - html (Optional[str]): Present when "html" is included in output_content_types.
+            The document content rendered as HTML.
+    
+    When output_content_types is not set (None), the API defaults to ["text"], so text
+    will be present in the response for backward compatibility.
+    Pass an empty list [] to skip text extraction entirely (e.g. when only KVPs are needed).
     
     Note:
-        - This response type is used when DocProcSpec.output_format is set to 
+        - This response type is used when DocProcSpec.output_format is set to
           DocProcOutputFormat.object
         - For file reference responses, use TextExtractionResponse instead
-        - The text field contains only plain text; structured data is in inherited fields
+        - Structured data (metadata, kvps, all_structures, etc.) is in the inherited
+          AssemblyJsonOutput fields
     '''
-    text: str = Field(title='Text', description='The raw text extracted from the input document')
+    text: Optional[str] = Field(title='Text', description='The plain text extracted from the input document. Present when "text" is included in output_content_types.', default=None)
+    markdown: Optional[str] = Field(title='Markdown', description='The markdown-formatted text extracted from the input document. Present when "markdown" is included in output_content_types.', default=None)
+    html: Optional[str] = Field(title='HTML', description='The HTML-formatted text extracted from the input document. Present when "html" is included in output_content_types.', default=None)
 
 class TextExtractionResponse(BaseModel):
     '''
