@@ -930,3 +930,96 @@ async def test_async_spec_with_callback(mocker, snapshot, openapi_async_callback
         assert False, 'should have thrown'
     except RuntimeError as e:
         assert 'only available when deployed' in str(e), 'should show runtime message if called'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ADR rfc-0626 — x-ibm-orchestrate-inject-context parsing
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _inject_context_spec(req_path: str = None, resp_path: str = None) -> dict:
+    """Minimal OpenAPI spec with x-ibm-orchestrate-inject-context on POST /tool."""
+    inject_ext = {}
+    if req_path:
+        inject_ext['request_body_path'] = req_path
+    if resp_path:
+        inject_ext['response_body_path'] = resp_path
+
+    op = {
+        'operationId': 'my_tool',
+        'summary': 'Test context injection',
+        'description': 'Verifies ADR rfc-0626 context path parsing',
+        'requestBody': {
+            'required': True,
+            'content': {
+                'application/json': {
+                    'schema': {
+                        'type': 'object',
+                        'properties': {'input_a': {'type': 'string'}},
+                    }
+                }
+            },
+        },
+        'responses': {
+            '200': {
+                'description': 'OK',
+                'content': {
+                    'application/json': {
+                        'schema': {
+                            'type': 'object',
+                            'properties': {'success': {'type': 'boolean'}},
+                        }
+                    }
+                },
+            }
+        },
+    }
+    if inject_ext:
+        op['x-ibm-orchestrate-inject-context'] = inject_ext
+
+    return {
+        'openapi': '3.0.3',
+        'info': {'title': 'Test', 'version': '1.0.0'},
+        'servers': [{'url': 'http://localhost:8901'}],
+        'paths': {'/tool': {'post': op}},
+    }
+
+
+def test_inject_context_paths_parsed_into_binding():
+    """Both context paths are read from x-ibm-orchestrate-inject-context and
+    written into binding.openapi so TRM can inject/extract context at runtime."""
+    tool = create_openapi_json_tool(
+        _inject_context_spec(req_path='$.context', resp_path='$.context_update'),
+        http_path='/tool',
+        http_method='POST',
+    )
+    binding = tool.__tool_spec__.binding.openapi
+    assert binding.context_request_body_path == '$.context', (
+        f"Expected '$.context', got {binding.context_request_body_path!r}"
+    )
+    assert binding.context_response_body_path == '$.context_update', (
+        f"Expected '$.context_update', got {binding.context_response_body_path!r}"
+    )
+
+
+def test_inject_context_only_request_path():
+    """Only request_body_path set — response path stays None."""
+    tool = create_openapi_json_tool(
+        _inject_context_spec(req_path='$.ctx'),
+        http_path='/tool',
+        http_method='POST',
+    )
+    binding = tool.__tool_spec__.binding.openapi
+    assert binding.context_request_body_path == '$.ctx'
+    assert binding.context_response_body_path is None
+
+
+def test_inject_context_extension_absent_leaves_paths_none():
+    """No x-ibm-orchestrate-inject-context → both fields stay None (normal tools unaffected)."""
+    tool = create_openapi_json_tool(
+        _inject_context_spec(),  # no extension
+        http_path='/tool',
+        http_method='POST',
+    )
+    binding = tool.__tool_spec__.binding.openapi
+    assert binding.context_request_body_path is None
+    assert binding.context_response_body_path is None

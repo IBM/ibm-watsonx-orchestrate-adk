@@ -16,6 +16,7 @@ YAML files (.yaml / .yml):
   - kind == "knowledge_base"  → WxO Knowledge Base
 """
 
+import argparse
 import ast
 import json
 import sys
@@ -30,15 +31,56 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# Token estimation
+# ---------------------------------------------------------------------------
+
+# ~4 characters per token — same approximation used in extract_agent_info.py.
+_CHARS_PER_TOKEN = 4.0
+
+
+def _estimate_tokens(text: str) -> int:
+    """Return a conservative token estimate: max(1, round(len(text) / 4))."""
+    if not text:
+        return 0
+    return max(1, round(len(text) / _CHARS_PER_TOKEN))
+
+
+def _spec_to_str(*parts: Any) -> str:
+    """
+    Serialise arbitrary spec parts (strings, dicts, lists) to a single string
+    for character counting.  Strings are taken as-is; everything else is
+    serialised to compact JSON (stable, no extra whitespace).
+    """
+    pieces = []
+    for part in parts:
+        if part is None:
+            continue
+        if isinstance(part, str):
+            pieces.append(part)
+        else:
+            try:
+                pieces.append(json.dumps(part, separators=(',', ':')))
+            except (TypeError, ValueError):
+                pieces.append(str(part))
+    return ' '.join(p for p in pieces if p)
+
+
+def _count_spec(spec_str: str) -> Dict[str, int]:
+    """Return {'spec_chars': N, 'spec_est_tokens': N} for a serialised spec."""
+    chars = len(spec_str)
+    return {'spec_chars': chars, 'spec_est_tokens': _estimate_tokens(spec_str)}
+
+
+# ---------------------------------------------------------------------------
 # Python tool extraction
 # ---------------------------------------------------------------------------
 
 def detect_python_tool_type(tree: ast.Module) -> str:
     """
-    Detect whether the Python file contains a @tool or @flow decorator.
+    Detect whether the Python file contains a @tool, @flow, or @mcp.tool() decorator.
 
     Returns:
-        'tool' | 'flow' | 'unknown'
+        'tool' | 'flow' | 'mcp_tool' | 'unknown'
     """
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
@@ -46,8 +88,13 @@ def detect_python_tool_type(tree: ast.Module) -> str:
                 decorator_name = None
                 if isinstance(decorator, ast.Name):
                     decorator_name = decorator.id
-                elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
-                    decorator_name = decorator.func.id
+                elif isinstance(decorator, ast.Call):
+                    if isinstance(decorator.func, ast.Name):
+                        decorator_name = decorator.func.id
+                    elif isinstance(decorator.func, ast.Attribute):
+                        # Matches @mcp.tool(), @app.tool(), etc.
+                        if decorator.func.attr == 'tool':
+                            return 'mcp_tool'
 
                 if decorator_name == 'tool':
                     return 'tool'
@@ -100,6 +147,110 @@ def _get_type_annotation(annotation: Optional[ast.expr]) -> str:
     return 'Any'
 
 
+# Simple Python types that map directly to a JSON Schema primitive.
+# These are represented compactly in the prompt (e.g. {"type":"string"}).
+_SIMPLE_TYPE_MAP: Dict[str, str] = {
+    'str':   'string',
+    'int':   'integer',
+    'float': 'number',
+    'bool':  'boolean',
+    'None':  'null',
+}
+
+
+def _annotation_to_json_schema(annotation: Optional[ast.expr]) -> Any:
+    """
+    Convert an AST type annotation to its JSON Schema representation.
+
+    This approximates what the watsonx Orchestrate / OpenAI function-calling
+    runtime injects into the model's context for each parameter.  The goal is
+    accurate token counting, not a complete schema generator.
+
+    Rules:
+    - Simple types (str, int, float, bool, None) → {"type": "<primitive>"}
+    - Optional[X] / Union[X, None]               → schema of X (nullable ignored
+                                                    for counting purposes)
+    - List[X] / list[X]                           → {"type":"array","items":<X schema>}
+    - Dict[K,V] / dict[K,V]                       → {"type":"object"}
+    - Literal["a","b"]                             → {"type":"string","enum":["a","b"]}
+    - Any / unknown custom type                    → {"type":"object"} (conservative
+                                                    fallback — object schemas can be
+                                                    large; this avoids undercounting)
+    """
+    if annotation is None:
+        return {'type': 'object'}
+
+    # --- ast.Name: bare name like str, int, MyClass ---
+    if isinstance(annotation, ast.Name):
+        name = annotation.id
+        if name in _SIMPLE_TYPE_MAP:
+            return {'type': _SIMPLE_TYPE_MAP[name]}
+        if name == 'Any':
+            return {'type': 'object'}
+        # Unknown custom class — treat as object (conservative)
+        return {'type': 'object'}
+
+    # --- ast.Constant: e.g. None literal ---
+    if isinstance(annotation, ast.Constant):
+        if annotation.value is None:
+            return {'type': 'null'}
+        return {'type': 'string'}
+
+    # --- ast.Subscript: Generic[...] forms ---
+    if isinstance(annotation, ast.Subscript):
+        if isinstance(annotation.value, ast.Name):
+            base = annotation.value.id
+
+            # Unwrap slice (Python 3.8 uses ast.Index wrapper)
+            if isinstance(annotation.slice, ast.Index):
+                slice_node = annotation.slice.value  # type: ignore
+            else:
+                slice_node = annotation.slice
+
+            # Optional[X] — treat as schema of X
+            if base == 'Optional':
+                return _annotation_to_json_schema(slice_node)
+
+            # Union[X, Y, ...] — if one branch is None, treat as schema of X
+            if base == 'Union':
+                args = slice_node.elts if isinstance(slice_node, ast.Tuple) else [slice_node]
+                non_none = [a for a in args if not (isinstance(a, ast.Constant) and a.value is None)
+                            and not (isinstance(a, ast.Name) and a.id == 'None')]
+                if len(non_none) == 1:
+                    return _annotation_to_json_schema(non_none[0])
+                return {'type': 'object'}
+
+            # List[X] / list[X]
+            if base in ('List', 'list'):
+                items_schema = _annotation_to_json_schema(slice_node)
+                return {'type': 'array', 'items': items_schema}
+
+            # Dict[K, V] / dict[K, V]
+            if base in ('Dict', 'dict'):
+                return {'type': 'object'}
+
+            # Literal["a", "b", ...]
+            if base == 'Literal':
+                values = slice_node.elts if isinstance(slice_node, ast.Tuple) else [slice_node]
+                enum_vals = []
+                for v in values:
+                    if isinstance(v, ast.Constant):
+                        enum_vals.append(v.value)
+                    else:
+                        enum_vals.append(str(v))
+                if enum_vals:
+                    # Infer JSON type from first value
+                    first = enum_vals[0]
+                    if isinstance(first, str):
+                        return {'type': 'string', 'enum': enum_vals}
+                    if isinstance(first, int):
+                        return {'type': 'integer', 'enum': enum_vals}
+                    return {'enum': enum_vals}
+
+    # Fallback — unknown / complex — treat as object
+    return {'type': 'object'}
+
+
 def _extract_python_metadata(file_path: str) -> Dict[str, Any]:
     """Extract metadata from a .py tool file (@tool or @flow)."""
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -123,26 +274,56 @@ def _extract_python_metadata(file_path: str) -> Dict[str, Any]:
 
                 if isinstance(decorator, ast.Name):
                     decorator_name = decorator.id
-                elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
-                    decorator_name = decorator.func.id
-                    decorator_args = _extract_decorator_args(decorator)
+                elif isinstance(decorator, ast.Call):
+                    if isinstance(decorator.func, ast.Name):
+                        decorator_name = decorator.func.id
+                        decorator_args = _extract_decorator_args(decorator)
+                    elif isinstance(decorator.func, ast.Attribute):
+                        # @mcp.tool(), @app.tool(), etc.
+                        if decorator.func.attr == 'tool':
+                            decorator_name = 'mcp_tool'
+                            decorator_args = _extract_decorator_args(decorator)
 
-                if decorator_name in ('tool', 'flow'):
+                if decorator_name in ('tool', 'flow', 'mcp_tool'):
+                    docstring = ast.get_docstring(node) or ''
+                    params = []
+                    for arg in node.args.args:
+                        if arg.arg != 'self':
+                            type_str = _get_type_annotation(arg.annotation)
+                            type_schema = _annotation_to_json_schema(arg.annotation)
+                            params.append({
+                                'name': arg.arg,
+                                'type': type_str,
+                                'type_schema': type_schema,
+                            })
+
+                    return_type = _get_type_annotation(node.returns)
+
+                    # Spec token estimate: function name + docstring + each
+                    # parameter serialised as its JSON Schema representation.
+                    # Using JSON Schema (not bare type strings) matches what the
+                    # runtime injects into the model's context for complex types
+                    # such as Literal enums, List[X], and Optional[X].
+                    # Return type is excluded — output schema is not injected.
+                    param_schema_str = ' '.join(
+                        f"{p['name']} {json.dumps(p['type_schema'], separators=(',', ':'))}"
+                        for p in params
+                    )
+                    spec_str = _spec_to_str(
+                        node.name, docstring, param_schema_str
+                    )
+                    counts = _count_spec(spec_str)
+
                     func_info: Dict[str, Any] = {
                         'decorator': decorator_name,
                         'name': node.name,
                         'decorator_args': decorator_args,
-                        'parameters': [],
-                        'return_type': _get_type_annotation(node.returns),
-                        'docstring': ast.get_docstring(node) or '',
+                        'parameters': params,
+                        'return_type': return_type,
+                        'docstring': docstring,
+                        'spec_chars': counts['spec_chars'],
+                        'spec_est_tokens': counts['spec_est_tokens'],
                     }
-
-                    for arg in node.args.args:
-                        if arg.arg != 'self':
-                            func_info['parameters'].append({
-                                'name': arg.arg,
-                                'type': _get_type_annotation(arg.annotation),
-                            })
 
                     if decorator_name == 'flow':
                         func_info['estimated_node_count'] = sum(
@@ -193,12 +374,19 @@ def _extract_knowledge_base_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
             'generation_enabled': cst.get('generation', {}).get('enabled', None),
         }
 
+    name: str = data.get('name', '') or ''
+    description: str = data.get('description', '') or ''
+    spec_str = _spec_to_str(name, description)
+    counts = _count_spec(spec_str)
+
     return {
         'file_type': 'yaml',
         'type': 'knowledge_base',
         'spec_version': data.get('spec_version', ''),
-        'name': data.get('name', ''),
-        'description': data.get('description', ''),
+        'name': name,
+        'description': description,
+        'spec_chars': counts['spec_chars'],
+        'spec_est_tokens': counts['spec_est_tokens'],
         'document_count': len(doc_list),
         'documents': doc_list,
         'conversational_search_tool': conversational_search,
@@ -218,12 +406,19 @@ def _extract_mcp_toolkit_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
 
     connections = data.get('connections', [])
 
+    name: str = data.get('name', '') or ''
+    description: str = data.get('description', '') or ''
+    spec_str = _spec_to_str(name, description)
+    counts = _count_spec(spec_str)
+
     return {
         'file_type': 'yaml',
         'type': 'mcp_toolkit',
         'spec_version': data.get('spec_version', ''),
-        'name': data.get('name', ''),
-        'description': data.get('description', ''),
+        'name': name,
+        'description': description,
+        'spec_chars': counts['spec_chars'],
+        'spec_est_tokens': counts['spec_est_tokens'],
         'transport': data.get('transport', ''),
         'url': data.get('url', ''),
         'tools_mode': tools_mode,
@@ -269,13 +464,15 @@ def _extract_yaml_metadata(file_path: str) -> Dict[str, Any]:
 # JSON tool extraction
 # ---------------------------------------------------------------------------
 
-def detect_json_tool_type(data: Dict[str, Any]) -> str:
+def detect_json_tool_type(data: Any) -> str:
     """
     Detect whether the JSON is an Agentic Workflow or Langflow format.
 
     Returns:
         'agentic_workflow' | 'langflow' | 'unknown'
     """
+    if not isinstance(data, dict):
+        return 'unknown'
     spec = data.get('spec')
     if isinstance(spec, dict) and spec.get('kind') == 'flow':
         if isinstance(data.get('nodes'), dict) and isinstance(data.get('edges'), list):
@@ -336,15 +533,28 @@ def _extract_aw_nodes(nodes_dict: Dict[str, Any], parent_id: str = '') -> List[D
 def _extract_agentic_workflow_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
     """Extract metadata from a WxO Agentic Workflow JSON file."""
     spec = data['spec']
+    name: str = spec.get('name', '') or ''
+    display_name: str = spec.get('display_name', '') or ''
+    description: str = spec.get('description', '') or ''
+    input_schema = spec.get('input_schema', {})
+    output_schema = spec.get('output_schema', {})
+    # Token estimate covers only what the LLM sees in its prompt: name,
+    # description, and input schema.  Output schema describes what the tool
+    # returns to the runtime — it is not injected into the agent's context.
+    spec_str = _spec_to_str(name, display_name, description, input_schema)
+    counts = _count_spec(spec_str)
+
     metadata: Dict[str, Any] = {
         'file_type': 'json',
         'type': 'agentic_workflow',
         'kind': spec.get('kind', 'flow'),
-        'name': spec.get('name', ''),
-        'display_name': spec.get('display_name', ''),
-        'description': spec.get('description', ''),
-        'input_schema': spec.get('input_schema', {}),
-        'output_schema': spec.get('output_schema', {}),
+        'name': name,
+        'display_name': display_name,
+        'description': description,
+        'input_schema': input_schema,
+        'output_schema': output_schema,
+        'spec_chars': counts['spec_chars'],
+        'spec_est_tokens': counts['spec_est_tokens'],
     }
 
     edges: List[Dict] = data.get('edges', [])
@@ -369,11 +579,18 @@ def _extract_agentic_workflow_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def _extract_langflow_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
     """Extract metadata from a Langflow JSON file."""
+    name: str = data.get('name', 'Unknown') or 'Unknown'
+    description: str = data.get('description', '') or ''
+    spec_str = _spec_to_str(name, description)
+    counts = _count_spec(spec_str)
+
     metadata: Dict[str, Any] = {
         'file_type': 'json',
         'type': 'langflow',
-        'name': data.get('name', 'Unknown'),
-        'description': data.get('description', ''),
+        'name': name,
+        'description': description,
+        'spec_chars': counts['spec_chars'],
+        'spec_est_tokens': counts['spec_est_tokens'],
         'id': data.get('id', ''),
         'is_component': data.get('is_component', False),
         'last_tested_version': data.get('last_tested_version', ''),
@@ -495,6 +712,10 @@ def format_text_output(metadata: Dict[str, Any]) -> str:
             lines.append('=' * 60)
             lines.append(f"Decorator: @{func['decorator']}")
             lines.append(f"Function:  {func['name']}")
+            lines.append(
+                f"Spec:      {func.get('spec_chars', '?')} chars  |  "
+                f"~{func.get('spec_est_tokens', '?')} est. tokens"
+            )
 
             if func['decorator_args']:
                 lines.append("Decorator Arguments:")
@@ -524,6 +745,7 @@ def format_text_output(metadata: Dict[str, Any]) -> str:
             f"Name:         {metadata['name']}",
             f"Display Name: {metadata['display_name']}",
             f"Description:  {metadata['description']}",
+            f"Spec:         {metadata.get('spec_chars', '?')} chars  |  ~{metadata.get('spec_est_tokens', '?')} est. tokens  (name + display_name + description + input_schema + output_schema)",
             "",
             "Structure:",
             f"  Nodes       : {metadata['node_count']}",
@@ -586,6 +808,7 @@ def format_text_output(metadata: Dict[str, Any]) -> str:
         lines += [
             f"Name:         {metadata['name']}",
             f"Description:  {metadata['description']}",
+            f"Spec:         {metadata.get('spec_chars', '?')} chars  |  ~{metadata.get('spec_est_tokens', '?')} est. tokens  (name + description)",
             f"ID:           {metadata['id']}",
             f"Version:      {metadata['last_tested_version']}",
             f"Is Component: {metadata['is_component']}",
@@ -626,6 +849,7 @@ def format_text_output(metadata: Dict[str, Any]) -> str:
         lines += [
             f"Name:         {metadata['name']}",
             f"Description:  {metadata['description']}",
+            f"Spec:         {metadata.get('spec_chars', '?')} chars  |  ~{metadata.get('spec_est_tokens', '?')} est. tokens  (name + description)",
             f"Spec Version: {metadata['spec_version']}",
             f"Documents:    {metadata['document_count']}",
             "",
@@ -654,6 +878,7 @@ def format_text_output(metadata: Dict[str, Any]) -> str:
         lines += [
             f"Name:         {metadata['name']}",
             f"Description:  {metadata['description']}",
+            f"Spec:         {metadata.get('spec_chars', '?')} chars  |  ~{metadata.get('spec_est_tokens', '?')} est. tokens  (name + description)",
             f"Spec Version: {metadata['spec_version']}",
             f"Transport:    {metadata['transport']}",
             f"URL:          {metadata['url']}",
@@ -691,39 +916,79 @@ def format_compact_output(metadata: Dict[str, Any]) -> str:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _safe_tool_name(metadata: Dict[str, Any]) -> str:
+    """
+    Derive a filesystem-safe name for the output file from the metadata dict.
+
+    For Python files the tool may have multiple decorated functions; use the
+    first function name found.  For all other types, use the top-level 'name'
+    field.  Fall back to the stem of the source file_path.
+    """
+    file_type = metadata.get('file_type', '')
+    if file_type == 'python':
+        functions = metadata.get('functions', [])
+        if functions:
+            return functions[0].get('name', 'tool').replace(' ', '_')
+    name = metadata.get('name', '') or ''
+    if name:
+        return name.replace(' ', '_')
+    # Last resort: stem of the source file
+    return Path(metadata.get('file_path', 'tool')).stem
+
+
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: extract_tool_info.py <file.py|file.json|file.yaml> [--format text|json|compact]")
-        print("\nExtracts metadata from a tool file (.py, .json, or .yaml/.yml).")
-        print("\nPython files: detects @tool or @flow decorators.")
-        print("JSON files:   detects WxO Agentic Workflow or Langflow format.")
-        print("YAML files:   detects WxO Knowledge Base (kind: knowledge_base) or MCP Toolkit (kind: mcp).")
-        print("\nFormats:")
-        print("  text    - Human-readable text (default)")
-        print("  json    - Pretty-printed JSON")
-        print("  compact - Single-line JSON")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='Extract metadata from a tool file (.py, .json, or .yaml/.yml).',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Human-readable text (default)
+  python extract_tool_info.py tool.py
 
-    file_path = sys.argv[1]
-    output_format = 'text'
+  # Pretty-printed JSON
+  python extract_tool_info.py tool.py --json
 
-    if len(sys.argv) > 2 and sys.argv[2] == '--format':
-        if len(sys.argv) > 3:
-            output_format = sys.argv[3]
+  # Save JSON extraction to the eval output directory
+  python extract_tool_info.py tool.py --output-dir eval/
+  python extract_tool_info.py flow.json --output-dir eval/
+  python extract_tool_info.py kb.yaml --output-dir eval/
+        """
+    )
 
-    if not Path(file_path).exists():
-        print(f"Error: File not found: {file_path}", file=sys.stderr)
+    parser.add_argument('file_path', help='Path to the tool file (.py, .json, .yaml, or .yml)')
+    parser.add_argument('--json', action='store_true', help='Output in JSON format')
+    parser.add_argument('--compact', action='store_true', help='Single-line JSON output')
+    parser.add_argument('--output-dir', type=str, default=None,
+                        help='Directory to write the JSON extraction file into.  The file is named '
+                             'tool_<name>_extracted.json and is always written as pretty-printed JSON, '
+                             'independent of the --json / --compact stdout flag.  The directory is '
+                             'created if it does not exist.')
+
+    args = parser.parse_args()
+
+    if not Path(args.file_path).exists():
+        print(f"Error: File not found: {args.file_path}", file=sys.stderr)
         sys.exit(1)
 
     try:
-        metadata = extract_tool_info(file_path)
+        metadata = extract_tool_info(args.file_path)
 
-        if output_format == 'json':
+        if args.json:
             print(format_json_output(metadata))
-        elif output_format == 'compact':
+        elif args.compact:
             print(format_compact_output(metadata))
         else:
             print(format_text_output(metadata))
+
+        # --output-dir: persist the full JSON extraction to disk so evaluation
+        # reports can reference it without re-running the extractor.
+        if args.output_dir:
+            out_dir = Path(args.output_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            tool_name = _safe_tool_name(metadata)
+            out_file = out_dir / f"tool_{tool_name}_extracted.json"
+            out_file.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+            print(f"Extraction saved: {out_file}", file=sys.stderr)
 
     except Exception as e:
         print(f"Error extracting tool metadata: {e}", file=sys.stderr)
