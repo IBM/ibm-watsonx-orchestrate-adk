@@ -1357,8 +1357,10 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
-        if agent.skills and len(agent.skills) > 0:
-            agent = self.dereference_skills(agent)
+        # NOTE: dereference_skills (name→UUID) is intentionally skipped here.
+        # The server-side validator on POST /agents rejects skill UUIDs on 2.16.0
+        # tenants. Re-enable once the server fix ships.
+        # Tracking: https://github.ibm.com/WatsonOrchestrate/wxo-clients/issues/82318
 
         return agent
     
