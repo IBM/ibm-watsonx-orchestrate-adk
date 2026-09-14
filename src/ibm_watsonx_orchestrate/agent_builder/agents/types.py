@@ -162,10 +162,15 @@ class ChatWithDocsConfig(BaseModel):
     agent_query_description: str = "The query to search for in the knowledge base"
     
 class ToolShortlistingConfig(BaseModel):
-    # Both fields are a tri-state: omitting one leaves the agent runtime on its
-    # per-style default rather than sending a value the author never wrote.
+    """Controls whether the agent narrows its full toolset down to a shortlist before reasoning.
+
+    Both fields are a tri-state: omitting one leaves the agent runtime on its
+    per-style default rather than sending a value the author never wrote.
+    """
     enabled: Optional[bool] = None
+    """Whether tool shortlisting is enabled. Unset defers to the agent style's default."""
     max_tools: Optional[int] = Field(default=None, gt=0)
+    """Maximum number of tools to shortlist. Unset defers to the agent style's default."""
 
 class AgentStyle(str, Enum):
     DEFAULT = "default"
