@@ -19,7 +19,6 @@ from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, TypeVar
-from packaging.version import Version, InvalidVersion
 
 import requests
 import rich
@@ -49,7 +48,7 @@ from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, ToolKindImport, import_python_tool, ToolsController, \
     _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, BumpType, CreateVersionRequest, transform_agents_from_flat_agent_spec
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, transform_agents_from_flat_agent_spec
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
@@ -327,9 +326,8 @@ class AgentsController:
         file: str | None = None,
         app_id: str | None = None,
         custom_agent_file_path: str | None = None,
-        custom_agent_config_file: str | None = None,
-        version: str | None = None,
-    ) -> tuple[List[Agent | CustomAgent | ExternalAgent | AssistantAgent], str | None]:
+        custom_agent_config_file: str | None = None
+    ) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
         # Check if this is a custom agent with package root
         if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
             # This is a custom agent with a directory - create a CustomAgent
@@ -349,7 +347,7 @@ class AgentsController:
             )
             agent.custom_agent_file_path = zip_path
 
-            return [agent], version
+            return [agent]
 
         if not file:
             raise ValueError("File must be provided for native agents")
@@ -357,15 +355,14 @@ class AgentsController:
         # Check if file is a ZIP, if so handle import from ZIP
         if file.endswith('.zip'):
             logger.info(f"Detected ZIP file, initiating bulk import from '{file}'")
-            return AgentsController._import_from_zip(file, app_id), version
+            return AgentsController._import_from_zip(file, app_id)
 
         agents = parse_file(file)
-
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
 
-        return agents, version
+        return agents
     @staticmethod
     def _import_from_zip(zip_path: str, app_id: str | None = None) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
         if not zipfile.is_zipfile(zip_path):
@@ -1412,9 +1409,7 @@ class AgentsController:
             return self.reference_external_or_assistant_agent_dependencies(agent)
 
     def publish_or_update_agents(
-        self,
-        agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent],
-        version: str | None = None,
+        self, agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent]
     ):
         for agent in agents:
             # Check for existing agents by name
@@ -1438,15 +1433,6 @@ class AgentsController:
                                         for agent_dict in existing_assistant_agents_raw]
 
             all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
-
-            # Warn when --version is supplied but this agent kind doesn't support versioning
-            import_version: str | None = version
-            if import_version and not isinstance(agent, Agent):
-                logger.warning(
-                    f"Agent '{agent_name}': --version is only supported for native agents. "
-                    f"The version '{import_version}' will be ignored for this {type(agent).__name__}."
-                )
-                import_version = None
 
             agent = self.dereference_agent_dependencies(agent)
 
@@ -1505,45 +1491,9 @@ class AgentsController:
                         logger.info(f"{agent_type} '{agent_name}' belongs to {agent_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
                     
                     agent_id = existing_agent.id
-
-                    # Warn if the requested import version is lower than what's already deployed
-                    if import_version and isinstance(existing_agent, Agent):
-                        self._warn_on_version_regression(
-                            agent_id=agent_id,
-                            agent_name=agent_name,
-                            import_version=import_version,
-                            native_client=native_client,
-                        )
-
                     self.update_agent(agent_id=agent_id, agent=agent, skip_workspace_injection=cross_workspace_update)
-
-                    # Create a new semantic version snapshot after the update when a version was requested
-                    if import_version and isinstance(agent, Agent) and agent.style != AgentStyle.CUSTOM:
-                        self._create_version_after_import(
-                            agent_id=agent_id,
-                            agent_name=agent_name,
-                            import_version=import_version,
-                            native_client=native_client,
-                        )
             else:
                 self.publish_agent(agent)
-
-                # Create a new semantic version snapshot after initial publish when a version was requested
-                if import_version and isinstance(agent, Agent) and agent.style != AgentStyle.CUSTOM:
-                    # Re-fetch the agent to get its ID after creation
-                    try:
-                        newly_created = native_client.get_draft_by_name(agent.name)
-                        if newly_created:
-                            new_agent_id = newly_created[0].get("id")
-                            if new_agent_id:
-                                self._create_version_after_import(
-                                    agent_id=new_agent_id,
-                                    agent_name=agent.name,
-                                    import_version=import_version,
-                                    native_client=native_client,
-                                )
-                    except Exception as e:
-                        logger.warning(f"Could not create version snapshot for agent '{agent.name}': {e}")
 
     @staticmethod
     def _create_agent_zip(package_root: str, config_file: str | None = None) -> tuple[str, str | None]:
@@ -1718,71 +1668,6 @@ class AgentsController:
                 logger.debug(f"Cleaned up temporary zip file: {file_path}")
             except Exception as e:
                 logger.warning(f"Failed to clean up temporary zip file: {e}")
-
-    def _warn_on_version_regression(
-        self,
-        agent_id: str,
-        agent_name: str,
-        import_version: str,
-        native_client: AgentClient,
-    ) -> None:
-        """Emit a warning when *import_version* is lower than the latest existing semantic version."""
-        try:
-            existing_versions = native_client.list_versions(agent_id)
-            if not existing_versions:
-                return
-            latest_semver = max(
-                (v.semantic_version for v in existing_versions if v.semantic_version),
-                key=lambda s: Version(s),
-                default=None,
-            )
-            if latest_semver and Version(import_version) < Version(latest_semver):
-                logger.warning(
-                    f"Agent '{agent_name}': the imported version '{import_version}' is lower than "
-                    f"the latest existing version '{latest_semver}'. Proceeding with import."
-                )
-        except InvalidVersion:
-            logger.warning(
-                f"Agent '{agent_name}': could not parse version '{import_version}' for comparison."
-            )
-        except Exception as e:
-            logger.debug(f"Could not check existing versions for agent '{agent_name}': {e}")
-
-    def _create_version_after_import(
-        self,
-        agent_id: str,
-        agent_name: str,
-        import_version: str,
-        native_client: AgentClient,
-    ) -> None:
-        """Create a semantic version snapshot after an agent import/update.
-
-        Uses *import_version* as the explicit semantic version when the string is a
-        valid semver (e.g. "2.0.0").  Falls back to a PATCH auto-increment so that
-        non-semver labels such as "v1-feature" still produce a version record.
-        """
-        try:
-            try:
-                Version(import_version)
-                is_valid_semver = True
-            except InvalidVersion:
-                is_valid_semver = False
-
-            version_response = native_client.create_version(
-                agent_id,
-                CreateVersionRequest(
-                    bump_type=BumpType.PATCH,
-                    semantic_version=import_version if is_valid_semver else None,
-                    version_name=import_version,
-                    version_description=f"Imported version {import_version}",
-                ),
-            )
-            logger.info(
-                f"Agent '{agent_name}': created version snapshot "
-                f"'{version_response.semantic_version}' (label: {version_response.version_label})."
-            )
-        except Exception as e:
-            logger.warning(f"Could not create version snapshot for agent '{agent_name}': {e}")
 
     def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
         from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
@@ -2648,7 +2533,7 @@ class AgentsController:
 
         return native_result + external_result + assistant_result
 
-    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False, exclude: List[str] | None = None, workspace_id: Optional[str] = None, semantic_version: str | None = None) -> bool:
+    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False, exclude: List[str] | None = None, workspace_id: Optional[str] = None) -> bool:
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
@@ -2674,23 +2559,7 @@ class AgentsController:
         elif agent_only_flag and (output_file_extension != ".yaml" and output_file_extension != ".yml"):
             logger.error(f"Output file must end with the extension '.yaml' or '.yml'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
-
-        # If a specific semantic version was requested, load it into the draft first so the
-        # subsequent get_agent() call reflects that version's snapshot.
-        if semantic_version and kind == AgentKind.NATIVE:
-            native_client = self.get_native_client()
-            agent_details = get_agent_details(name=name, client=native_client, workspace_id=workspace_id)
-            agent_id = agent_details.get("id")
-            if not agent_id:
-                logger.error(f"Could not resolve agent ID for '{name}' to load version '{semantic_version}'")
-                sys.exit(1)
-            try:
-                native_client.load_version_to_draft(agent_id, semantic_version)
-                logger.info(f"Loaded version '{semantic_version}' of agent '{name}' into draft for export")
-            except Exception as e:
-                logger.error(f"Failed to load version '{semantic_version}' of agent '{name}': {e}")
-                sys.exit(1)
-
+        
         agent = self.get_agent(name, kind, workspace_id=workspace_id)
 
         if agent.restrictions == AgentRestrictionType.NON_EDITABLE:
@@ -2698,11 +2567,7 @@ class AgentsController:
             return False
 
         agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude, workspace_id=workspace_id)
-
-        # Record the semantic version in the exported spec when provided
-        if semantic_version:
-            agent_spec_file_content["version"] = semantic_version
-
+        
         agent_spec_file_content.pop("hidden", None)
         agent_spec_file_content.pop("id", None)
         agent_spec_file_content["spec_version"] = SpecVersion.V1.value
