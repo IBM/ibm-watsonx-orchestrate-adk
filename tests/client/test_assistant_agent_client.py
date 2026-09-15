@@ -28,10 +28,11 @@ class TestCreate:
 
     def test_create_calls_post_with_correct_endpoint(self, client):
         """
-        Verifies that create() sends a POST to /assistants/watsonx.
+        Verifies that create() sends a POST to /assistants/watsonx with the correct payload.
 
         Why: The endpoint path is the contract with the server. If it changes
-        accidentally, all agent creation will silently break.
+        accidentally, all agent creation will silently break. Asserting the payload
+        ensures the data is forwarded unchanged to the server.
         """
         client._post.return_value = {"id": "agent-1", "name": "my-agent"}
 
@@ -41,9 +42,7 @@ class TestCreate:
         ):
             result = client.create({"name": "my-agent"})
 
-        client._post.assert_called_once()
-        endpoint = client._post.call_args[0][0]
-        assert endpoint == "/assistants/watsonx"
+        client._post.assert_called_once_with("/assistants/watsonx", data={"name": "my-agent"})
 
     def test_create_returns_server_response(self, client):
         """
@@ -121,9 +120,10 @@ class TestUpdate:
 
     def test_update_calls_patch_with_correct_endpoint(self, client):
         """
-        Verifies that update() sends a PATCH to /assistants/watsonx/{agent_id}.
+        Verifies that update() sends a PATCH to /assistants/watsonx/{agent_id} with the correct payload.
 
         Why: The agent ID must be in the URL so the server knows which agent to update.
+        Asserting the payload ensures the data is forwarded unchanged to the server.
         """
         client._patch.return_value = {"id": "agent-1"}
 
@@ -133,8 +133,7 @@ class TestUpdate:
         ):
             client.update("agent-1", {"name": "updated"})
 
-        endpoint = client._patch.call_args[0][0]
-        assert endpoint == "/assistants/watsonx/agent-1"
+        client._patch.assert_called_once_with("/assistants/watsonx/agent-1", data={"name": "updated"})
 
     def test_update_skips_workspace_injection_when_flag_set(self, client):
         """
@@ -221,6 +220,24 @@ class TestGetDraftById:
         result = client.get_draft_by_id("nonexistent-agent")
 
         assert result == ""
+
+    def test_reraises_404_when_message_is_not_assistant_not_found(self, client):
+        """
+        Verifies that get_draft_by_id() re-raises a 404 ClientAPIException when
+        the response body does NOT contain "Assistant not found".
+
+        Why: Line 88 of assistant_agent_client.py checks both status_code == 404
+        AND "Assistant not found" in the response text. A 404 from a gateway or
+        routing layer (e.g. "Route not found") should NOT be silently swallowed —
+        it indicates a different problem that callers must handle.
+        """
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.text = "Not Found"
+        client._get.side_effect = ClientAPIException(response=mock_response)
+
+        with pytest.raises(ClientAPIException):
+            client.get_draft_by_id("agent-5")
 
     def test_reraises_non_404_exception(self, client):
         """
