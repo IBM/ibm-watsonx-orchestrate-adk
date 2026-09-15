@@ -296,7 +296,7 @@ class Flow(Node):
                                 schema_ref = self._add_schema_ref(value, value.title)
                                 new_schema.properties[key] = JsonSchemaObjectRef(title=value.title,
                                                                                 ref = f"{schema_ref.ref}")
-                            elif value.type == "array" and (value.items.type == "object" or value.items.type == "array"):
+                            elif value.type == "array" and value.items is not None and (value.items.type == "object" or value.items.type == "array"):
                                 schema_ref = self._add_schema_ref(value.items, value.items.title)
                                 new_schema.properties[key].items = JsonSchemaObjectRef(title=value.title,
                                                                                     ref = f"{schema_ref.ref}")
@@ -307,7 +307,7 @@ class Flow(Node):
                                 new_schema.properties[key] = JsonSchemaObjectRef(ref = f"{schema_ref}")
 
             elif new_schema.type == "array":
-                if new_schema.items.type == "object" or new_schema.items.type == "array":
+                if new_schema.items is not None and (new_schema.items.type == "object" or new_schema.items.type == "array"):
                     schema_ref = self._add_schema_ref(new_schema.items, new_schema.items.title)
                     new_schema.items = JsonSchemaObjectRef(title=new_schema.items.title,
                                                            ref= f"{schema_ref.ref}")
