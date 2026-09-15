@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from ibm_watsonx_orchestrate_clients.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 
