@@ -37,8 +37,6 @@ import base64
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from ibm_watsonx_orchestrate.cli.config import (Config, PREVIOUS_DOCKER_CONTEXT, DOCKER_CONTEXT)
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
-
 
 logger = logging.getLogger(__name__)
 
@@ -542,8 +540,7 @@ def server_start(
     with_ingestion_from_external_source: bool = typer.Option(
         False,
         '--with-ingestion-from-external-source', '-g',
-        help='Enable Apache Arrow Flight service for ingestion from external sources',
-        hidden=not KNOWLEDGE_CONNECTORS_ENABLED,
+        help='Enable Apache Arrow Flight service for ingestion from external sources'
     ),
     sequential_image_pull: bool = typer.Option(
         False,
@@ -648,9 +645,6 @@ def server_start(
 
     if with_ingestion_from_external_source:
         merged_env_dict['INGESTION_FROM_EXTERNAL_SOURCE_ENABLED'] = 'true'
-
-    if 'ENABLE_KB_SOURCE_SYNC' not in merged_env_dict:
-        merged_env_dict['ENABLE_KB_SOURCE_SYNC'] = 'true' if KNOWLEDGE_CONNECTORS_ENABLED else 'false'
 
     if cert_bundle_path:
         cert_path: Path = Path(cert_bundle_path)

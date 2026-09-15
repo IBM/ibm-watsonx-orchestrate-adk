@@ -28,7 +28,7 @@ package-data = true
 
 [tool.hatch.build]
 include = [
-    "./**"
+    "ibm_watsonx_orchestrate_sdk/**"
 ]
 directory="../../dist"
 

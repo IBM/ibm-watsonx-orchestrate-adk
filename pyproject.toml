@@ -74,6 +74,7 @@ pythonpath = [
     "packages/core",
     "packages/clients",
     "packages/agentic-sdk",
+    "tests",
 ]
 
 [tool.hatch.envs.default]
