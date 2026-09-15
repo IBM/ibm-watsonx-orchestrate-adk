@@ -275,6 +275,7 @@ services:
       ENABLE_EMBED_SCRIPT: "true"
       ENABLE_BULK_TESTING: "true"
       ENABLE_A2A_AGENTS: "true"
+      ENABLE_AGENT_VERSION: "true"
       ENABLE_THIRD_PARTY_MODELS: "true"
       ENABLE_CM_A2A_AGENTS: "false"
       ENABLE_REMOTE_MCP_SERVER: "true"
@@ -1545,6 +1546,11 @@ services:
     depends_on:
       wdu-model-copy:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: '6G'
 
   wdu-model-copy:
     image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.9.1}
