@@ -48,7 +48,7 @@ from ..node import (
 from ..types import (
     AgentNodeSpec, ThreadControlPolicy, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
     NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema,
-    FlowCallback, FlowCallbackEventKind, _UNSET
+    FlowCallback, FlowCallbackEventKind, _UNSET, UserRole
 )
 
 from ..data_map import DataMap, DataMapSpec
@@ -2402,6 +2402,7 @@ class FlowFactory(BaseModel):
                     output_schema: type[BaseModel]|None=None,
                     private_schema: type[BaseModel]|None=None,
                     schedulable: bool=False,
+                    schedulable_by_role: UserRole|None=None,
                     suppress_agent_summarization: bool|None=None,
                     llm_model: str|ListVirtualModel|None=None,
                     agent_conversation_memory_turns_limit: int|None = None,
@@ -2430,6 +2431,7 @@ class FlowFactory(BaseModel):
             private_schema = private_schema_obj,
             output_schema_object = output_schema_obj,
             schedulable=schedulable,
+            schedulable_by_role=schedulable_by_role,
             suppress_agent_summarization=suppress_agent_summarization,
             context_window=context_window,
         )

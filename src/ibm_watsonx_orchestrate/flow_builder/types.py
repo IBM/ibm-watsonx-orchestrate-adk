@@ -3227,6 +3227,9 @@ class FlowCallback(BaseModel):
         return model_spec
 
 
+UserRole = Literal["user", "builder", "admin"]
+
+
 class FlowSpec(NodeSpec):
     """
     FlowSpec represents the specification of a flow.
@@ -3238,6 +3241,12 @@ class FlowSpec(NodeSpec):
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
     schedulable: bool = False
+    # Minimum role required to schedule this flow.
+    # "user"    – any authenticated user may schedule it (default when unset).
+    # "builder" – only builders and admins may schedule it.
+    # "admin"   – only admins may schedule it.
+    # Has no effect unless schedulable=True.
+    schedulable_by_role: UserRole | None = None
     suppress_agent_summarization: bool | None = None
 
     # flow can have private schema
@@ -3261,6 +3270,8 @@ class FlowSpec(NodeSpec):
             model_spec["dimensions"] = {"width": self.dimensions.width, "height": self.dimensions.height}
         if self.schedulable:
             model_spec["schedulable"] = self.schedulable
+        if self.schedulable_by_role is not None:
+            model_spec["schedulable_by_role"] = self.schedulable_by_role
         if self.private_schema:
             model_spec["private_schema"] = _to_json_from_input_schema(self.private_schema)
         if self.context_window:
