@@ -1011,7 +1011,10 @@ ACTIVITY_SPEC_VERSION = "2.0"
 # `oneOf` and `additionalProperties` survive), which also means it bypasses the
 # None-stripping in _assign_attribute — so nulls must not be introduced here.
 def _activity_property_schema(kind: "UserFieldKind", direction: str, label: str | None,
-                              true_label: str = "True", false_label: str = "False") -> dict[str, Any]:
+                              true_label: str = "True", false_label: str = "False",
+                              allow_multiple_files: bool = False,
+                              file_max_size: int | None = None,
+                              supported_file_types: List[str] | None = None) -> dict[str, Any]:
     # Present-to-User-Message: no title, the text carries the content.
     if kind == UserFieldKind.Text and direction == "output":
         return {"type": "string"}
@@ -1035,7 +1038,14 @@ def _activity_property_schema(kind: "UserFieldKind", direction: str, label: str 
     elif kind == UserFieldKind.Time:
         schema = {"type": "string", "format": "time"}
     elif kind == UserFieldKind.File:
-        schema = {"type": "string", "format": "wxo-file"}
+        if allow_multiple_files:
+            schema = {"type": "array", "items": {"type": "string", "format": "wxo-file"}}
+        else:
+            schema = {"type": "string", "format": "wxo-file"}
+        if file_max_size is not None:
+            schema["file_max_size"] = file_max_size
+        if supported_file_types is not None:
+            schema["file_types"] = supported_file_types
     else:
         raise ValueError(f"UserActivity does not yet support kind={kind.value} direction={direction}")
 
@@ -1059,6 +1069,9 @@ def _build_activity_field(
     false_label: str = "False",
     placeholder_text: str | None = None,
     help_text: str | None = None,
+    allow_multiple_files: bool = False,
+    file_max_size: int | None = None,
+    supported_file_types: List[str] | None = None,
 ) -> "UserField":
     """
     Build a UserField for a spec_version 2.0 UserActivity (single-widget user node).
@@ -1117,11 +1130,22 @@ def _build_activity_field(
         "required": [name] if required else [],
         "properties": {name: _activity_property_schema(kind, direction, label,
                                                        true_label=true_label,
-                                                       false_label=false_label)},
+                                                       false_label=false_label,
+                                                       allow_multiple_files=allow_multiple_files,
+                                                       file_max_size=file_max_size,
+                                                       supported_file_types=supported_file_types)},
         "additionalProperties": False,
     }
     if agent_message is not None:
         json_schema["description"] = agent_message
+
+    output_schema = schemas["output_schema"]
+    if kind == UserFieldKind.File and allow_multiple_files:
+        output_schema = JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-file"}}},
+            required=["value"]
+        )
 
     return UserField(
         name=name,
@@ -1132,7 +1156,7 @@ def _build_activity_field(
         uiSchema=schemas["ui_schema"],
         jsonSchema=json_schema,
         input_schema=schemas["input_schema"],
-        output_schema=schemas["output_schema"],
+        output_schema=output_schema,
         spec_version=ACTIVITY_SPEC_VERSION,
     )
 
@@ -3459,7 +3483,7 @@ class UserFlowSpec(FlowSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
-        if self.label:
+        if self.label is not None:
             model_spec["label"] = self.label
         if self.initiators:
             model_spec["owners"] = self.initiators

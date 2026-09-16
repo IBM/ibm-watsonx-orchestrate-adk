@@ -289,3 +289,66 @@ def test_widget_on_bare_usernode_still_raises():
     legacy = uf.field(direction="input", name="legacy_text", kind=UserFieldKind.Text, text="Type something")
     with pytest.raises(ValueError, match="activity\\(\\)"):
         legacy.boolean_input_field(name="foo", label="Foo")
+
+
+def test_userflowspec_preserves_explicit_empty_label():
+    """label='' is a deliberate value distinct from label unset (None) — the
+    check must not treat them the same."""
+    from ibm_watsonx_orchestrate.flow_builder.types import UserFlowSpec
+    spec = UserFlowSpec(name="uf_empty_label", label="")
+    assert spec.to_json()["label"] == ""
+
+
+def test_activity_number_input_field_min_max():
+    """number_input_field on an activity must thread minimum/maximum through,
+    the same way it already threads default, by merging them into input_map."""
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_num_minmax")
+    node = uf.activity(name="ask_age")
+
+    minimum = DataMap().add(Assignment(target_variable="minimum", value_expression="0"))
+    maximum = DataMap().add(Assignment(target_variable="maximum", value_expression="120"))
+    node.number_input_field(name="age", label="Age", minimum=minimum, maximum=maximum)
+
+    field = node.get_spec().fields[0]
+    assert [m.target_variable for m in field.input_map.maps] == ["minimum", "maximum"]
+
+
+def test_activity_file_upload_field_metadata():
+    """file_upload_field on an activity must carry through instructions,
+    allow_multiple_files, file_max_size and supported_file_types."""
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_file_meta")
+    node = uf.activity(name="upload_doc")
+    node.file_upload_field(
+        name="doc",
+        label="Upload a document",
+        instructions="PDF only, please",
+        allow_multiple_files=True,
+        file_max_size=25,
+        supported_file_types=["pdf"],
+    )
+
+    out = node.get_spec().to_json()["fields"][0]
+    prop = out["jsonSchema"]["properties"]["doc"]
+    assert prop["type"] == "array"
+    assert prop["items"] == {"type": "string", "format": "wxo-file"}
+    assert prop["file_max_size"] == 25
+    assert prop["file_types"] == ["pdf"]
+    assert out["uiSchema"]["ui:help"] == "PDF only, please"
+
+
+def test_activity_file_upload_field_min_max_num_files_requires_multiple():
+    """min_num_files/max_num_files must only be accepted with allow_multiple_files=True,
+    matching the UserForm.file_upload_field validation."""
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_file_minmax")
+    node = uf.activity(name="upload_doc2")
+
+    min_files = DataMap().add(Assignment(target_variable="min_num_files", value_expression="1"))
+    with pytest.raises(ValueError, match="allow_multiple_files=True"):
+        node.file_upload_field(name="doc", min_num_files=min_files, allow_multiple_files=False)

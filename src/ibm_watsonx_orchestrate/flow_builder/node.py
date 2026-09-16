@@ -11,7 +11,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PageRange, PromptNodeSpec, SchemaRef, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserField, UserField, UserFieldKind, UserFieldOption, UserForm, UserFormButton, UserNodeSpec, DocProcSpec, \
                     DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig, LanguageCode, _build_activity_field
 
-from .data_map import DataMap, DataMapSpec, Assignment
+from .data_map import DataMap, DataMapSpec, Assignment, ensure_datamap, add_assignment
 
 class Node(BaseModel):
     spec: SerializeAsAny[NodeSpec]
@@ -610,6 +610,18 @@ class UserNode(Node):
          """
          if self.get_spec().form is None:
              if self.get_spec().is_activity:
+                 ensure_datamap(default, "default")
+                 ensure_datamap(minimum, "minimum")
+                 ensure_datamap(maximum, "maximum")
+                 activity_input_map = default
+                 if activity_input_map is not None:
+                     add_assignment(activity_input_map, minimum)
+                     add_assignment(activity_input_map, maximum)
+                 elif minimum is not None:
+                     activity_input_map = minimum
+                     add_assignment(activity_input_map, maximum)
+                 elif maximum is not None:
+                     activity_input_map = maximum
                  return self._add_activity_field(
                      name=name,
                      kind=UserFieldKind.Number,
@@ -617,7 +629,7 @@ class UserNode(Node):
                      label=label,
                      agent_message=agent_message,
                      required=required,
-                     input_map=default,
+                     input_map=activity_input_map,
                      help_text=help_text,
                  )
              self._raise_missing_container()
@@ -667,8 +679,19 @@ class UserNode(Node):
                 ValueError: If the form has not been created. Call form() method first.
                 ValueError: If min_num_files or max_num_files is set when allow_multiple_files=False.
             """
+            ensure_datamap(min_num_files, "min_num_files")
+            ensure_datamap(max_num_files, "max_num_files")
+
+            if (min_num_files is not None or max_num_files is not None) and not allow_multiple_files:
+                raise ValueError("min_num_files and max_num_files are only valid when allow_multiple_files=True")
+
             if self.get_spec().form is None:
                 if self.get_spec().is_activity:
+                    activity_input_map = min_num_files
+                    if activity_input_map is not None:
+                        add_assignment(activity_input_map, max_num_files)
+                    elif max_num_files is not None:
+                        activity_input_map = max_num_files
                     return self._add_activity_field(
                         name=name,
                         kind=UserFieldKind.File,
@@ -676,11 +699,13 @@ class UserNode(Node):
                         label=label,
                         agent_message=agent_message,
                         required=required,
+                        input_map=activity_input_map,
+                        help_text=instructions,
+                        allow_multiple_files=allow_multiple_files,
+                        file_max_size=file_max_size,
+                        supported_file_types=supported_file_types,
                     )
                 self._raise_missing_container()
-
-            if (min_num_files is not None or max_num_files is not None) and not allow_multiple_files:
-                raise ValueError("min_num_files and max_num_files are only valid when allow_multiple_files=True")
 
             return self.get_spec().form.file_upload_field(
                 name = name,
