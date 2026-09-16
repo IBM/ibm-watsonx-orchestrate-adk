@@ -5,7 +5,7 @@ from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIExceptio
 
 
 @pytest.fixture
-def client():
+def mock_assistant_agent_client() -> AssistantAgentClient
     """
     Creates an AssistantAgentClient with mocked HTTP methods.
 
