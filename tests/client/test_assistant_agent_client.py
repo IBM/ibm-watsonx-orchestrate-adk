@@ -26,7 +26,7 @@ def mock_assistant_agent_client() -> AssistantAgentClient
 
 class TestCreate:
 
-    def test_create_calls_post_with_correct_endpoint(self, client):
+    def test_create_calls_post_with_correct_endpoint(self, client: AssistantAgentClient) -> None:
         """
         Verifies that create() sends a POST to /assistants/watsonx with the correct payload.
 
