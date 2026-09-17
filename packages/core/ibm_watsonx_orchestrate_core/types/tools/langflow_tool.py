@@ -109,10 +109,10 @@ def create_langflow_tool(
   name = tool_definition.get('name')
   if not name:
     raise ValueError('Provided tool definition does not have a name')
-  
+
   if VALID_NAME_PATTERN.match(name) is None:
-    raise ValueError(f"Langflow tool name contains unsupported characters. Only alphanumeric characters and underscores are allowed, and must not start with a number or underscore.")
-  
+    raise ValueError(f"Langflow tool name '{name}' contains unsupported characters. Only alphanumeric characters and underscores are allowed, and must not start with a number or underscore.")
+
   description = tool_definition.get('description')
   if not description:
     raise ValueError('Provided tool definition does not have a description')
