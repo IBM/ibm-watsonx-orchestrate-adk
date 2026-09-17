@@ -1,8 +1,11 @@
 
+import logging
 import os
 import requests
 
 from ibm_watsonx_orchestrate_clients.common.base_client import BaseAPIClient
+
+logger = logging.getLogger(__name__)
 
 LANGFLOW_BASE_URL = "http://localhost:7861"
 LANGFLOW_SUPERUSER_ENV = "LANGFLOW_SUPERUSER"
@@ -18,14 +21,18 @@ def _acquire_langflow_token(base_url: str, username: str | None = None, password
     Returns None if neither method succeeds.
     """
     if username and password:
-        resp = requests.post(
-            f"{base_url}/api/v1/login",
-            data={"username": username, "password": password},
-        )
-        resp.raise_for_status()
-        return resp.json()["access_token"]
+        try:
+            resp = requests.post(
+                f"{base_url}/api/v1/login",
+                data={"username": username, "password": password},
+            )
+            resp.raise_for_status()
+            return resp.json()["access_token"]
+        except Exception as e:
+            raise RuntimeError(f"Langflow authentication failed: {e}") from e
 
-    # Fall back to auto-login (works when LANGFLOW_AUTO_LOGIN=true on the server)
+    # No credentials provided — fall back to auto-login
+    logger.debug("No Langflow credentials provided, falling back to auto-login endpoint")
     resp = requests.get(f"{base_url}/api/v1/auto_login")
     if resp.status_code == 200:
         return resp.json().get("access_token")
