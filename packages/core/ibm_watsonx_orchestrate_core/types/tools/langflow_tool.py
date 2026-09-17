@@ -110,16 +110,8 @@ def create_langflow_tool(
   if not name:
     raise ValueError('Provided tool definition does not have a name')
 
-  # Sanitise the name: spaces and hyphens → underscores, strip anything
-  # else that isn't alphanumeric or underscore, then strip leading digits/underscores.
-  display_name = name
-  sanitised = re.sub(r'[\s\-]+', '_', name)          # spaces/hyphens → _
-  sanitised = re.sub(r'[^\w]', '', sanitised)          # remove remaining non-word chars
-  sanitised = re.sub(r'^[_\d]+', '', sanitised)        # strip leading underscores/digits
-  name = sanitised
-
   if VALID_NAME_PATTERN.match(name) is None:
-    raise ValueError(f"Langflow tool name '{display_name}' could not be sanitised into a valid tool name. Only alphanumeric characters and underscores are allowed, and must not start with a number or underscore.")
+    raise ValueError(f"Langflow tool name '{name}' contains unsupported characters. Only alphanumeric characters and underscores are allowed, and must not start with a number or underscore.")
 
   description = tool_definition.get('description')
   if not description:
@@ -153,7 +145,6 @@ def create_langflow_tool(
 
   spec = ToolSpec(
     name=name,
-    display_name=display_name if display_name != name else None,
     description=description,
     permission=ToolPermission('read_only')
   )
