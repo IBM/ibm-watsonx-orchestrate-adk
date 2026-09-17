@@ -203,6 +203,7 @@ class TestConnectionsSetCredentials:
         "exp": "test_exp",
         "include_jti": False,
         "claims": ["test_claims=claim1"],
+        "app_token_key": None,
     }
 
     def test_set_credentials_connection_command(self):
