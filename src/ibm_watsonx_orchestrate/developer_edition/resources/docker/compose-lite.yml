@@ -466,7 +466,7 @@ services:
       WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/minio:latest
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -484,7 +484,7 @@ services:
       - wxo-server-minio-data:/data
 
   wxo-server-minio-setup:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/mc:latest
     depends_on:
       wxo-server-minio:
         condition: service_healthy
@@ -1706,7 +1706,7 @@ services:
       retries: 50
 
   wxo-doc-processing-dpi-minio-init:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/mc:latest
     platform: linux/amd64
     profiles:
       - docproc
@@ -1721,7 +1721,7 @@ services:
       "
 
   wxo-doc-processing-cache-minio-init:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/mc:latest
     platform: linux/amd64
     profiles:
       - docproc
