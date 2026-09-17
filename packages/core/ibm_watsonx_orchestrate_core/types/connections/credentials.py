@@ -122,11 +122,15 @@ class OAuthOnBehalfOfCredentials(BaseOAuthCredentials):
     client_id: str
     access_token_url: str
     grant_type: str
+    client_secret: Optional[str] = None
+    app_token_key: Optional[str] = None
 
 class OAuth2TokenExchangeCredentials(BaseOAuthCredentials):
     client_id: str
     access_token_url: str
     grant_type: str
+    client_secret: Optional[str] = None
+    app_token_key: Optional[str] = None
 
 class OAuth2JwtBearerCredentials(BaseOAuthCredentials):
     token_url: str

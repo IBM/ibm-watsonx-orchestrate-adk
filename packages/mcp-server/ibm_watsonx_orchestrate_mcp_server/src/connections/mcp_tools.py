@@ -127,6 +127,7 @@ def set_credentials_connection(options: SetCredentialsConnectionOptions) -> str:
         aud=options.aud,
         exp=options.exp,
         include_jti=options.include_jti,
+        app_token_key=options.app_token_key,
     )
     return f"Credentials set for connection '{options.app_id}'"
 

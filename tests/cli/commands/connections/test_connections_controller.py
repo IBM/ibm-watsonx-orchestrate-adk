@@ -417,6 +417,46 @@ class TestGetCredentials:
         assert credentials == expected_creds
     
     @pytest.mark.parametrize(
+        ("conn_type", "base_args", "expected_cred_type"),
+        [
+            (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"], OAuthOnBehalfOfCredentials),
+            (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"], OAuth2TokenExchangeCredentials),
+        ]
+    )
+    def test_get_credentials_with_client_secret_and_app_token_key(self, conn_type, base_args, expected_cred_type):
+        args = {arg: "test" for arg in base_args}
+        args["client_secret"] = "test-secret"
+        args["app_token_key"] = "subject_token"
+
+        credentials = _get_credentials(conn_type, **args)
+
+        assert type(credentials) == expected_cred_type
+        assert credentials.client_secret == "test-secret"
+        assert credentials.app_token_key == "subject_token"
+
+        dumped = credentials.model_dump(exclude_none=True)
+        assert dumped["client_secret"] == "test-secret"
+        assert dumped["app_token_key"] == "subject_token"
+
+    @pytest.mark.parametrize(
+        ("conn_type", "base_args", "expected_cred_type"),
+        [
+            (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"], OAuthOnBehalfOfCredentials),
+            (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"], OAuth2TokenExchangeCredentials),
+        ]
+    )
+    def test_get_credentials_without_client_secret_and_app_token_key(self, conn_type, base_args, expected_cred_type):
+        """Optional fields must be absent from model_dump when not supplied."""
+        args = {arg: "test" for arg in base_args}
+
+        credentials = _get_credentials(conn_type, **args)
+
+        assert type(credentials) == expected_cred_type
+        dumped = credentials.model_dump(exclude_none=True)
+        assert "client_secret" not in dumped
+        assert "app_token_key" not in dumped
+
+    @pytest.mark.parametrize(
         ("entries", "expected"),
         [
             ([KeyValueEntry(key="foo", value="bar"), KeyValueEntry(key="test1", value="test2")], {"foo": "bar", "test1": "test2"}),
