@@ -80,12 +80,12 @@ Large message
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `context_compaction_enabled` | boolean | `false` | Must be `true` to activate any compaction. |
-| `context_compaction_threshold` | integer | — | Token count that triggers conversation-level compaction. |
-| `compaction_sliding_window` | integer | — | Number of recent turns to preserve verbatim. |
-| `large_message_threshold` | integer | — | Per-message token count that triggers inline large-message handling. |
-| `large_message_chunk_size` | integer | — | Chunk size (tokens) for map-reduce summarization of unstructured messages. |
-| `large_message_target_summary` | integer | — | Target token length for the final compressed summary. |
-| `large_message_detect_structured` | boolean | `false` | When `true`, detects structured data and uses truncation instead of summarization. |
+| `context_compaction_threshold` | integer | 20000 | Token count that triggers conversation-level compaction. |
+| `compaction_sliding_window` | integer | 10 | Number of recent turns to preserve verbatim. |
+| `large_message_threshold` | integer | 50000 | Per-message token count that triggers inline large-message handling. |
+| `large_message_chunk_size` | integer | 30000 | Chunk size (tokens) for map-reduce summarization of unstructured messages. |
+| `large_message_target_summary` | integer | 10000 | Target token length for the final compressed summary. |
+| `large_message_detect_structured` | boolean | - | When `true`, detects structured data and uses truncation instead of summarization. |
 
 ---
 
