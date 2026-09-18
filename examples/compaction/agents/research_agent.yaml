@@ -29,6 +29,6 @@ compaction_settings:
   context_compaction_threshold: 10000
   compaction_sliding_window: 10
   large_message_threshold: 2000
-  large_message_chunk_size: 10000
-  large_message_target_summary: 15000
+  large_message_chunk_size: 1000
+  large_message_target_summary: 1500
   large_message_detect_structured: true

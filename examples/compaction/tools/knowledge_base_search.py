@@ -33,8 +33,8 @@ def knowledge_base_search(query: str) -> str:
     developer-grade ADK (Agent Development Kit) for engineers who need full
     programmatic control.
 
-    The platform is designed to meet the needs of both citizen developers and
-    professional engineers. Business users can compose agents and workflows
+    The platform is designed to meet the needs of both software developers and
+    AI engineers. Business users can compose agents and workflows
     visually through the Agent Builder and Flow Builder interfaces, selecting
     from a catalog of pre-built tools and skills without writing a single line
     of code. Software engineers, on the other hand, can use the ADK to define
@@ -42,18 +42,11 @@ def knowledge_base_search(query: str) -> str:
     and deploy them through CI/CD pipelines just like any other software
     artifact.
 
-    Agents in watsonx Orchestrate are powered by large language models (LLMs)
-    hosted on IBM watsonx.ai. The platform abstracts the underlying model
-    inference layer, allowing teams to swap models without rewriting agent
-    logic. Supported styles include ReAct (react_core), which enables
+    The platform abstracts the underlying model inference layer, 
+    allowing teams to swap models without rewriting agent logic. 
+    Supported styles include ReAct (react_core), which enables
     iterative tool-use and reasoning loops, and planner-based styles for
     multi-step task decomposition.
-
-    Organizations can run watsonx Orchestrate as a managed SaaS offering on
-    IBM Cloud, or deploy it on-premises via IBM Cloud Pak for Data (CP4D) for
-    environments with strict data residency or air-gap requirements. Both
-    deployment modes expose the same ADK interfaces, so agents developed
-    locally can be promoted to production without modification.
 
     ## Section 2 — Integration Patterns
     Agents can integrate with external systems via multiple mechanisms, each
@@ -89,6 +82,11 @@ def knowledge_base_search(query: str) -> str:
     the platform's skill catalog for discovery and reuse by other teams.
 
     ## Section 3 — Conversation Compaction
+    A context window (also called context length) is the total number of tokens
+    an LLM can consider during a single inference call. Think of it as the model's
+    working memory. That includes: system prompts, conversation history, tool outputs,
+    retrieved documents, etc.
+
     As agents handle longer, multi-turn conversations, the accumulated history
     can grow large enough to exceed the context window of the underlying LLM.
     Compaction addresses this by automatically managing conversation history
