@@ -85,7 +85,7 @@ Large message
 | `large_message_threshold` | integer | 50000 | Per-message token count that triggers inline large-message handling. |
 | `large_message_chunk_size` | integer | 30000 | Chunk size (tokens) for map-reduce summarization of unstructured messages. |
 | `large_message_target_summary` | integer | 10000 | Target token length for the final compressed summary. |
-| `large_message_detect_structured` | boolean | - | When `true`, detects structured data and uses truncation instead of summarization. |
+| `large_message_detect_structured` | boolean | false | When `true`, detects structured data and uses truncation instead of summarization. |
 
 ---
 
