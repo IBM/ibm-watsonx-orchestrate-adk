@@ -2088,7 +2088,8 @@ class TestNativeAgentDependenciesSkills:
         )
 
         ac = AgentsController()
-        result = ac.reference_native_agent_dependencies(agent)
+        with patch.object(ac, "reference_tools", side_effect=lambda a, **kwargs: a):
+            result = ac.reference_native_agent_dependencies(agent)
         assert result.skills == ["skill-one", "skill-two"]
 
 
