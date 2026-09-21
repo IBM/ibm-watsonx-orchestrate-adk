@@ -1078,6 +1078,8 @@ def _build_activity_field(
     supported_file_types: List[str] | None = None,
     multiple_dates: bool = False,
     has_range_limit: bool = False,
+    regex: str | None = None,
+    regex_error_message: str | None = None,
 ) -> "UserField":
     """
     Build a UserField for a spec_version 2.0 UserActivity (single-widget user node).
@@ -1124,6 +1126,12 @@ def _build_activity_field(
             ui_config["ui:options"] = {"label": False}
     elif kind == UserFieldKind.Date and multiple_dates:
         ui_config["ui:widget"] = "MultiDateWidget"
+    elif kind in (UserFieldKind.DateTime, UserFieldKind.Time):
+        ui_config["ui:options"] = {
+            "is_range": False,
+            "is_timezone": True,
+            "is_datepicker": kind == UserFieldKind.DateTime,
+        }
     # For other kinds, clone_form_schema will supply the default ui:widget.
 
     if help_text is not None:
@@ -1181,6 +1189,8 @@ def _build_activity_field(
         input_schema=schemas["input_schema"],
         output_schema=output_schema,
         spec_version=ACTIVITY_SPEC_VERSION,
+        regex=regex,
+        regex_error_msg=regex_error_message if regex else None,
     )
 
 
@@ -1601,7 +1611,8 @@ class UserForm(BaseModel):
             single_checkbox: bool = True,
             input_map: Any| None=None,
             true_label: str = "True",
-            false_label: str = "False"
+            false_label: str = "False",
+            required: bool = False,
     ) -> UserField:
         # Use the template system from utils
         widget = "CheckboxWidget" if single_checkbox else "RadioWidget"
@@ -1650,6 +1661,8 @@ class UserForm(BaseModel):
             ],
             "title": label
         }
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
 
         return userfield
 

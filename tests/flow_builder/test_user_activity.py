@@ -443,3 +443,64 @@ def test_activity_non_datamap_bound_is_rejected():
     node = uf.activity(name="pick_date")
     with pytest.raises(TypeError, match="min_date"):
         node.date_input_field(name="when", min_date="2025-01-01")
+
+
+def test_activity_text_input_field_forwards_regex():
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_regex")
+    node = uf.activity(name="ask_code")
+    node.text_input_field(name="code", regex="^[A-Z]{3}$", regex_error_message="Three capitals")
+
+    out = node.get_spec().to_json()["fields"][0]
+    assert out["regex"] == "^[A-Z]{3}$"
+    assert out["regex_error_msg"] == "Three capitals"
+
+
+def test_activity_text_input_field_without_regex_emits_no_regex_keys():
+    """regex_error_message has a non-empty default; it must not leak when no regex is set."""
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_noregex")
+    node = uf.activity(name="ask_plain")
+    node.text_input_field(name="plain")
+
+    out = node.get_spec().to_json()["fields"][0]
+    assert "regex" not in out
+    assert "regex_error_msg" not in out
+
+
+def test_form_boolean_input_field_honours_required():
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_form_bool")
+    node = uf.form(name="f")
+    node.boolean_input_field(name="agree", label="I agree", required=True)
+    node.boolean_input_field(name="optional", label="Optional")
+
+    required = node.get_spec().form.jsonSchema.required
+    assert "agree" in required
+    assert "optional" not in required
+
+
+@pytest.mark.parametrize("method,is_datepicker", [
+    ("datetime_input_field", True),
+])
+def test_activity_datetime_sets_widget_options_like_form(method, is_datepicker):
+    aflow = _build_flow()
+    uf = aflow.userflow(name=f"uf_{method}")
+    node = uf.activity(name="pick")
+    getattr(node, method)(name="at", label="At")
+
+    ui = node.get_spec().to_json()["fields"][0]["uiSchema"]
+    assert ui["ui:widget"] == "TimeWidget"
+    assert ui["ui:options"] == {"is_range": False, "is_timezone": True, "is_datepicker": is_datepicker}
+
+
+def test_activity_time_sets_widget_options_without_datepicker():
+    from ibm_watsonx_orchestrate.flow_builder.types import UserFieldKind
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_time")
+    node = uf.activity(name="pick_time")
+    node.datetime_input_field(name="at", inputType=UserFieldKind.Time)
+
+    ui = node.get_spec().to_json()["fields"][0]["uiSchema"]
+    assert ui["ui:options"] == {"is_range": False, "is_timezone": True, "is_datepicker": False}
