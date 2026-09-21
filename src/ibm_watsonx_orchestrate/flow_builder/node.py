@@ -13,6 +13,26 @@ from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, Page
 
 from .data_map import DataMap, DataMapSpec, Assignment, ensure_datamap, add_assignment
 
+
+def _merge_input_maps(default: Any, **bounds: Any) -> Any | None:
+    """Merge bound DataMaps into the default's input_map.
+
+    `default` is passed through untouched when there are no bounds, so existing
+    dict / DataMapSpec defaults keep working; it must be a DataMap only when merging.
+    """
+    for name, bound in bounds.items():
+        ensure_datamap(bound, name)
+    present = [b for b in bounds.values() if b is not None]
+    if not present:
+        return default
+    ensure_datamap(default, "default")
+    base = default if default is not None else present[0]
+    for bound in present:
+        if bound is not base:
+            add_assignment(base, bound)
+    return base
+
+
 class Node(BaseModel):
     spec: SerializeAsAny[NodeSpec]
     input_map: DataMapSpec | None = None
@@ -460,7 +480,9 @@ class UserNode(Node):
                      label=label,
                      agent_message=agent_message,
                      required=required,
-                     input_map=default,
+                     input_map=_merge_input_maps(default, min_date=min_date, max_date=max_date),
+                     multiple_dates=multiple_dates,
+                     has_range_limit=min_date is not None or max_date is not None,
                  )
              self._raise_missing_container()
 
@@ -516,7 +538,8 @@ class UserNode(Node):
                      label=label,
                      agent_message=agent_message,
                      required=required,
-                     input_map=default,
+                     input_map=_merge_input_maps(default, min_time=min_time, max_time=max_time),
+                     has_range_limit=min_time is not None or max_time is not None,
                  )
              self._raise_missing_container()
 
@@ -610,18 +633,6 @@ class UserNode(Node):
          """
          if self.get_spec().form is None:
              if self.get_spec().is_activity:
-                 ensure_datamap(default, "default")
-                 ensure_datamap(minimum, "minimum")
-                 ensure_datamap(maximum, "maximum")
-                 activity_input_map = default
-                 if activity_input_map is not None:
-                     add_assignment(activity_input_map, minimum)
-                     add_assignment(activity_input_map, maximum)
-                 elif minimum is not None:
-                     activity_input_map = minimum
-                     add_assignment(activity_input_map, maximum)
-                 elif maximum is not None:
-                     activity_input_map = maximum
                  return self._add_activity_field(
                      name=name,
                      kind=UserFieldKind.Number,
@@ -629,7 +640,7 @@ class UserNode(Node):
                      label=label,
                      agent_message=agent_message,
                      required=required,
-                     input_map=activity_input_map,
+                     input_map=_merge_input_maps(default, minimum=minimum, maximum=maximum),
                      help_text=help_text,
                  )
              self._raise_missing_container()
@@ -687,11 +698,6 @@ class UserNode(Node):
 
             if self.get_spec().form is None:
                 if self.get_spec().is_activity:
-                    activity_input_map = min_num_files
-                    if activity_input_map is not None:
-                        add_assignment(activity_input_map, max_num_files)
-                    elif max_num_files is not None:
-                        activity_input_map = max_num_files
                     return self._add_activity_field(
                         name=name,
                         kind=UserFieldKind.File,
@@ -699,7 +705,7 @@ class UserNode(Node):
                         label=label,
                         agent_message=agent_message,
                         required=required,
-                        input_map=activity_input_map,
+                        input_map=_merge_input_maps(min_num_files, max_num_files=max_num_files),
                         help_text=instructions,
                         allow_multiple_files=allow_multiple_files,
                         file_max_size=file_max_size,

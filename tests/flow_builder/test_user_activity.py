@@ -352,3 +352,94 @@ def test_activity_file_upload_field_min_max_num_files_requires_multiple():
     min_files = DataMap().add(Assignment(target_variable="min_num_files", value_expression="1"))
     with pytest.raises(ValueError, match="allow_multiple_files=True"):
         node.file_upload_field(name="doc", min_num_files=min_files, allow_multiple_files=False)
+
+
+def test_activity_date_input_field_min_max_and_multiple_dates():
+    """min_date/max_date must reach input_map and input_schema; multiple_dates must
+    switch to the multi-date widget with array schemas, like the form path."""
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_date_opts")
+    node = uf.activity(name="pick_dates")
+
+    min_date = DataMap().add(Assignment(target_variable="min_date", value_expression="flow.input.start"))
+    max_date = DataMap().add(Assignment(target_variable="max_date", value_expression="flow.input.end"))
+    node.date_input_field(name="when", label="When", min_date=min_date, max_date=max_date, multiple_dates=True)
+
+    out = node.get_spec().to_json()["fields"][0]
+    assert [m["target_variable"] for m in out["input_map"]["spec"]["maps"]] == ["min_date", "max_date"]
+    assert out["uiSchema"]["ui:widget"] == "MultiDateWidget"
+    assert out["jsonSchema"]["properties"]["when"]["type"] == "array"
+    assert out["jsonSchema"]["properties"]["when"]["items"] == {"type": "string", "format": "date"}
+    assert set(out["input_schema"]["properties"]) >= {"default", "min_date", "max_date"}
+    assert out["output_schema"]["properties"]["value"]["type"] == "array"
+
+
+def test_activity_date_input_field_defaults_unchanged():
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_date_plain")
+    node = uf.activity(name="pick_date")
+    node.date_input_field(name="when", label="When")
+
+    out = node.get_spec().to_json()["fields"][0]
+    assert out["jsonSchema"]["properties"]["when"] == {"type": "string", "format": "date", "title": "When"}
+    assert "input_map" not in out
+    assert out["uiSchema"]["ui:widget"] != "MultiDateWidget"
+
+
+def test_activity_datetime_input_field_min_max_time():
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_dt_opts")
+    node = uf.activity(name="pick_dt")
+
+    min_time = DataMap().add(Assignment(target_variable="min_time", value_expression="flow.input.open"))
+    node.datetime_input_field(name="at", label="At", min_time=min_time)
+
+    out = node.get_spec().to_json()["fields"][0]
+    assert [m["target_variable"] for m in out["input_map"]["spec"]["maps"]] == ["min_time"]
+    assert "min_time" in out["input_schema"]["properties"]
+
+
+def test_activity_default_without_bounds_is_passed_through_untouched():
+    """A dict / DataMapSpec default worked before min/max support; it must not
+    start raising just because bounds are now merged when present."""
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, DataMapSpec, Assignment
+
+    spec_default = DataMapSpec(spec=DataMap().add(Assignment(target_variable="default", value_expression="5")))
+    dict_default = spec_default.model_dump()
+
+    for i, default in enumerate([spec_default, dict_default]):
+        aflow = _build_flow()
+        uf = aflow.userflow(name=f"uf_default_{i}")
+        for method in ("number_input_field", "date_input_field", "datetime_input_field"):
+            node = uf.activity(name=f"{method}_{i}")
+            getattr(node, method)(name="f", default=default)
+            out = node.get_spec().to_json()["fields"][0]
+            assert [m["target_variable"] for m in out["input_map"]["spec"]["maps"]] == ["default"]
+
+
+def test_activity_default_and_bounds_merge_in_order():
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_merge_order")
+    node = uf.activity(name="pick_date")
+
+    default = DataMap().add(Assignment(target_variable="default", value_expression="'2026-01-01'"))
+    min_date = DataMap().add(Assignment(target_variable="min_date", value_expression="'2025-01-01'"))
+    max_date = DataMap().add(Assignment(target_variable="max_date", value_expression="'2027-01-01'"))
+    node.date_input_field(name="when", default=default, min_date=min_date, max_date=max_date)
+
+    out = node.get_spec().to_json()["fields"][0]
+    assert [m["target_variable"] for m in out["input_map"]["spec"]["maps"]] == ["default", "min_date", "max_date"]
+
+
+def test_activity_non_datamap_bound_is_rejected():
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_bad_bound")
+    node = uf.activity(name="pick_date")
+    with pytest.raises(TypeError, match="min_date"):
+        node.date_input_field(name="when", min_date="2025-01-01")
