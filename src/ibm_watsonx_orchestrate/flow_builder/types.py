@@ -1014,7 +1014,8 @@ def _activity_property_schema(kind: "UserFieldKind", direction: str, label: str 
                               true_label: str = "True", false_label: str = "False",
                               allow_multiple_files: bool = False,
                               file_max_size: int | None = None,
-                              supported_file_types: List[str] | None = None) -> dict[str, Any]:
+                              supported_file_types: List[str] | None = None,
+                              multiple_dates: bool = False) -> dict[str, Any]:
     # Present-to-User-Message: no title, the text carries the content.
     if kind == UserFieldKind.Text and direction == "output":
         return {"type": "string"}
@@ -1032,7 +1033,10 @@ def _activity_property_schema(kind: "UserFieldKind", direction: str, label: str 
     elif kind == UserFieldKind.Number:
         schema = {"type": "number"}
     elif kind == UserFieldKind.Date:
-        schema = {"type": "string", "format": "date"}
+        if multiple_dates:
+            schema = {"type": "array", "items": {"type": "string", "format": "date"}}
+        else:
+            schema = {"type": "string", "format": "date"}
     elif kind == UserFieldKind.DateTime:
         schema = {"type": "string", "format": "datetime"}
     elif kind == UserFieldKind.Time:
@@ -1072,6 +1076,8 @@ def _build_activity_field(
     allow_multiple_files: bool = False,
     file_max_size: int | None = None,
     supported_file_types: List[str] | None = None,
+    multiple_dates: bool = False,
+    has_range_limit: bool = False,
 ) -> "UserField":
     """
     Build a UserField for a spec_version 2.0 UserActivity (single-widget user node).
@@ -1116,6 +1122,8 @@ def _build_activity_field(
         ui_config["ui:widget"] = widget
         if widget == "CheckboxWidget":
             ui_config["ui:options"] = {"label": False}
+    elif kind == UserFieldKind.Date and multiple_dates:
+        ui_config["ui:widget"] = "MultiDateWidget"
     # For other kinds, clone_form_schema will supply the default ui:widget.
 
     if help_text is not None:
@@ -1133,11 +1141,26 @@ def _build_activity_field(
                                                        false_label=false_label,
                                                        allow_multiple_files=allow_multiple_files,
                                                        file_max_size=file_max_size,
-                                                       supported_file_types=supported_file_types)},
+                                                       supported_file_types=supported_file_types,
+                                                       multiple_dates=multiple_dates)},
         "additionalProperties": False,
     }
     if agent_message is not None:
         json_schema["description"] = agent_message
+
+    if kind == UserFieldKind.Date and multiple_dates:
+        dates_schema = {"type": "array", "items": {"type": "string", "format": "date"}}
+        schemas["input_schema"].properties["default"] = dates_schema
+        schemas["output_schema"].properties["value"] = dates_schema
+
+    if has_range_limit and kind in (UserFieldKind.Date, UserFieldKind.DateTime, UserFieldKind.Time):
+        prop_prefix = "date" if kind == UserFieldKind.Date else "time"
+        json_format = "date-time" if kind == UserFieldKind.DateTime else kind.value
+        for bound in ("min", "max"):
+            schemas["input_schema"].properties[f"{bound}_{prop_prefix}"] = {
+                "type": "string",
+                "format": json_format,
+            }
 
     output_schema = schemas["output_schema"]
     if kind == UserFieldKind.File and allow_multiple_files:
