@@ -2048,129 +2048,8 @@ class TestAgentDeploy:
 
 
 
-class TestDereferenceSkills:
-    """dereference_skills converts skill names → skill IDs."""
-
-    def _make_agent(self, skill_names: list) -> Agent:
-        return Agent(
-            spec_version=SpecVersion.V1,
-            kind=AgentKind.NATIVE,
-            name="test_agent",
-            description="desc",
-            llm="test_llm",
-            skills=skill_names,
-        )
-
-    def test_dereference_skills_replaces_names_with_ids(self):
-        skill_records = [
-            {"id": "id-skill-1", "name": "skill-one"},
-            {"id": "id-skill-2", "name": "skill-two"},
-        ]
-        agent = self._make_agent(["skill-one", "skill-two"])
-
-        ac = AgentsController()
-        mock_sc = MagicMock()
-        mock_sc.get_all_skills.return_value = skill_records
-        ac.skills_controller = mock_sc
-
-        result = ac.dereference_skills(agent)
-
-        assert result.skills == ["id-skill-1", "id-skill-2"]
-        mock_sc.get_all_skills.assert_called_once_with()
-
-    def test_dereference_skills_missing_skill_exits(self, caplog):
-        agent = self._make_agent(["skill-missing"])
-
-        ac = AgentsController()
-        mock_sc = MagicMock()
-        mock_sc.get_all_skills.return_value = []
-        ac.skills_controller = mock_sc
-
-        with pytest.raises(SystemExit):
-            ac.dereference_skills(agent)
-
-        assert "No skill found with the name 'skill-missing'" in caplog.text
-
-    def test_dereference_skills_api_error_exits(self, caplog):
-        agent = self._make_agent(["skill-one"])
-
-        ac = AgentsController()
-        mock_sc = MagicMock()
-        mock_sc.get_all_skills.side_effect = SystemExit(1)
-        ac.skills_controller = mock_sc
-
-        with pytest.raises(SystemExit):
-            ac.dereference_skills(agent)
-
-class TestReferenceSkills:
-    """reference_skills converts skill IDs → skill names."""
-
-    def _make_agent(self, skill_ids: list) -> Agent:
-        return Agent(
-            spec_version=SpecVersion.V1,
-            kind=AgentKind.NATIVE,
-            name="test_agent",
-            description="desc",
-            llm="test_llm",
-            skills=skill_ids,
-        )
-
-    def test_reference_skills_replaces_ids_with_names(self):
-        skill_records = [
-            {"id": "id-skill-1", "name": "skill-one"},
-            {"id": "id-skill-2", "name": "skill-two"},
-        ]
-        agent = self._make_agent(["id-skill-1", "id-skill-2"])
-
-        ac = AgentsController()
-        mock_sc = MagicMock()
-        mock_sc.get_all_skills.return_value = skill_records
-        ac.skills_controller = mock_sc
-
-        result = ac.reference_skills(agent)
-
-        assert result.skills == ["skill-one", "skill-two"]
-        mock_sc.get_all_skills.assert_called_once_with(None)
-
-    def test_reference_skills_unknown_id_exits(self, caplog):
-        agent = self._make_agent(["id-skill-unknown"])
-
-        ac = AgentsController()
-        mock_sc = MagicMock()
-        mock_sc.get_all_skills.return_value = []
-        ac.skills_controller = mock_sc
-
-        with pytest.raises(SystemExit):
-            ac.reference_skills(agent)
-
-        assert "No skill found with the id 'id-skill-unknown'" in caplog.text
-
-    def test_reference_skills_passes_workspace_id(self):
-        skill_records = [{"id": "id-skill-1", "name": "skill-one"}]
-        agent = self._make_agent(["id-skill-1"])
-
-        ac = AgentsController()
-        mock_sc = MagicMock()
-        mock_sc.get_all_skills.return_value = skill_records
-        ac.skills_controller = mock_sc
-
-        ac.reference_skills(agent, workspace_id="ws-456")
-
-        mock_sc.get_all_skills.assert_called_once_with("ws-456")
-
-
-class TestDereferenceNativeAgentDependenciesSkills:
-    """dereference_native_agent_dependencies must NOT call dereference_skills.
-
-    dereference_skills (name→UUID) is intentionally disabled on the import path
-    because the 2.16.0 server-side validator rejects skill UUIDs on POST /agents.
-    Passing skill names through unchanged restores the pre-2.16 behaviour where
-    import succeeds (skills binding is not live, but import does not error).
-    Re-enable once the server-side fix ships — see issue #82318.
-    """
-
-    def test_skills_are_not_dereferenced_on_import(self):
-        """dereference_skills must not be called regardless of skills content."""
+class TestNativeAgentDependenciesSkills:
+    def test_skills_pass_through_on_dereference_import(self):
         agent = Agent(
             spec_version=SpecVersion.V1,
             kind=AgentKind.NATIVE,
@@ -2181,15 +2060,10 @@ class TestDereferenceNativeAgentDependenciesSkills:
         )
 
         ac = AgentsController()
-
-        with patch.object(ac, "dereference_skills") as deref_skills_mock:
-            result = ac.dereference_native_agent_dependencies(agent)
-
-        deref_skills_mock.assert_not_called()
-        # Skill names must pass through unchanged
+        result = ac.dereference_native_agent_dependencies(agent)
         assert result.skills == ["skill-one"]
 
-    def test_skills_not_called_when_empty(self):
+    def test_skills_empty_on_dereference_import(self):
         agent = Agent(
             spec_version=SpecVersion.V1,
             kind=AgentKind.NATIVE,
@@ -2200,11 +2074,22 @@ class TestDereferenceNativeAgentDependenciesSkills:
         )
 
         ac = AgentsController()
+        result = ac.dereference_native_agent_dependencies(agent)
+        assert result.skills == []
 
-        with patch.object(ac, "dereference_skills") as deref_skills_mock:
-            ac.dereference_native_agent_dependencies(agent)
+    def test_skills_pass_through_on_reference_export(self):
+        agent = Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=["skill-one", "skill-two"],
+        )
 
-        deref_skills_mock.assert_not_called()
+        ac = AgentsController()
+        result = ac.reference_native_agent_dependencies(agent)
+        assert result.skills == ["skill-one", "skill-two"]
 
 
 class TestCustomAgentsMetadataRoundTrip:
