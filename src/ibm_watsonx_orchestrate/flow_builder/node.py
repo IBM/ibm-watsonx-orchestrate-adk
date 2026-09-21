@@ -329,6 +329,8 @@ class UserNode(Node):
                     single_line=single_line,
                     placeholder_text=placeholder_text,
                     help_text=help_text,
+                    regex=regex,
+                    regex_error_message=regex_error_message,
                 )
             self._raise_missing_container()
 
@@ -395,7 +397,8 @@ class UserNode(Node):
             single_checkbox=single_checkbox,
             true_label=true_label,
             false_label=false_label,
-            input_map=default
+            input_map=default,
+            required=required,
         )
     def date_range_input_field(self,
                                 name: str,
