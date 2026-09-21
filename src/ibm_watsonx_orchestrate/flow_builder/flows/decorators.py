@@ -10,7 +10,7 @@ from typing import Callable, Optional, Sequence
 from pydantic import BaseModel
 
 from ...agent_builder.models.types import ListVirtualModel
-from ..types import extract_node_spec, UserNodeSpec, FlowSpec, FlowContextWindow
+from ..types import extract_node_spec, UserNodeSpec, FlowSpec, FlowContextWindow, UserRole
 
 from .flow import FlowFactory, Flow
 
@@ -38,6 +38,7 @@ def flow(*args,
          private_schema: type[BaseModel] | None = None,
          initiators: Sequence[str] = (),
          schedulable: bool = False,
+         schedulable_by_role: UserRole | None = None,
          suppress_agent_summarization: Optional[bool] = True,
          llm_model: str|ListVirtualModel|None=None,
          agent_conversation_memory_turns_limit: int|None=None,
@@ -69,6 +70,7 @@ def flow(*args,
                              private_schema = private_schema,
                              initiators = initiators,
                              schedulable = schedulable,
+                             schedulable_by_role = schedulable_by_role,
                              suppress_agent_summarization = suppress_agent_summarization,
                              llm_model = llm_model,
                              agent_conversation_memory_turns_limit = agent_conversation_memory_turns_limit,
