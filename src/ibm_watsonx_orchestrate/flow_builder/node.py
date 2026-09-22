@@ -26,10 +26,12 @@ def _merge_input_maps(default: Any, **bounds: Any) -> Any | None:
     if not present:
         return default
     ensure_datamap(default, "default")
-    base = default if default is not None else present[0]
+    # Build a fresh DataMap so the caller's default/bound maps are never mutated.
+    base = DataMap()
+    if default is not None:
+        base.maps.extend(default.maps or [])
     for bound in present:
-        if bound is not base:
-            add_assignment(base, bound)
+        add_assignment(base, bound)
     return base
 
 

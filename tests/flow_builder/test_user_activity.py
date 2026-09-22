@@ -437,6 +437,49 @@ def test_activity_default_and_bounds_merge_in_order():
     assert [m["target_variable"] for m in out["input_map"]["spec"]["maps"]] == ["default", "min_date", "max_date"]
 
 
+def test_activity_merge_does_not_mutate_caller_datamaps():
+    """Reusing one DataMap across field calls must not leak bounds between them."""
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    shared_default = DataMap().add(Assignment(target_variable="default", value_expression="'2026-01-01'"))
+    min_date = DataMap().add(Assignment(target_variable="min_date", value_expression="'2025-01-01'"))
+    max_date = DataMap().add(Assignment(target_variable="max_date", value_expression="'2027-01-01'"))
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_no_mutation")
+
+    first = uf.activity(name="first")
+    first.date_input_field(name="a", default=shared_default, min_date=min_date)
+    second = uf.activity(name="second")
+    second.date_input_field(name="b", default=shared_default, max_date=max_date)
+
+    def targets(node):
+        return [m["target_variable"] for m in node.get_spec().to_json()["fields"][0]["input_map"]["spec"]["maps"]]
+
+    assert targets(first) == ["default", "min_date"]
+    assert targets(second) == ["default", "max_date"]
+    # Caller-owned maps are left as they were passed in.
+    assert [m.target_variable for m in shared_default.maps] == ["default"]
+    assert [m.target_variable for m in min_date.maps] == ["min_date"]
+    assert [m.target_variable for m in max_date.maps] == ["max_date"]
+
+
+def test_activity_merge_without_default_does_not_mutate_bound():
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    min_date = DataMap().add(Assignment(target_variable="min_date", value_expression="'2025-01-01'"))
+    max_date = DataMap().add(Assignment(target_variable="max_date", value_expression="'2027-01-01'"))
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_no_default_mutation")
+    node = uf.activity(name="pick_date")
+    node.date_input_field(name="when", min_date=min_date, max_date=max_date)
+
+    out = node.get_spec().to_json()["fields"][0]
+    assert [m["target_variable"] for m in out["input_map"]["spec"]["maps"]] == ["min_date", "max_date"]
+    assert [m.target_variable for m in min_date.maps] == ["min_date"]
+
+
 def test_activity_non_datamap_bound_is_rejected():
     aflow = _build_flow()
     uf = aflow.userflow(name="uf_bad_bound")
