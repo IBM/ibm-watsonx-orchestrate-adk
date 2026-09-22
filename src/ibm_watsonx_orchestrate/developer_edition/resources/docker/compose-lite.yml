@@ -1128,6 +1128,8 @@ services:
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
       DISABLE_SUBPROCESS_EXECUTION: ${DISABLE_SUBPROCESS_EXECUTION:-false}
+      WO_INSTANCE: ${WO_INSTANCE:-}
+      WO_API_KEY: ${WO_API_KEY:-}
 
   ########################
   # IBM AGENT-OPS
