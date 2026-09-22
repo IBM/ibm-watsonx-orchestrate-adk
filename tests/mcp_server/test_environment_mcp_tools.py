@@ -222,10 +222,10 @@ class TestActivateEnvironment:
         with patch(
             "ibm_watsonx_orchestrate_mcp_server.src.environment.mcp_tools.environment_controller.activate"
         ) as mock_activate:
-            activate_environment(name="my-env", api_key="secret-key")
+            activate_environment(name="my-env", api_key="123")
             mock_activate.assert_called_once_with(
                 name="my-env",
-                apikey="secret-key",
+                apikey="123",
                 username=None,
                 password=None,
             )
@@ -248,12 +248,12 @@ class TestActivateEnvironment:
         with patch(
             "ibm_watsonx_orchestrate_mcp_server.src.environment.mcp_tools.environment_controller.activate"
         ) as mock_activate:
-            activate_environment(name="my-env", username="admin", password="s3cr3t")
+            activate_environment(name="my-env", username="admin", password="123")
             mock_activate.assert_called_once_with(
                 name="my-env",
                 apikey=None,
                 username="admin",
-                password="s3cr3t",
+                password="123",
             )
 
     def test_activate_returns_success_message(self):
