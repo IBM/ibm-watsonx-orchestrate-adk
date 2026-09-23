@@ -325,7 +325,15 @@ INTERNAL_REQUEST_HEADER_VALUE = os.getenv("INTERNAL_REQUEST_HEADER_VALUE", "inte
 def _get_ssl_verify() -> Union[str, bool]:
     """Returns SSL certificate file path if SSL_CERT_FILE is set in environment, otherwise True."""
     ssl_cert_file = os.getenv("SSL_CERT_FILE")
-    return ssl_cert_file if ssl_cert_file else True
+    if ssl_cert_file:
+        if not os.path.isfile(ssl_cert_file):
+            logger.warning(
+                f"SSL_CERT_FILE is set to '{ssl_cert_file}' but the file does not exist. "
+                "Falling back to default SSL verification."
+            )
+            return True
+        return ssl_cert_file
+    return True
 
 
 class WXOFile(str):
@@ -381,6 +389,7 @@ class WXOFile(str):
             res = requests.get(
                 url,
                 headers=headers if headers else None,
+                timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
                 verify=_get_ssl_verify()
             )
             return res.content
