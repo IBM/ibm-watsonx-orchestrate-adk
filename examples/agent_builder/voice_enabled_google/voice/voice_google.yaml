@@ -15,6 +15,6 @@ text_to_speech:
     project_id: "project-id"
     credentials_json: "service-account-json"
     voice: "en-US-Neural2-C"
-    language: "en-US"
+    language_code: "en-US"
     speaking_rate: 1.0
 language: "en-US"

@@ -291,7 +291,7 @@ class GoogleTTSConfig(BaseModel):
   credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1, max_length=128)]
-  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
+  language_code: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
   speaking_rate: Optional[Annotated[float, Field(ge=0.25, le=4.0)]] = None
   pitch: Optional[Annotated[float, Field(ge=-20.0, le=20.0)]] = None
   volume_gain_db: Optional[Annotated[float, Field(ge=-96.0, le=16.0)]] = None
