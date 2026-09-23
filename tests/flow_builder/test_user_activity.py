@@ -340,6 +340,27 @@ def test_activity_file_upload_field_metadata():
     assert out["uiSchema"]["ui:help"] == "PDF only, please"
 
 
+def test_activity_file_upload_field_min_only_returns_independent_input_map():
+    """min_num_files alone must not be passed as `default` to _merge_input_maps:
+    the field's input_map must be a fresh DataMap, not an alias of the caller's
+    min_num_files object, so later reuse of that object can't leak into the field."""
+    from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
+
+    aflow = _build_flow()
+    uf = aflow.userflow(name="uf_file_min_only")
+    node = uf.activity(name="upload_doc3")
+
+    min_files = DataMap().add(Assignment(target_variable="min_num_files", value_expression="1"))
+    field = node.file_upload_field(name="doc", min_num_files=min_files, allow_multiple_files=True)
+
+    assert field.input_map is not min_files
+    assert [m.target_variable for m in field.input_map.maps] == ["min_num_files"]
+
+    # Reusing the caller's map afterwards must not affect the already-built field.
+    min_files.add(Assignment(target_variable="extra", value_expression="2"))
+    assert [m.target_variable for m in field.input_map.maps] == ["min_num_files"]
+
+
 def test_activity_file_upload_field_min_max_num_files_requires_multiple():
     """min_num_files/max_num_files must only be accepted with allow_multiple_files=True,
     matching the UserForm.file_upload_field validation."""
