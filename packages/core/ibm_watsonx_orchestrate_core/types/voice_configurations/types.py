@@ -287,6 +287,7 @@ class AzureTTSConfig(BaseModel):
   role: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = Field(default=None, description="Speaking persona, e.g. 'YoungAdultFemale'")
 
 class GoogleTTSConfig(BaseModel):
+  project_id: Annotated[str, Field(min_length=1, max_length=256)]
   credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1, max_length=128)]

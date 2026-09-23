@@ -502,6 +502,7 @@ class TestVoiceConfigurationInit:
 
     assert config.name == config_data['name']
     assert config.text_to_speech.provider == "google_tts"
+    assert config.text_to_speech.google_tts_config.project_id == config_data['speech_to_text']['google_tts_config']['project_id']
     assert config.text_to_speech.google_tts_config.credentials_json == config_data['text_to_speech']['google_tts_config']['credentials_json']
     assert config.text_to_speech.google_tts_config.voice == config_data['text_to_speech']['google_tts_config']['voice']
     assert config.text_to_speech.google_tts_config.language == config_data['text_to_speech']['google_tts_config']['language']
