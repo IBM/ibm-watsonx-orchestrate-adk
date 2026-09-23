@@ -183,7 +183,7 @@ class AzureSTTConfig(BaseModel):
 class GoogleSTTConfig(BaseModel):
   project_id: Annotated[str, Field(min_length=1, max_length=256)]
   credentials_json: Annotated[str, Field(min_length=1, max_length=65536)]
-  language_code: Annotated[str, Field(min_length=2, max_length=16)]
+  language_code: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
   model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   sample_rate_hertz: Optional[Annotated[int, Field(gt=0)]] = None
   enable_automatic_punctuation: Optional[bool] = None
@@ -291,7 +291,7 @@ class GoogleTTSConfig(BaseModel):
   credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1, max_length=128)]
-  language: Annotated[str, Field(min_length=2, max_length=16)]
+  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
   speaking_rate: Optional[Annotated[float, Field(ge=0.25, le=4.0)]] = None
   pitch: Optional[Annotated[float, Field(ge=-20.0, le=20.0)]] = None
   volume_gain_db: Optional[Annotated[float, Field(ge=-96.0, le=16.0)]] = None
