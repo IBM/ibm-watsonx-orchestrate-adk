@@ -710,7 +710,7 @@ class UserNode(Node):
                         label=label,
                         agent_message=agent_message,
                         required=required,
-                        input_map=_merge_input_maps(min_num_files, max_num_files=max_num_files),
+                        input_map=_merge_input_maps(None, min_num_files=min_num_files, max_num_files=max_num_files),
                         help_text=instructions,
                         allow_multiple_files=allow_multiple_files,
                         file_max_size=file_max_size,
