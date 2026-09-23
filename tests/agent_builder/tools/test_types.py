@@ -688,3 +688,42 @@ class TestWXOFileMisconfigurationWarning:
             
             # No warning should be logged when properly configured
             assert not any("SECURE_FILE_DOWNLOAD is disabled" in record.message for record in caplog.records)
+
+    def test_ssl_verify_default_when_env_not_set(self, monkeypatch):
+        """Test that verify=True by default when SSL_CERT_FILE is not set"""
+        monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+        from ibm_watsonx_orchestrate_core.types.tools.types import _get_ssl_verify, WXOFile
+        assert _get_ssl_verify() is True
+
+        url = "https://a-mock-s3-presigned-url"
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.headers = {"x-amz-meta-filename": "test.txt"}
+            response.content = b"content"
+            mock_get.return_value = response
+
+            WXOFile.get_file_name(url)
+            assert mock_get.call_args[1]['verify'] is True
+
+            WXOFile.get_content(url)
+            assert mock_get.call_args[1]['verify'] is True
+
+    def test_ssl_verify_custom_cert_when_env_set(self, monkeypatch):
+        """Test that verify passes custom cert path when SSL_CERT_FILE is set"""
+        cert_path = "/etc/ssl/certs/custom-bundle.crt"
+        monkeypatch.setenv("SSL_CERT_FILE", cert_path)
+        from ibm_watsonx_orchestrate_core.types.tools.types import _get_ssl_verify, WXOFile
+        assert _get_ssl_verify() == cert_path
+
+        url = "https://a-mock-s3-presigned-url"
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.headers = {"x-amz-meta-filename": "test.txt"}
+            response.content = b"content"
+            mock_get.return_value = response
+
+            WXOFile.get_file_name(url)
+            assert mock_get.call_args[1]['verify'] == cert_path
+
+            WXOFile.get_content(url)
+            assert mock_get.call_args[1]['verify'] == cert_path
