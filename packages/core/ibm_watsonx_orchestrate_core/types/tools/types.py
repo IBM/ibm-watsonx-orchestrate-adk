@@ -85,9 +85,31 @@ class JsonSchemaObject(BaseModel):
 class ToolRequestBody(BaseModel):
     model_config = ConfigDict(extra='allow')
 
+    # NOTE: 'type' is logically required by JSON Schema but is made optional here as a
+    # client-side resilience measure. Some system-seeded tools (e.g. example_document_processing_flow)
+    # are stored on the server without a 'type' field, which would otherwise break
+    # 'orchestrate tools list' and 'orchestrate agents list' for every new tenant.
+    #
+    # ACTION REQUIRED (server-side): The Document Processing team should ensure that all
+    # seeded tool definitions include "type": "object" in their input_schema so that the
+    # stored JSON Schema is well-formed. This default can be revisited once that is fixed.
+    #
+    # See: https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/98714
     type: Optional[Literal['object', 'string']] = 'object'
     properties: Optional[Dict[str, JsonSchemaObject]] = {}
     required: Optional[List[str]] = []
+
+    @model_validator(mode='after')
+    def warn_if_type_missing(self) -> 'ToolRequestBody':
+        # Pydantic fills in the default before this runs, so we detect the
+        # "was it absent in the raw data?" case via __pydantic_fields_set__.
+        if 'type' not in self.__pydantic_fields_set__:
+            logger.warning(
+                "ToolRequestBody deserialized without a 'type' field — defaulting to 'object'. "
+                "The tool definition stored on the server is missing 'type' in its input_schema "
+                "and should be corrected. See wo-tracker#98714."
+            )
+        return self
 
 
 class ToolResponseBody(BaseModel):
