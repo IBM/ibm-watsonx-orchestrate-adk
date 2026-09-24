@@ -990,14 +990,18 @@ class ToolsController:
                 else:
                     logger.warning(f"No artifacts found for tool '{name}' of kind {draft_tool_kind.value}")
             except requests.exceptions.HTTPError as e:
-                if e.response.status_code != 404:
-                    raise e
-                if draft_tool_kind == ToolKind.openapi:
-                    logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
+                status = e.response.status_code
+                if status == 404:
+                    if draft_tool_kind == ToolKind.openapi:
+                        logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
+                    else:
+                        logger.warning(f"Could not find tool artifacts for tool '{name}'")
+                    return None
+                elif status == 500:
+                    logger.warning(f"Skipping '{name}', tool artifacts are not available on the server (HTTP 500).")
                     return None
                 else:
-                    logger.warning(f"Could not find tool artifacts for tool '{name}'") # changed this from a bad request else the whole exporting of a workspace stops.
-                    return None
+                    raise e
             except Exception as e:
                 logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
                 return None
