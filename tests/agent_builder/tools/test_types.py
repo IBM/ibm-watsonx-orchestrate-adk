@@ -5,6 +5,52 @@ import pytest
 import urllib.parse
 from ibm_watsonx_orchestrate_core.types.tools.types import WXOFile
 
+# ── ToolRequestBody ──────────────────────────────────────────────────────────
+
+def test_tool_request_body_type_defaults_to_object_when_missing():
+    """Regression test for GitHub #98714.
+
+    Justification: Built-in server-side tools (e.g. example_document_processing_flow)
+    return an input_schema without a 'type' field. ToolRequestBody.type must be
+    optional with a default of 'object' so that ToolSpec.model_validate() does not
+    raise a ValidationError during 'orchestrate tools list' / 'orchestrate agents list'.
+
+    Implementation: ToolRequestBody.type changed from required Literal to
+    Optional[Literal[...]] = 'object'.
+
+    Testing: Validate a ToolSpec whose input_schema omits 'type' and assert it
+    parses successfully with type defaulting to 'object'.
+    """
+    from ibm_watsonx_orchestrate_core.types.tools.types import ToolSpec, ToolRequestBody
+
+    raw = {
+        "name": "example_document_processing_flow",
+        "description": "Built-in docproc flow tool",
+        "permission": "admin",
+        "input_schema": {
+            "properties": {
+                "document_path": {"type": "string", "description": "Path to document"}
+            },
+            "required": ["document_path"]
+            # 'type' field intentionally absent — simulates server response
+        },
+        "binding": {"flow": {}},
+    }
+
+    spec = ToolSpec.model_validate(raw)
+    assert spec.input_schema is not None
+    assert spec.input_schema.type == "object"
+
+
+def test_tool_request_body_type_explicit_value_preserved():
+    """When 'type' is provided it must be stored as-is (no regression on normal tools)."""
+    from ibm_watsonx_orchestrate_core.types.tools.types import ToolRequestBody
+
+    rb = ToolRequestBody(type="string", properties={}, required=[])
+    assert rb.type == "string"
+
+
+
 
 def test_wxo_file_type_get_file_metadata():
     url = "https://a-mock-s3-presigned-url"
