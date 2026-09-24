@@ -90,11 +90,13 @@ class ToolRequestBody(BaseModel):
     # are stored on the server without a 'type' field, which would otherwise break
     # 'orchestrate tools list' and 'orchestrate agents list' for every new tenant.
     #
-    # ACTION REQUIRED (server-side): The Document Processing team should ensure that all
-    # seeded tool definitions include "type": "object" in their input_schema so that the
-    # stored JSON Schema is well-formed. This default can be revisited once that is fixed.
+    # ACTION REQUIRED (server-side — @Vinaysheel.Wagh / @mahernan, Doc Processing team):
+    # The seeded tool definition in the wxo-server-db_schema_job image is missing
+    # "type": "object" in its input_schema. Please correct the seed data so the stored
+    # JSON Schema is well-formed. Once fixed this field can be made required again.
     #
     # See: https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/98714
+    # Ask: docs/asks/98714-fix-seeded-tool-input-schema-type.md
     type: Optional[Literal['object', 'string']] = 'object'
     properties: Optional[Dict[str, JsonSchemaObject]] = {}
     required: Optional[List[str]] = []
