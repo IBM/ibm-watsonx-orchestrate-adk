@@ -211,3 +211,24 @@ def test_default_agent_with_toolkits_in_read_contexts_does_not_raise(ctx):
     finally:
         validation_context.reset(token)
     assert agent.toolkits == ["some_toolkit"]
+
+
+@pytest.mark.parametrize("ctx", ["list", "get", "get_by_id", "prefetch"])
+def test_customer_care_chat_with_docs_enabled_true_in_read_contexts_does_not_raise(ctx):
+    """CUSTOMER_CARE agents with chat_with_docs.enabled=True must not raise during read contexts.
+
+    Regression test for the bug where orchestrate agents list --kind native would emit
+    [ERROR] for any CUSTOMER_CARE agent that had chat_with_docs.enabled=True on the server,
+    causing the agent to be dropped from the output entirely.
+
+    The "prefetch" context is used by publish_or_update_agents when pre-reading existing
+    server agents for upsert comparison — semantically distinct from a user-facing list.
+    """
+    from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
+    spec = _base_customer_care_spec(chat_with_docs={"enabled": True})
+    token = validation_context.set(ctx)
+    try:
+        agent = AgentSpec.model_validate(spec)
+    finally:
+        validation_context.reset(token)
+    assert agent.chat_with_docs.enabled is True
