@@ -5,6 +5,68 @@ import pytest
 import urllib.parse
 from ibm_watsonx_orchestrate_core.types.tools.types import WXOFile
 
+# ── ToolRequestBody ──────────────────────────────────────────────────────────
+
+def test_tool_request_body_type_defaults_to_object_when_missing(caplog):
+    """Regression test for GitHub #98714.
+
+    Justification: Built-in server-side tools (e.g. example_document_processing_flow)
+    return an input_schema without a 'type' field. ToolRequestBody.type is logically
+    required by JSON Schema but is made optional with a default of 'object' as a
+    client-side resilience measure, so that ToolSpec.model_validate() does not raise a
+    ValidationError during 'orchestrate tools list' / 'orchestrate agents list'.
+
+    The server-side tool definition is the real bug — the Document Processing team
+    should add "type": "object" to the stored input_schema (wo-tracker#98714).
+    This default can be revisited once that is fixed.
+
+    Implementation: ToolRequestBody.type changed from required Literal to
+    Optional[Literal[...]] = 'object', with a model_validator that emits a WARNING
+    when 'type' was absent in the raw data so the gap is visible in logs.
+
+    Testing: Validate a ToolSpec whose input_schema omits 'type' and assert:
+    - it parses successfully with type defaulting to 'object'
+    - a WARNING is logged pointing at the missing field
+    """
+    import logging
+    from ibm_watsonx_orchestrate_core.types.tools.types import ToolSpec
+
+    raw = {
+        "name": "example_document_processing_flow",
+        "description": "Built-in docproc flow tool",
+        "permission": "admin",
+        "input_schema": {
+            "properties": {
+                "document_path": {"type": "string", "description": "Path to document"}
+            },
+            "required": ["document_path"]
+            # 'type' field intentionally absent — simulates server response
+        },
+        "binding": {"flow": {}},
+    }
+
+    with caplog.at_level(logging.WARNING):
+        spec = ToolSpec.model_validate(raw)
+
+    assert spec.input_schema is not None
+    assert spec.input_schema.type == "object"
+    assert any("missing 'type'" in m or "without a 'type'" in m for m in caplog.messages), \
+        "Expected a WARNING about missing 'type' field in input_schema"
+
+
+def test_tool_request_body_type_explicit_value_no_warning(caplog):
+    """When 'type' is explicitly provided no warning is emitted (normal tools unaffected)."""
+    import logging
+    from ibm_watsonx_orchestrate_core.types.tools.types import ToolRequestBody
+
+    with caplog.at_level(logging.WARNING):
+        rb = ToolRequestBody(type="string", properties={}, required=[])
+
+    assert rb.type == "string"
+    assert not any("missing 'type'" in m or "without a 'type'" in m for m in caplog.messages)
+
+
+
 
 def test_wxo_file_type_get_file_metadata():
     url = "https://a-mock-s3-presigned-url"

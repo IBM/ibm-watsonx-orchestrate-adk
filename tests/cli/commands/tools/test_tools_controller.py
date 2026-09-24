@@ -1824,6 +1824,98 @@ def test_download_tool_multiple_tools(caplog):
     captured = caplog.text
     assert f"Multiple existing tools found with name '{mock_tool_name}'. Failed to get tool" in captured
 
+
+def test_download_tool_http_500_returns_none_with_warning(caplog):
+    """Regression test for GitHub #98714.
+
+    Justification: Built-in seeded tools (e.g. example_document_processing_flow) have no
+    stored zip artifact on the server. The server returns HTTP 500 with
+    "No zip file found for tool". The previous implementation re-raised any HTTPError
+    that was not a 404, causing 'orchestrate tools export' to crash with an unhandled
+    ClientAPIException.
+
+    Implementation: download_tool now treats HTTP 500 the same as 404 — logs a warning
+    and returns None, allowing the caller to skip the tool gracefully.
+
+    Testing: Mock download_tools_artifact to raise HTTPError(500) and assert download_tool
+    returns None and emits a warning instead of raising.
+    """
+    import requests
+
+    mock_tool_name = "example_document_processing_flow"
+    mock_tool_id = "builtin-tool-id"
+    tc = ToolsController()
+
+    mock_response = requests.Response()
+    mock_response.status_code = 500
+
+    class MockToolClientWith500:
+        def get_draft_by_name(self, tool_name):
+            return [{"name": tool_name, "id": mock_tool_id, "binding": {"flow": {}}}]
+
+        def download_tools_artifact(self, tool_id):
+            raise requests.exceptions.HTTPError(response=mock_response)
+
+    tc.client = MockToolClientWith500()
+
+    with caplog.at_level("WARNING"):
+        result = tc.download_tool(mock_tool_name)
+
+    assert result is None
+    assert any("500" in msg or "not available" in msg for msg in caplog.messages)
+
+
+def test_download_tool_http_404_flow_returns_none_with_warning(caplog):
+    """HTTP 404 on a flow tool still returns None with a warning (existing behaviour preserved)."""
+    import requests
+
+    mock_tool_name = "some_flow_tool"
+    mock_tool_id = "flow-tool-id"
+    tc = ToolsController()
+
+    mock_response = requests.Response()
+    mock_response.status_code = 404
+
+    class MockToolClientWith404:
+        def get_draft_by_name(self, tool_name):
+            return [{"name": tool_name, "id": mock_tool_id, "binding": {"flow": {}}}]
+
+        def download_tools_artifact(self, tool_id):
+            raise requests.exceptions.HTTPError(response=mock_response)
+
+    tc.client = MockToolClientWith404()
+
+    with caplog.at_level("WARNING"):
+        result = tc.download_tool(mock_tool_name)
+
+    assert result is None
+
+
+def test_download_tool_http_403_reraises():
+    """HTTP 403 (auth error) must still bubble up — it is not a known safe-to-skip condition."""
+    import requests
+
+    mock_tool_name = "some_tool"
+    mock_tool_id = "some-tool-id"
+    tc = ToolsController()
+
+    mock_response = requests.Response()
+    mock_response.status_code = 403
+
+    class MockToolClientWith403:
+        def get_draft_by_name(self, tool_name):
+            return [{"name": tool_name, "id": mock_tool_id, "binding": {"python": {}}}]
+
+        def download_tools_artifact(self, tool_id):
+            raise requests.exceptions.HTTPError(response=mock_response)
+
+    tc.client = MockToolClientWith403()
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        tc.download_tool(mock_tool_name)
+
+
+
 def test_export_tool(caplog):
     mock_tool_name = "test_tool"
     mock_output_file = "test_file_out.zip"
