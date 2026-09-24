@@ -349,7 +349,7 @@ def validate_customer_care_fields(values: dict):
                 unsupported_fields.append("chat_with_docs.enabled")
 
         if unsupported_fields:
-            if context in ("list", "get", "get_by_id"):
+            if context in ("list", "get", "get_by_id", "prefetch"):
                 logger.warning(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
             else:
                 raise BadRequest(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
@@ -361,7 +361,7 @@ def validate_customer_care_fields(values: dict):
             if toolkits == ["scheduling_tools"] or values.get("is_schedulable") is not None:
                 pass
             else:
-                if context in ("list", "get", "get_by_id"):
+                if context in ("list", "get", "get_by_id", "prefetch"):
                     logger.warning(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
                 else:
                     raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
