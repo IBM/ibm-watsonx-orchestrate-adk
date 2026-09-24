@@ -246,7 +246,7 @@ class ChatWxO(ChatOpenAI):
         # - runs-elsewhere: {instance_url}/v1/orchestrate
         # - runs-on: {api_proxy_url}/instances/orchestrate/v1/orchestrate
 
-        if agentic_session.mode == "runs-on" and wo_instance:
+        if agentic_session.mode == "runs-on" and wo_instance and wo_api_key and is_local_dev(agentic_session.base_url):
             api_base_url = f"{wo_instance.rstrip('/')}/v1/orchestrate/gateway/model"
         else:
             api_base_url = f"{agentic_session.base_url}"
