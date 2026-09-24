@@ -202,7 +202,7 @@ class ChatWxO(ChatOpenAI):
         if (agentic_session.mode == "runs-on"
                 and wo_instance
                 and wo_api_key
-                and is_local_dev(agentic_session.base_url)):
+                and local):
             saas_session = build_runs_elsewhere_session(
                 instance_url=wo_instance,
                 api_key=wo_api_key,
@@ -246,7 +246,7 @@ class ChatWxO(ChatOpenAI):
         # - runs-elsewhere: {instance_url}/v1/orchestrate
         # - runs-on: {api_proxy_url}/instances/orchestrate/v1/orchestrate
 
-        if agentic_session.mode == "runs-on" and wo_instance and wo_api_key and is_local_dev(agentic_session.base_url):
+        if agentic_session.mode == "runs-on" and wo_instance and wo_api_key and local:
             api_base_url = f"{wo_instance.rstrip('/')}/v1/orchestrate/gateway/model"
         else:
             api_base_url = f"{agentic_session.base_url}"

@@ -154,7 +154,7 @@ class WxOEmbeddings(OpenAIEmbeddings):
         if (agentic_session.mode == "runs-on"
                 and wo_instance
                 and wo_api_key
-                and is_local_dev(agentic_session.base_url)):
+                and local):
             saas_session = build_runs_elsewhere_session(
                 instance_url=wo_instance,
                 api_key=wo_api_key,
@@ -198,7 +198,7 @@ class WxOEmbeddings(OpenAIEmbeddings):
         # - local: {instance_url}/api/v1 -> need to add /orchestrate
         # - runs-elsewhere: {instance_url}/v1/orchestrate
         # - runs-on: {api_proxy_url}/instances/orchestrate/v1/orchestrate
-        if agentic_session.mode == "runs-on" and wo_instance and wo_api_key and is_local_dev(agentic_session.base_url):
+        if agentic_session.mode == "runs-on" and wo_instance and wo_api_key and local:
             api_base_url = f"{wo_instance.rstrip('/')}/v1/orchestrate/gateway/model"
         else:
             api_base_url = f"{agentic_session.base_url}"
@@ -243,9 +243,8 @@ class WxOEmbeddings(OpenAIEmbeddings):
         """
         # For runs-elsewhere mode with authenticator, get fresh token
         if self._session.authenticator:
-            token = self._session.authenticator.token_manager.get_token()
-            return token
-                # runs-on + Developer Edition: local token is invalid for SaaS gateway, use IAM token
+            # runs-on + Developer Edition: local token is invalid for SaaS gateway, use IAM token
+            return self._session.authenticator.token_manager.get_token()
         elif self._saas_authenticator:
             return self._saas_authenticator.token_manager.get_token()
         # For runs-on and local modes, use access_token from session
