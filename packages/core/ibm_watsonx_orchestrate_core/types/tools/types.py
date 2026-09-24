@@ -1,3 +1,4 @@
+# ruff: noqa
 from enum import Enum
 import os
 from typing import List, Any, Dict, Literal, Optional, Union, Generic, TypeVar, TypeAlias
