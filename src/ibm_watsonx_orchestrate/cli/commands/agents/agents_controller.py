@@ -1439,7 +1439,7 @@ class AgentsController:
             # (e.g. chat_with_docs.enabled=True) produce warnings instead of raising.
             # "prefetch" is semantically distinct from "list" — this is a pre-flight read
             # to discover existing agents for upsert logic, not a user-facing list operation.
-            _ctx_token = validation_context.set("prefetch")
+            token = validation_context.set("prefetch")
             try:
                 existing_native_agents = [(Agent.model_validate(agent_dict), agent_dict.get('workspace_id'))
                                          for agent_dict in existing_native_agents_raw]
@@ -1448,7 +1448,7 @@ class AgentsController:
                 existing_assistant_agents = [(AssistantAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
                                             for agent_dict in existing_assistant_agents_raw]
             finally:
-                validation_context.reset(_ctx_token)
+                validation_context.reset(token)
 
             all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
 
