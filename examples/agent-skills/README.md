@@ -5,6 +5,7 @@ It shows how to author a skill, attach a Python script via `scripts/`, supply a 
 document via `references/`, wire the skill into a native agent with the `skills:` field,
 and import everything with a single shell script.
 
+
 ## What it demonstrates
 
 - **Skill authoring** — a `SKILL.md` file with YAML frontmatter (`name`, `description`, `tags`)
