@@ -509,7 +509,14 @@ def agent_discover(
     ] = None,
     name: Annotated[
         Optional[List[str]],
-        typer.Option("--name", "-n", help="Agent name(s) to filter/import (repeatable). For A2A: overrides the agent name (single value). For Vertex AI: filters by displayName, case-insensitive."),
+        typer.Option(
+            "--name",
+            "-n",
+            help=(
+                "For --provider vertex_agent: display name filter (repeatable, case-insensitive). "
+                "For A2A (--url): overrides the discovered agent name. Only the first value is used."
+            ),
+        ),
     ] = None,
 ):
     """
@@ -545,6 +552,9 @@ def agent_discover(
             agents=name,
         )
     else:
+        if provider is not None:
+            typer.echo(f"Error: unknown --provider '{provider}'. Supported values: vertex_agent")
+            raise SystemExit(1)
         # A2A path — url is required here
         if url is None:
             typer.echo("Error: --url / -u is required for A2A discovery (or use --provider for other providers).")

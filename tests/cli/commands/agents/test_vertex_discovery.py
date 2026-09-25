@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import requests
 
+from ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery import VertexDiscoveryService
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 
 
@@ -40,24 +41,46 @@ WXO_SPEC_1 = {
     "auth_config": {},
 }
 
-WXO_SPEC_2 = {
-    "spec_version": "v1",
-    "kind": "external",
-    "name": "sales_assistant",
-    "title": "Sales Assistant",
-    "description": "Google Vertex AI agent: Sales Assistant",
-    "provider": "vertex_agent",
-    "api_url": "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/p/locations/l/agents/b",
-    "auth_scheme": "NONE",
-    "auth_config": {},
-}
-
 
 def _mock_connections_client(creds=None):
     """Return a mock connections client that returns ``creds`` from get_credentials()."""
     mock_client = MagicMock()
     mock_client.get_credentials.return_value = creds or FAKE_CREDS
     return mock_client
+
+
+# ---------------------------------------------------------------------------
+# D. Unit tests for convert_to_wxo_external_agent_dict
+# ---------------------------------------------------------------------------
+
+class TestConvertToWxoExternalAgentDict:
+
+    def test_empty_display_name_falls_back_to_resource_path(self):
+        """displayName='' produces name='vertex_agent_<last-segment>'."""
+        agent = {
+            "name": "projects/p/locations/l/agents/abc123",
+            "displayName": "",
+        }
+        result = VertexDiscoveryService.convert_to_wxo_external_agent_dict(agent, "us-central1")
+        assert result["name"] == "vertex_agent_abc123"
+
+    def test_all_hyphen_display_name_falls_back_to_resource_path(self):
+        """displayName='---' → sanitized='___' → falls back to resource path."""
+        agent = {
+            "name": "projects/p/locations/l/agents/xyz789",
+            "displayName": "---",
+        }
+        result = VertexDiscoveryService.convert_to_wxo_external_agent_dict(agent, "us-central1")
+        assert result["name"] == "vertex_agent_xyz789"
+
+    def test_valid_display_name_is_unchanged(self):
+        """A normal displayName is snake-cased and NOT replaced by the fallback."""
+        agent = {
+            "name": "projects/p/locations/l/agents/a",
+            "displayName": "Customer Support",
+        }
+        result = VertexDiscoveryService.convert_to_wxo_external_agent_dict(agent, "us-central1")
+        assert result["name"] == "customer_support"
 
 
 # ---------------------------------------------------------------------------
@@ -315,3 +338,17 @@ class TestAgentDiscoverCommandRouting:
         )
         call_kwargs = mock_vertex.call_args[1]
         assert call_kwargs["agents"] == ["foo", "bar"]
+
+    @patch.object(AgentsController, "__init__", return_value=None)
+    def test_discover_unknown_provider_exits_with_error(self, mock_init):
+        """An unrecognised --provider value exits with code 1 and a helpful message."""
+        from typer.testing import CliRunner
+        from ibm_watsonx_orchestrate.cli.commands.agents.agents_command import agents_app
+
+        runner = CliRunner()
+        result = runner.invoke(
+            agents_app,
+            ["discover", "--provider", "salesforce"],
+        )
+        assert result.exit_code == 1
+        assert "unknown --provider" in result.output

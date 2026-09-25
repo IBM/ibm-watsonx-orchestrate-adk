@@ -156,6 +156,10 @@ class VertexDiscoveryService:
             .replace("-", "_")
         )[:_NAME_MAX_LEN]
 
+        if not sanitized_name or not sanitized_name.strip("_"):
+            resource_path = agent.get("name", "unknown")
+            sanitized_name = f"vertex_agent_{resource_path.split('/')[-1]}"
+
         description = (
             agent.get("description")
             or f"Google Gemini Enterprise agent: {display_name}"
