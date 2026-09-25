@@ -10,7 +10,7 @@ from .channels.mcp_tools import __tools__ as channel_tools
 from .phone.mcp_tools import __tools__ as phone_tools
 from .chat.mcp_tools import __tools__ as chat_tools
 from .skills.mcp_tools import __tools__ as skill_tools
-
+from .server.mcp_tools import __tools__ as server_tools
 # Adding 'orchestrate environment' commands to MCP Server:
 from .environment.mcp_tools import __tools__ as environment_tools
 
@@ -26,6 +26,7 @@ __all_tools__ = (
     + phone_tools
     + skill_tools
     + chat_tools
+    + server_tools
     + environment_tools
     + [check_version]
 )
