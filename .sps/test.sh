@@ -17,7 +17,10 @@ pip install "./packages/core"
 pip install "./packages/clients"
 pip install ".[dev, agentops]"
 mkdir -p coverage
-hatch run test.py3.11:coverage run -m pytest --junitxml coverage/test-results.xml
+
+hatch python install 3.11 3.12 3.13 3.14
+hatch run test:coverage run -m pytest --junitxml coverage/test-results.xml
+
 #hatch run test:coverage html -d coverage/html
 #tar czvf coverage/coverage-html.tar.gz coverage/html
 #hatch run test:coverage xml -o coverage/coverage.xml
