@@ -405,7 +405,10 @@ def tool2():
     def test_generate_red_teaming_attacks(self, controller):
         with patch(
             "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.attack_generator.main"
-        ) as mock_gen:
+        ) as mock_gen, patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.os.path.exists",
+            return_value=False,
+        ):
             mock_gen.return_value = ["attack1"]
 
             controller.generate_red_teaming_attacks(
