@@ -51,6 +51,7 @@ from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdo
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, transform_agents_from_flat_agent_spec
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException, format_client_api_error
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
@@ -1681,35 +1682,13 @@ class AgentsController:
                 logger.warning(f"Failed to clean up temporary zip file: {e}")
 
     def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
-        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
-        
         if isinstance(agent, Agent):
             # Use the client's create method which handles workspace injection
             native_client = self.get_native_client()
             try:
                 response_data = native_client.create(agent.model_dump(exclude_none=True))
             except ClientAPIException as e:
-                # Extract error message from response
-                error_msg = "Unknown error"
-                
-                try:
-                    # Don't rely on truthiness of response object - check if it's not None
-                    if e.response is not None and hasattr(e.response, 'text'):
-                        response_text = e.response.text
-                        if response_text:
-                            try:
-                                error_data = json.loads(response_text)
-                                error_msg = error_data.get('detail', response_text)
-                            except:
-                                error_msg = response_text
-                        else:
-                            error_msg = str(e)
-                    else:
-                        error_msg = str(e)
-                except Exception:
-                    error_msg = str(e)
-                
-                logger.error(f"Failed to create agent: {error_msg}")
+                logger.error(f"Failed to create agent: {format_client_api_error(e)}")
                 sys.exit(1)
             
             _raise_guidelines_warning(response_data)
@@ -1766,27 +1745,7 @@ class AgentsController:
             try:
                 self.get_external_client().create(agent.model_dump(exclude_none=True))
             except ClientAPIException as e:
-                # Extract error message from response
-                error_msg = "Unknown error"
-                
-                try:
-                    # Don't rely on truthiness of response object - check if it's not None
-                    if e.response is not None and hasattr(e.response, 'text'):
-                        response_text = e.response.text
-                        if response_text:
-                            try:
-                                error_data = json.loads(response_text)
-                                error_msg = error_data.get('detail', response_text)
-                            except:
-                                error_msg = response_text
-                        else:
-                            error_msg = str(e)
-                    else:
-                        error_msg = str(e)
-                except Exception:
-                    error_msg = str(e)
-                
-                logger.error(f"Failed to create external agent: {error_msg}")
+                logger.error(f"Failed to create external agent: {format_client_api_error(e)}")
                 sys.exit(1)
             logger.info(f"External Agent '{agent.name}' imported successfully")
             
@@ -1794,27 +1753,7 @@ class AgentsController:
             try:
                 self.get_assistant_client().create(agent.model_dump(exclude_none=True, by_alias=True))
             except ClientAPIException as e:
-                # Extract error message from response
-                error_msg = "Unknown error"
-                
-                try:
-                    # Don't rely on truthiness of response object - check if it's not None
-                    if e.response is not None and hasattr(e.response, 'text'):
-                        response_text = e.response.text
-                        if response_text:
-                            try:
-                                error_data = json.loads(response_text)
-                                error_msg = error_data.get('detail', response_text)
-                            except:
-                                error_msg = response_text
-                        else:
-                            error_msg = str(e)
-                    else:
-                        error_msg = str(e)
-                except Exception:
-                    error_msg = str(e)
-                
-                logger.error(f"Failed to create assistant agent: {error_msg}")
+                logger.error(f"Failed to create assistant agent: {format_client_api_error(e)}")
                 sys.exit(1)
             logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
@@ -3159,4 +3098,3 @@ class AgentsController:
         except Exception as e:
             logger.error(f"Unexpected error during agent discovery: {str(e)}")
             sys.exit(1)
-
