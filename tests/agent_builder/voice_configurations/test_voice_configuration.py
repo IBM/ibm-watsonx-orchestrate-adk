@@ -262,9 +262,10 @@ def google_tts_config():
     "text_to_speech": {
       "provider": "google_tts",
       "google_tts_config": {
+        "project_id": "voice-runtime",
         "credentials_json": "test_service_account_json",
         "voice": "en-US-Neural2-C",
-        "language": "en-US"
+        "language_code": "en-US"
       }
     }
   }
@@ -502,10 +503,10 @@ class TestVoiceConfigurationInit:
 
     assert config.name == config_data['name']
     assert config.text_to_speech.provider == "google_tts"
-    assert config.text_to_speech.google_tts_config.project_id == config_data['speech_to_text']['google_tts_config']['project_id']
+    assert config.text_to_speech.google_tts_config.project_id == config_data['text_to_speech']['google_tts_config']['project_id']
     assert config.text_to_speech.google_tts_config.credentials_json == config_data['text_to_speech']['google_tts_config']['credentials_json']
     assert config.text_to_speech.google_tts_config.voice == config_data['text_to_speech']['google_tts_config']['voice']
-    assert config.text_to_speech.google_tts_config.language == config_data['text_to_speech']['google_tts_config']['language']
+    assert config.text_to_speech.google_tts_config.language_code == config_data['text_to_speech']['google_tts_config']['language_code']
 
   def test_deepgram_keyterm_with_supported_model_nova3(self):
     """Test that keyterm works with nova-3 model"""
