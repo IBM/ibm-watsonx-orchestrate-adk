@@ -11,7 +11,10 @@ import re
 import requests
 from ibm_watsonx_orchestrate.agent_builder.tools.utils import extract_python_tools,get_formated_requirements_lines, get_package_root
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
-from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+from ibm_watsonx_orchestrate_clients.common.base_client import (
+    ClientAPIException,
+    format_client_api_error,
+)
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
 from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, ToolkitPythonInputSpec, ToolkitDeploymentTiers, RemoteMcpModel, LocalMcpModel, ToolkitSource, PythonModel, ToolkitPythonTool, validate_context
@@ -288,21 +291,6 @@ class ToolkitController:
                 else:
                     self.publish_toolkit(toolkit=toolkit, toolkit_artifact=zip_file_path)
 
-    def _extract_error_detail(self, e: ClientAPIException) -> str:
-        """Extract the human-readable detail from a ClientAPIException response body."""
-        try:
-            if e.response is not None and hasattr(e.response, 'text'):
-                response_text = e.response.text
-                if response_text:
-                    try:
-                        error_data = json.loads(response_text)
-                        return error_data.get('detail', response_text)
-                    except Exception:
-                        return response_text
-        except Exception:
-            pass
-        return str(e)
-
     def publish_toolkit(self, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
 
         # Create toolkit metadata
@@ -320,7 +308,7 @@ class ToolkitController:
                 progress.add_task(description="Creating toolkit...", total=None)
                 new_toolkit = self.get_client().create_toolkit(payload)
         except ClientAPIException as e:
-            logger.error(f"Failed to create toolkit: {self._extract_error_detail(e)}")
+            logger.error(f"Failed to create toolkit: {format_client_api_error(e)}")
             sys.exit(1)
 
         toolkit_id = new_toolkit["id"]
@@ -342,7 +330,7 @@ class ToolkitController:
                         self.get_client().delete(toolkit_id=toolkit_id)
                     except Exception:
                         pass
-                    logger.error(f"Failed to upload toolkit '{toolkit.__toolkit_spec__.name}': {self._extract_error_detail(e)}")
+                    logger.error(f"Failed to upload toolkit '{toolkit.__toolkit_spec__.name}': {format_client_api_error(e)}")
                     sys.exit(1)
 
         logger.info(f"Successfully imported tool kit {toolkit.__toolkit_spec__.name}")
@@ -364,7 +352,7 @@ class ToolkitController:
                 progress.add_task(description="Updating toolkit...", total=None)
                 new_toolkit = self.get_client().update_toolkit(toolkit_id, payload)
         except ClientAPIException as e:
-            logger.error(f"Failed to update toolkit: {self._extract_error_detail(e)}")
+            logger.error(f"Failed to update toolkit: {format_client_api_error(e)}")
             sys.exit(1)
 
         # Upload zip file
@@ -380,7 +368,7 @@ class ToolkitController:
                     self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=toolkit_artifact)
                 except ClientAPIException as e:
                     # Leave the pre-existing toolkit record intact; only the new artifact failed.
-                    logger.error(f"Failed to upload toolkit '{toolkit.__toolkit_spec__.name}': {self._extract_error_detail(e)}")
+                    logger.error(f"Failed to upload toolkit '{toolkit.__toolkit_spec__.name}': {format_client_api_error(e)}")
                     sys.exit(1)
 
         logger.info(f"Successfully updated toolkit {toolkit.__toolkit_spec__.name}")

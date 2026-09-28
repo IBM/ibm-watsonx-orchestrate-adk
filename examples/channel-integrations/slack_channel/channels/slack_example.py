@@ -21,4 +21,6 @@ channel = SlackChannel(
     sso_user_prompt_text=os.getenv("SLACK_SSO_USER_PROMPT_TEXT"),
     sso_user_prompt_label=os.getenv("SLACK_SSO_USER_PROMPT_LABEL"),
     sso_cert=os.getenv("SLACK_SSO_CERT"),
+    enable_feedback=False,    # Optional: show thumbs up/down on every agent response
+    respond_in_thread=False,  # Optional: always reply in thread (Slack channels only, no effect in DMs)
 )

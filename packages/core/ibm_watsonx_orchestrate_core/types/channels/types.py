@@ -250,6 +250,8 @@ class SlackChannel(BaseChannel):
         sso_user_prompt_text: Text shown to users in the SSO prompt
         sso_user_prompt_label: Label appearing on the SSO link button shown to users
         sso_cert: SSO certificate (PEM format)
+        enable_feedback: Enable thumbs up/down feedback buttons on every agent response
+        respond_in_thread: Always reply in a thread when in a Slack channel (no effect in DMs)
     """
 
     channel: Literal["byo_slack"] = "byo_slack"
@@ -299,6 +301,14 @@ class SlackChannel(BaseChannel):
     sso_cert: Optional[str] = Field(
         None,
         description="SSO certificate (PEM format)"
+    )
+    enable_feedback: Optional[bool] = Field(
+        False,
+        description="Enable thumbs up/down feedback buttons on every agent response"
+    )
+    respond_in_thread: Optional[bool] = Field(
+        False,
+        description="Always reply in a thread when in a Slack channel (no effect in DMs)"
     )
 
     @model_validator(mode='after')
@@ -439,6 +449,7 @@ class TeamsChannel(BaseChannel):
         app_password: Microsoft App Client secret
         app_id: Microsoft Application (client) ID
         teams_tenant_id: Microsoft Teams tenant ID
+        enable_feedback: Enable thumbs up/down feedback buttons on every agent response
     """
 
     channel: Literal["teams"] = "teams"
@@ -456,6 +467,10 @@ class TeamsChannel(BaseChannel):
         None,
         min_length=1,
         description="Microsoft Teams tenant ID"
+    )
+    enable_feedback: Optional[bool] = Field(
+        False,
+        description="Enable thumbs up/down feedback buttons on every agent response"
     )
 
     @model_validator(mode='after')
