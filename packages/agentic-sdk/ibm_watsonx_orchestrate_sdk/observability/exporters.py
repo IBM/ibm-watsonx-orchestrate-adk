@@ -22,6 +22,49 @@ from ibm_watsonx_orchestrate_sdk.observability.config import TracerConfig
 logger = logging.getLogger(__name__)
 
 
+def _apply_ssl_verify(exporter: Any, ssl_verify: Any) -> None:
+    """Push ssl_verify into the transport layer of an OTLPSpanExporter.
+
+    Called after OTLPSpanExporter(endpoint=..., headers=...) so that
+    verify=False (or a CA-bundle path) is honoured for CPD on-prem
+    self-signed certificates — without passing session= to the exporter
+    (which would break any external Urllib3HTTPTransport monkey-patch).
+
+    Tries both attribute paths used by different package versions:
+      newer: exporter._transport  (Urllib3HTTPTransport / RequestsHTTPTransport)
+      older: exporter._session    (requests.Session directly)
+    """
+    # v0.66b0+: exporter._client._transport._pool (urllib3.PoolManager)
+    client = getattr(exporter, "_client", None)
+    if client is not None:
+        transport = getattr(client, "_transport", None)
+        if transport is not None:
+            if hasattr(transport, "verify"):
+                transport.verify = ssl_verify
+            # urllib3 PoolManager stores cert_reqs in connection_pool_kw
+            pool = getattr(transport, "_pool", None)
+            if pool is not None:
+                kw = getattr(pool, "connection_pool_kw", None)
+                if kw is not None and ssl_verify is False:
+                    import ssl
+                    kw["cert_reqs"] = ssl.CERT_NONE
+                    kw.pop("ca_certs", None)
+
+    # mid versions: exporter._transport directly
+    transport = getattr(exporter, "_transport", None)
+    if transport is not None:
+        if hasattr(transport, "verify"):
+            transport.verify = ssl_verify
+        inner = getattr(transport, "_session", None)
+        if inner is not None and hasattr(inner, "verify"):
+            inner.verify = ssl_verify
+
+    # older versions: exporter._session directly
+    direct = getattr(exporter, "_session", None)
+    if direct is not None and hasattr(direct, "verify"):
+        direct.verify = ssl_verify
+
+
 class DynamicAuthOTLPSpanExporter(SpanExporter):
     """OTLP Span Exporter wrapper that refreshes authentication tokens dynamically.
 
@@ -59,6 +102,8 @@ class DynamicAuthOTLPSpanExporter(SpanExporter):
             )
             initial_headers = {}
         self._exporter: Any = OTLPSpanExporter(endpoint=endpoint, headers=initial_headers)
+        if config.ssl_verify is not None:
+            _apply_ssl_verify(self._exporter, config.ssl_verify)
         logger.debug("Created DynamicAuthOTLPSpanExporter for endpoint: %s", endpoint)
 
     def export(self, spans: Sequence["ReadableSpan"]) -> SpanExportResult:
@@ -166,7 +211,10 @@ def create_exporter(config: TracerConfig) -> Any:
             else:
                 logger.debug("Using OTLP HTTP exporter -> %s (no authentication)", endpoint)
 
-            return OTLPSpanExporter(endpoint=endpoint, headers=headers)
+            exporter = OTLPSpanExporter(endpoint=endpoint, headers=headers)
+            if config.ssl_verify is not None:
+                _apply_ssl_verify(exporter, config.ssl_verify)
+            return exporter
 
     from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
