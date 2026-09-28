@@ -526,8 +526,8 @@ def build_invoice_table_flow(aflow: Flow) -> Flow:
         description="Extracts invoice header and line items",
         llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
         fields=InvoiceTableFields(),
-        enable_hw=True,
-        field_extraction_method="layout",   # MANDATORY: Required for DocExtConfigTableField
+        field_extraction_method="layout",   # Required for DocExtConfigTableField
+        # enable_hw=True,                   # add only if documents may contain handwritten text
     )
     aflow.sequence(START, node, END)
     return aflow

@@ -50,7 +50,7 @@ orchestrate agents list   # confirm connected
 
 # Local Developer Edition (Docker, 16 GB RAM / 8 cores / 25 GB disk, entitlement key in .env)
 orchestrate server start -e .env --accept-terms-and-conditions && orchestrate env activate local
-# ⚠ Document processing nodes (docproc/docext/docclassifier) require the WDU service — add -d:
+# ⚠ Document processing nodes (docproc/docext/docclassifier) require the document processing service — add -d:
 # orchestrate server start -d -e .env --accept-terms-and-conditions
 # On-prem CPD setup + all env/server flags (--with-voice/-langflow/-ai-builder, extras) → references/cli-reference.md §1, §8
 ```
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 ```
 
 **Rules:**
-- **Always create one `tests/test_<flow_name>.py` per `@flow`** — required deliverable, not optional. Skip only for tool-only or agent-only projects (no `@flow` present). ⚠ Exception: flows that use `docproc`/`docext`/`docclassifier` nodes require a live WDU service — skip those flows only.
+- **Always create one `tests/test_<flow_name>.py` per `@flow`** — required deliverable, not optional. Skip only for tool-only or agent-only projects (no `@flow` present). ⚠ Exception: flows that use `docproc`/`docext`/`docclassifier` nodes require a live document processing service — skip those flows only.
 - Call `compile_deploy()` **once** at the top of `main()`; calling it again raises `ValueError: Flow has already been compiled`.
 - Use the `run_flow()` helper from `references/testing-debugging.md §4`; `fdef.invoke()` and `fdef.flow_run()` don't work reliably (see reference for why).
 - ⚠ **Platform pre-processes inputs**: the wxO LLM layer silently normalises invalid inputs. Assert against **business-state outcomes** (mock data that always returns fixed status), not input-validation rejections.
@@ -213,9 +213,10 @@ def build_weather_flow(aflow: Flow) -> Flow:
 **Programmatic test (run after every flow change):** `await build_<flow_name>().compile_deploy()` then `.invoke(<input_dict>, debug=True)`. Verify the response is not `{}`, check every mapped output field, and confirm no `An error has occurred` in the agent chat response.
 
 **Document processing node selection:**
-- **`aflow.docext` (Structured Extractor):** Extract typed fields, dates, numbers, enums (`available_options`), or tables (`DocExtConfigTableField`) from forms, invoices, receipts, tax slips, or POs. ⚠️ **MUST** use `field_extraction_method="layout"` when tables or options are present. Input schema: `DocumentProcessingCommonInput`.
+- **`aflow.docext` — Structured (`field_extraction_method="layout"`):** Vision-based multimodal model. Extracts typed fields **and** table data (`DocExtConfigTableField`) from fixed-layout documents (invoices, POs, receipts, tax forms). Best for short documents (1–3 pages) with a clear label/value structure. Also supports `available_options` (enums) and `PageRange`. Input schema: `DocumentProcessingCommonInput`.
+- **`aflow.docext` — Unstructured (`field_extraction_method="classic"`):** Text-based language model. Extracts typed top-level fields from text-heavy, multi-page documents (contracts, emails, manuals, legal briefs) where fields appear in headers or body prose. ⚠️ **DOES NOT extract column values from tables** — use `"layout"` if table extraction is needed. Input schema: `DocumentProcessingCommonInput`.
+- **`aflow.docproc` (Text Extraction / OCR):** Primary purpose is extracting the **document's content** — raw text, Markdown, or HTML — suitable for feeding into a downstream summarization or analysis prompt. Also produces KVPs; accepts predefined KVP schemas (`kvp_schemas=[]` + `kvp_force_schema_name="<Name>"`). When the goal is structured field or table extraction rather than document content, prefer `docext`. Input schema: `DocProcInput`.
 - **`aflow.docclassifier` (Classifier):** Classify uploaded documents into categories (`DocClassifierClass`) and branch to specialized extractors via `aflow.conditions()`. Input schema: `DocumentProcessingCommonInput`.
-- **`aflow.docproc` / classic (Unstructured Extractor / OCR):** Extract raw text, document structure, signatures, or KVP schemas from text-heavy documents for prompt summarization. Set `kvp_schemas=[]` with `kvp_force_schema_name="<Name>"` for predefined WDU schemas. ⚠️ **DOES NOT support tables or table fields.** Input schema: `DocProcInput`.
 - **Agent YAML rule for doc flows:** Flow handles file upload prompts automatically. Agent instructions must **never** ask user to upload a file before calling the flow.
 
 Full docproc catalog & blueprints → **[references/document-processing-schemas.md](references/document-processing-schemas.md)**.
@@ -388,7 +389,7 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | Final flow `output` is `{}` despite `aflow.map_output()` calls | Likely cause: output mapped from a conditional branch without a consolidation node. **Both paths must wire to a common node before `END`** — create a script consolidation node, wire both branches to it, then map from consolidation node. See conditional + output mapping pattern below. |
 | Raw flow output dict shown to user; agent formatting instructions ignored | Flow contains **agent steps** → platform auto-sets `suppress_agent_summarization=True`, bypassing the calling agent's LLM. Fix: set `suppress_agent_summarization=False` so the flow result passes through the agent LLM for formatting. |
 | Agent hallucinating / re-narrating instead of presenting the flow result | Agent LLM is active but told to "reformat/summarise". Fix: set `suppress_agent_summarization=True` to stream the last node's output verbatim and skip the agent LLM entirely. |
-| `docproc`/`docext`/`docclassifier` node fails at runtime (Developer Edition) | WDU service not started — restart with `-d`: `orchestrate server start -d -e .env --accept-terms-and-conditions` |
+| `docproc`/`docext`/`docclassifier` node fails at runtime (Developer Edition) | Document processing service not started — restart with `-d`: `orchestrate server start -d -e .env --accept-terms-and-conditions` |
 | Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` reasoning, `-l` logs) |
 | Server issues | `orchestrate server logs`; `orchestrate server reset` to wipe state |
 
@@ -436,7 +437,7 @@ Two servers are available to coding agents (Bob/Cursor): `adk-docs` (documentati
 | File | Contents |
 |---|---|
 | **[references/agents-tools-schemas.md](references/agents-tools-schemas.md)** | Full agent YAML schema (all kinds), `@tool`/`@flow` decorator signatures, all flow nodes (parallel, foreach, decisions, callbacks, masking, dynamic forms, docproc/KVP, docext, userflow, swarms) |
-| **[references/document-processing-schemas.md](references/document-processing-schemas.md)** | Document processing guide: 28 predefined WDU schemas catalog, structured vs unstructured extractor rules, table extraction (`DocExtConfigTableField`), and classifier-router patterns |
+| **[references/document-processing-schemas.md](references/document-processing-schemas.md)** | Document processing guide: 28 predefined schemas catalog, structured vs unstructured extractor rules, table extraction (`DocExtConfigTableField`), and classifier-router patterns |
 | **[references/connections-models-kb.md](references/connections-models-kb.md)** | Connection YAML + CLI lifecycle, watsonx.ai model setup, KB provider configs (AstraDB/Milvus/Elasticsearch) |
 | **[references/examples.md](references/examples.md)** | Complete worked examples: tool agent, KB agent, multi-agent chain, conditional flow, foreach, document extraction, table extraction, classifier routing, docproc summary |
 | **[references/cli-reference.md](references/cli-reference.md)** | Full `orchestrate` CLI (every group, command, flag), webchat CRN one-liner |

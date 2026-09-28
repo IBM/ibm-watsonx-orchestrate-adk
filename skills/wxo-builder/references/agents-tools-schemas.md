@@ -739,8 +739,8 @@ aflow.map_output(
 
 **Docproc notes (2.13):**
 - Default extractor model is `mistral-small` (changed in 2.12, still current in 2.13).
-- **Predefined WDU Schemas:** Pass `kvp_schemas=[]` with `kvp_force_schema_name="<SchemaName>"` (e.g., `"Invoice"`, `"UtilityBill"`) to activate the built-in WDU catalog.
-- ⚠️ **Unstructured / Classic extractors DO NOT support tables:** `DocExtConfigTableField` cannot be used with classic extraction methods.
+- **Predefined Schemas:** Pass `kvp_schemas=[]` with `kvp_force_schema_name="<SchemaName>"` (e.g., `"Invoice"`, `"UtilityBill"`) to activate the built-in predefined schema catalog.
+- ⚠️ **`docext` with `method="classic"` does not support table extraction:** `DocExtConfigTableField` requires `field_extraction_method="layout"` (Structured extractor). `docproc` is a separate node for document content extraction and is not subject to this constraint.
 - Full 28-schema catalog and blueprints → **[references/document-processing-schemas.md](document-processing-schemas.md)**.
 
 **Document upload rule:**
@@ -794,7 +794,7 @@ def build_extract_contract(aflow: Flow) -> Flow:
         llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
         fields=ContractFields(),
         field_extraction_method="layout",   # "layout" required for tables, available_options, page_range
-        enable_hw=True,                     # handwriting support
+        # enable_hw=True,                   # add only if documents may contain handwritten text
         page_range=PageRange(start=1, end=3)  # optional: restrict to specific pages
     )
     aflow.sequence(START, node, END)

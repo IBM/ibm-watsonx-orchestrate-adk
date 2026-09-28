@@ -1,6 +1,6 @@
 # Document Processing & Extraction Schemas Reference
 
-This reference covers Watson Document Understanding (WDU) and watsonx Orchestrate document processing nodes: `aflow.docext` (Structured / Unstructured Extractor), `aflow.docclassifier` (Document Classifier), and `aflow.docproc` (Text Extraction / KVP OCR).
+This reference covers the watsonx Orchestrate document processing nodes: `aflow.docext` (Structured / Unstructured Extractor), `aflow.docclassifier` (Document Classifier), and `aflow.docproc` (Text Extraction / KVP OCR).
 
 ---
 
@@ -8,22 +8,24 @@ This reference covers Watson Document Understanding (WDU) and watsonx Orchestrat
 
 When building a flow that processes documents, evaluate the customer's document format and goals:
 
-| Goal | Recommended Node | Extraction Method | Table Support | Input Schema | Output Type |
+| Goal | Recommended Node | `field_extraction_method` | Table Support | Input Schema | Output Type |
 |---|---|---|---|---|---|
-| **Extract structured fields, dates, amounts, tables** (Invoices, Receipts, POs, Tax forms, Forms) | `aflow.docext()` | `field_extraction_method="layout"` | ✅ **Yes** (`DocExtConfigTableField`) | `DocumentProcessingCommonInput` | Tuple `(node, OutputSchema)` with typed attribute access |
+| **Extract typed fields + tables** from fixed-layout documents (Invoices, POs, Receipts, Tax forms, Forms — typically 1–3 pages) | `aflow.docext()` | `"layout"` (Structured — vision model) | ✅ **Yes** (`DocExtConfigTableField`) | `DocumentProcessingCommonInput` | Tuple `(node, OutputSchema)` with typed attribute access |
+| **Extract typed top-level fields** from text-heavy, multi-page documents (Contracts, Emails, Manuals, Legal briefs) | `aflow.docext()` | `"classic"` (Unstructured — text model) | ❌ **No** — does not extract column values from tables | `DocumentProcessingCommonInput` | Tuple `(node, OutputSchema)` with typed attribute access |
+| **Extract document content** — raw text, Markdown, or HTML — for downstream summarization or analysis; also produces KVPs | `aflow.docproc()` | `task="text_extraction"` | ✅ KVP arrays included in output | `DocProcInput` | `DocProcOutputFormat.object` (`text`, `kvps`) |
 | **Classify & route multiple document types** | `aflow.docclassifier()` | N/A | N/A | `DocumentProcessingCommonInput` | `DocumentClassificationResponse` (`class_name`) |
-| **Extract free-form prose, OCR, or summarize text** (Contracts, Legal briefs, Bylaws) | `aflow.docproc()` or `aflow.docext()` | `task="text_extraction"` or `method="classic"` | ❌ **No tables supported** | `DocProcInput` / `DocumentProcessingCommonInput` | `DocProcOutputFormat.object` (`text`, `kvps`) or prompt input |
 
-### Critical Rules:
-1. **Table Extraction Constraint:** Tables are **ONLY** supported when using a Structured Extractor with `field_extraction_method="layout"`. Using `field_extraction_method="classic"` with table fields raises a validation `ValueError`.
-2. **Constrained Options & Page Ranges:** `available_options` (enums) and `PageRange(start=X, end=Y)` require `field_extraction_method="layout"`.
-3. **File Upload Handling:** Flows using `DocumentProcessingCommonInput` or `DocProcInput` handle the interactive file upload prompt automatically. The agent YAML instructions must **never** prompt the user to upload a file before calling the flow.
+### Design Rules:
+1. **Table and options require Structured extraction:** `DocExtConfigTableField` and `available_options` (enums) are only supported with `field_extraction_method="layout"`. If your use case includes tables or constrained options, choose the Structured extractor.
+2. **Page ranges require Structured extraction:** `PageRange(start=X, end=Y)` is only available with `field_extraction_method="layout"`.
+3. **Prefer `docext` for field/table extraction:** When the goal is extracting specific typed fields or tables, use `docext` (`"layout"` or `"classic"`). Use `docproc` when you need the document's textual content (raw text, Markdown, HTML) or are feeding output into a summarization/analysis prompt.
+4. **File Upload Handling:** Flows using `DocumentProcessingCommonInput` or `DocProcInput` handle the interactive file upload prompt automatically. The agent YAML instructions must **never** prompt the user to upload a file before calling the flow.
 
 ---
 
-## 2. Predefined 28 WDU B2B Document Schemas Catalog
+## 2. Predefined 28 B2B Document Schemas Catalog
 
-WDU has 28 pre-built document schemas organized into 11 business domains.
+The document processing engine ships with 28 pre-built schemas organized into 11 business domains.
 
 ### Catalog Summary Index:
 
@@ -112,8 +114,8 @@ def build_extract_invoice_flow(aflow: Flow) -> Flow:
         description="Extracts invoice header and itemized line items table",
         llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
         fields=InvoiceExtractorFields(),
-        enable_hw=True,                     # Handwriting recognition
-        field_extraction_method="layout",   # MANDATORY for tables and available_options
+        field_extraction_method="layout",   # Required for tables and available_options
+        # enable_hw=True,                   # Add only if documents may contain handwritten text
     )
     aflow.sequence(START, extractor_node, END)
     return aflow
@@ -121,9 +123,9 @@ def build_extract_invoice_flow(aflow: Flow) -> Flow:
 
 ---
 
-### Pattern B: Predefined WDU Schema Trigger (`aflow.docproc`)
+### Pattern B: Predefined Schema Trigger (`aflow.docproc`)
 
-When using `docproc` for text extraction and KVP, reference built-in WDU schemas by setting `kvp_schemas=[]` (empty list) and naming the schema in `kvp_force_schema_name`:
+When using `docproc` for text extraction and KVP, reference built-in predefined schemas by setting `kvp_schemas=[]` (empty list) and naming the schema in `kvp_force_schema_name`:
 
 ```python
 from ibm_watsonx_orchestrate.flow_builder.flows import Flow, flow, START, END
@@ -134,11 +136,11 @@ def build_utility_bill_flow(aflow: Flow) -> Flow:
     doc_node = aflow.docproc(
         name="utility_extractor",
         display_name="Utility Bill Extractor",
-        description="Extracts KVPs using predefined WDU UtilityBill schema",
+        description="Extracts KVPs using the predefined UtilityBill schema",
         task="text_extraction",
         output_format=DocProcOutputFormat.object,
-        kvp_schemas=[],                          # Empty list activates server-side WDU catalog
-        kvp_force_schema_name="UtilityBill",     # Name of the predefined WDU schema
+        kvp_schemas=[],                          # Empty list activates server-side predefined schema catalog
+        kvp_force_schema_name="UtilityBill",     # Name of the predefined schema
     )
     aflow.sequence(START, doc_node, END)
     return aflow
