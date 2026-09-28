@@ -5,7 +5,7 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
 import os
 import json
 
-from ibm_watsonx_orchestrate.flow_builder.types import DocProcInput, DocProcKVPSchema, DocProcOutputFormat, TextExtractionObjectResponse, NodeErrorHandlerConfig
+from ibm_watsonx_orchestrate.flow_builder.types import DocProcInput, DocProcKVPSchema, DocProcOutputFormat, OutputContentType, TextExtractionObjectResponse, NodeErrorHandlerConfig
 
 class TestDocProcNode():
     
@@ -240,3 +240,51 @@ class TestDocProcNode():
         spec = text_extraction_node.get_spec().to_json()
 
         assert "error_handler_config" not in spec
+    def test_text_extraction_node_with_output_content_types(self):
+        """Test output_content_types priority: runtime > spec > default.
+
+        - spec value is serialized into the node spec
+        - output_content_types IS present in the runtime input schema (runtime override)
+        - absent from spec when not set at build time
+        - empty list is serialized (skip-text-extraction case)
+        """
+        # --- spec value is serialized in node spec ---
+        aflow = FlowFactory.create_flow(name="text_extraction_flow_example")
+        node = aflow.docproc(
+            name="text_extraction",
+            display_name="text_extraction",
+            description="Extract text out of a document's contents.",
+            task="text_extraction",
+            output_content_types=[OutputContentType.text, OutputContentType.markdown],
+        )
+        spec = node.get_spec().to_json()
+        aflow_json = aflow.to_json()
+
+        assert spec["output_content_types"] == ["text", "markdown"]
+        assert aflow_json["nodes"]["text_extraction"]["spec"]["output_content_types"] == ["text", "markdown"]
+
+        # --- output_content_types IS in the runtime input schema (runtime can override spec value) ---
+        assert "output_content_types" in aflow_json["schemas"]["text_extraction_input"]["properties"]
+
+        # --- absent from spec when not set at build time (None omitted from wire format) ---
+        aflow2 = FlowFactory.create_flow(name="text_extraction_flow_example")
+        node2 = aflow2.docproc(
+            name="text_extraction",
+            display_name="text_extraction",
+            description="Extract text out of a document's contents.",
+            task="text_extraction",
+        )
+        spec2 = node2.get_spec().to_json()
+        assert spec2.get("output_content_types") is None
+
+        # --- empty list is serialized (skip-text-extraction case) ---
+        aflow3 = FlowFactory.create_flow(name="text_extraction_flow_example")
+        node3 = aflow3.docproc(
+            name="text_extraction",
+            display_name="text_extraction",
+            description="Extract text out of a document's contents.",
+            task="text_extraction",
+            output_content_types=[],
+        )
+        spec3 = node3.get_spec().to_json()
+        assert spec3["output_content_types"] == []

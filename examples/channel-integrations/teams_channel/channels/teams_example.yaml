@@ -18,3 +18,6 @@ app_id: ${TEAMS_APP_ID}
 
 # Optional: Microsoft Teams tenant ID (also called Directory ID)
 teams_tenant_id: ${TEAMS_TENANT_ID}
+
+# Optional: Show thumbs up/down feedback buttons on every agent response (default: false)
+enable_feedback: false

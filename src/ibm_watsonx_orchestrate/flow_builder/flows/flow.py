@@ -38,7 +38,7 @@ from ..types import (
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
-    UserFormButton, LanguageCode
+    UserFormButton, LanguageCode, OutputContentType
 )
 from ..masking_utils import MaskingPolicy, InputPolicy, ChannelOverride
 from .constants import CURRENT_USER, START, END, ANY_USER
@@ -48,7 +48,7 @@ from ..node import (
 from ..types import (
     AgentNodeSpec, ThreadControlPolicy, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
     NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema,
-    FlowCallback, FlowCallbackEventKind, _UNSET
+    FlowCallback, FlowCallbackEventKind, _UNSET, UserRole
 )
 
 from ..data_map import DataMap, DataMapSpec
@@ -296,7 +296,7 @@ class Flow(Node):
                                 schema_ref = self._add_schema_ref(value, value.title)
                                 new_schema.properties[key] = JsonSchemaObjectRef(title=value.title,
                                                                                 ref = f"{schema_ref.ref}")
-                            elif value.type == "array" and (value.items.type == "object" or value.items.type == "array"):
+                            elif value.type == "array" and value.items is not None and (value.items.type == "object" or value.items.type == "array"):
                                 schema_ref = self._add_schema_ref(value.items, value.items.title)
                                 new_schema.properties[key].items = JsonSchemaObjectRef(title=value.title,
                                                                                     ref = f"{schema_ref.ref}")
@@ -307,7 +307,7 @@ class Flow(Node):
                                 new_schema.properties[key] = JsonSchemaObjectRef(ref = f"{schema_ref}")
 
             elif new_schema.type == "array":
-                if new_schema.items.type == "object" or new_schema.items.type == "array":
+                if new_schema.items is not None and (new_schema.items.type == "object" or new_schema.items.type == "array"):
                     schema_ref = self._add_schema_ref(new_schema.items, new_schema.items.title)
                     new_schema.items = JsonSchemaObjectRef(title=new_schema.items.title,
                                                            ref= f"{schema_ref.ref}")
@@ -1091,13 +1091,14 @@ class Flow(Node):
             min_confidence: float = 0.0,
             enable_hw: bool = False,
             enable_review: bool = False,
+            page_range: PageRange | None = None,
             language: LanguageCode | None = None,
             error_handler_config: NodeErrorHandlerConfig | None = None) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
         
-        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence, input_classes=classes)
+        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence, input_classes=classes, page_range=page_range)
 
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentProcessingCommonInput)
         output_schema_obj = _get_json_schema_obj(parameter_name = "output", type_def = DocumentClassificationResponse)
@@ -1252,6 +1253,7 @@ class Flow(Node):
             detect_signatures: bool | None = None,
             language: LanguageCode | None = None,
             output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref,
+            output_content_types: list[OutputContentType] | None = None,
             error_handler_config: NodeErrorHandlerConfig | None = None) -> DocProcNode:
 
         if name is None :
@@ -1294,7 +1296,8 @@ class Flow(Node):
             detect_signatures=detect_signatures,
             language=language,
             output_format=output_format,
-            error_handler_config=error_handler_config
+            error_handler_config=error_handler_config,
+            output_content_types=output_content_types
         )
 
         node = DocProcNode(spec=task_spec)
@@ -2399,6 +2402,7 @@ class FlowFactory(BaseModel):
                     output_schema: type[BaseModel]|None=None,
                     private_schema: type[BaseModel]|None=None,
                     schedulable: bool=False,
+                    schedulable_by_role: UserRole|None=None,
                     suppress_agent_summarization: bool|None=None,
                     llm_model: str|ListVirtualModel|None=None,
                     agent_conversation_memory_turns_limit: int|None = None,
@@ -2427,6 +2431,7 @@ class FlowFactory(BaseModel):
             private_schema = private_schema_obj,
             output_schema_object = output_schema_obj,
             schedulable=schedulable,
+            schedulable_by_role=schedulable_by_role,
             suppress_agent_summarization=suppress_agent_summarization,
             context_window=context_window,
         )
