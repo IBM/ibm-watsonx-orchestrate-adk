@@ -4,12 +4,13 @@ description: >-
   Use when building, testing, debugging, or publishing IBM watsonx Orchestrate
   agents, tools, flows, connections, knowledge bases, or custom models with the
   `orchestrate` CLI or ADK, or when a project contains agent YAML, `@tool`, or `@flow` files.
-tags:
-  - watsonx-orchestrate
-  - wxo
-  - agent-development
-  - workflow-automation
-  - sop-to-code
+metadata:
+  tags:
+    - watsonx-orchestrate
+    - wxo
+    - agent-development
+    - workflow-automation
+    - sop-to-code
 ---
 
 # watsonx Orchestrate (wxO): Build · Test · Debug · Publish
@@ -211,7 +212,14 @@ def build_weather_flow(aflow: Flow) -> Flow:
 
 **Programmatic test (run after every flow change):** `await build_<flow_name>().compile_deploy()` then `.invoke(<input_dict>, debug=True)`. Verify the response is not `{}`, check every mapped output field, and confirm no `An error has occurred` in the agent chat response.
 
-Full flow node API → **[references/agents-tools-schemas.md §3–4](references/agents-tools-schemas.md)**.
+**Document processing node selection:**
+- **`aflow.docext` (Structured Extractor):** Extract typed fields, dates, numbers, enums (`available_options`), or tables (`DocExtConfigTableField`) from forms, invoices, receipts, tax slips, or POs. ⚠️ **MUST** use `field_extraction_method="layout"` when tables or options are present. Input schema: `DocumentProcessingCommonInput`.
+- **`aflow.docclassifier` (Classifier):** Classify uploaded documents into categories (`DocClassifierClass`) and branch to specialized extractors via `aflow.conditions()`. Input schema: `DocumentProcessingCommonInput`.
+- **`aflow.docproc` / classic (Unstructured Extractor / OCR):** Extract raw text, document structure, signatures, or KVP schemas from text-heavy documents for prompt summarization. Set `kvp_schemas=[]` with `kvp_force_schema_name="<Name>"` for predefined WDU schemas. ⚠️ **DOES NOT support tables or table fields.** Input schema: `DocProcInput`.
+- **Agent YAML rule for doc flows:** Flow handles file upload prompts automatically. Agent instructions must **never** ask user to upload a file before calling the flow.
+
+Full docproc catalog & blueprints → **[references/document-processing-schemas.md](references/document-processing-schemas.md)**.
+Full flow node API → **[references/agents-tools-schemas.md §3–5](references/agents-tools-schemas.md)**.
 
 ## 6. Agent YAML
 
@@ -428,8 +436,9 @@ Two servers are available to coding agents (Bob/Cursor): `adk-docs` (documentati
 | File | Contents |
 |---|---|
 | **[references/agents-tools-schemas.md](references/agents-tools-schemas.md)** | Full agent YAML schema (all kinds), `@tool`/`@flow` decorator signatures, all flow nodes (parallel, foreach, decisions, callbacks, masking, dynamic forms, docproc/KVP, docext, userflow, swarms) |
+| **[references/document-processing-schemas.md](references/document-processing-schemas.md)** | Document processing guide: 28 predefined WDU schemas catalog, structured vs unstructured extractor rules, table extraction (`DocExtConfigTableField`), and classifier-router patterns |
 | **[references/connections-models-kb.md](references/connections-models-kb.md)** | Connection YAML + CLI lifecycle, watsonx.ai model setup, KB provider configs (AstraDB/Milvus/Elasticsearch) |
-| **[references/examples.md](references/examples.md)** | Complete worked examples: tool agent, KB agent, multi-agent chain, conditional flow, foreach, document extraction |
+| **[references/examples.md](references/examples.md)** | Complete worked examples: tool agent, KB agent, multi-agent chain, conditional flow, foreach, document extraction, table extraction, classifier routing, docproc summary |
 | **[references/cli-reference.md](references/cli-reference.md)** | Full `orchestrate` CLI (every group, command, flag), webchat CRN one-liner |
 | **[references/mcp-setup.md](references/mcp-setup.md)** | MCP host config (`.bob`/`.cursor` `mcp.json`), server + tool inventory |
 | **[references/testing-debugging.md](references/testing-debugging.md)** | Post-deploy gate + TEST_REPORT template, failure-mode table, programmatic flow testing, traces/observability, pre-publish checklist |

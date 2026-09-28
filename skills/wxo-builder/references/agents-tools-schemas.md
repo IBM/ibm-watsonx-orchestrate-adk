@@ -392,7 +392,7 @@ aflow.edge(p2, next_node)
 
 ⚠ Parallel branches **pause on user interaction** — do not use with user-activity nodes inside a parallel.
 
-Source: [`examples/flow_builder/parallel_flow/tools/parallel_flow.py`](../../examples/flow_builder/parallel_flow/tools/parallel_flow.py)
+Source: [`examples/flow_builder/parallel_flow/tools/parallel_flow.py`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/parallel_flow/tools/parallel_flow.py)
 
 ### Decision branch
 ```python
@@ -432,7 +432,7 @@ aflow.add_callback(
 ```
 Use `"toolkit_name:tool_name"` format to reference a toolkit tool as the callback handler.
 
-Source: [`examples/flow_builder/flow_callback/tools/example_flow_with_callbacks.py`](../../examples/flow_builder/flow_callback/tools/example_flow_with_callbacks.py)
+Source: [`examples/flow_builder/flow_callback/tools/example_flow_with_callbacks.py`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/flow_callback/tools/example_flow_with_callbacks.py)
 
 ### Data masking
 ```python
@@ -460,7 +460,7 @@ aflow.mask_property("flow.userflow_1.passport.output",
 Policies: `MASK_ALL`, `MASK_FIRST4`, `MASK_LAST4`, `MASK_VIA_REGEX` (pass `regex_config=`).
 Masking applies in the chat UI, flow inspector, and observability traces.
 
-Source: [`examples/flow_builder/masking_test_flow/tools/masking_test_flow.py`](../../examples/flow_builder/masking_test_flow/tools/masking_test_flow.py)
+Source: [`examples/flow_builder/masking_test_flow/tools/masking_test_flow.py`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/masking_test_flow/tools/masking_test_flow.py)
 
 ### Dynamic forms (`userflow().form()`)
 Forms support conditional labels, visibility, and dynamically populated choices via `RuleBuilder`:
@@ -505,7 +505,7 @@ uf.edge(START, form)
 uf.edge(form, END)
 aflow.sequence(START, uf, END)
 ```
-Source: [`examples/flow_builder/dynamic_forms/tools/user_activity_with_dynamic_forms_full.py`](../../examples/flow_builder/dynamic_forms/tools/user_activity_with_dynamic_forms_full.py)
+Source: [`examples/flow_builder/dynamic_forms/tools/user_activity_with_dynamic_forms_full.py`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/dynamic_forms/tools/user_activity_with_dynamic_forms_full.py)
 
 ### `foreach` — iterate over a list
 
@@ -538,7 +538,7 @@ grade_branch = foreach_flow.branch(evaluator="parent._current_item.overall_grade
 foreach_flow.edge(START, grade_branch)
 ```
 
-Source: [`examples/flow_builder/foreach_email`](../../examples/flow_builder/foreach_email/tools/foreach_email.py) · [`examples/flow_builder/get_tuition_reimbursed`](../../examples/flow_builder/get_tuition_reimbursed/tools/get_tuition_reimbursed.py)
+Source: [`examples/flow_builder/foreach_email`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/foreach_email/tools/foreach_email.py) · [`examples/flow_builder/get_tuition_reimbursed`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/get_tuition_reimbursed/tools/get_tuition_reimbursed.py)
 
 ### Agent node — `aflow.agent(...)`
 
@@ -592,7 +592,7 @@ Output accessible at `flow.<name>.output.<field>`. Agents run sequentially by de
 > # now works: create_ticket.map_input("category", "flow.classify_incident.output.category")
 > ```
 
-Source: [`examples/flow_builder/collaborator_agents`](../../examples/flow_builder/collaborator_agents/tools/collaborator_agents_flow.py)
+Source: [`examples/flow_builder/collaborator_agents`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/collaborator_agents/tools/collaborator_agents_flow.py)
 
 ### Error branching — `NodeErrorHandlerConfig`
 
@@ -624,7 +624,7 @@ aflow.edge(primary_node, error_flow, id="dog_err")   # error path
 aflow.edge(error_flow, END)
 ```
 
-Source: [`examples/flow_builder/get_pet_facts_error_branching`](../../examples/flow_builder/get_pet_facts_error_branching/tools/get_pet_facts_error_branching.py)
+Source: [`examples/flow_builder/get_pet_facts_error_branching`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/get_pet_facts_error_branching/tools/get_pet_facts_error_branching.py)
 
 ### Agent swarm / looping flow
 
@@ -646,7 +646,7 @@ flow.edge(update_script, router)   # loop back
 Pattern: init → router → agent → update_state_script → router → … → done.
 Cap iterations with a counter in `private` to avoid infinite loops.
 
-Source: [`examples/flow_builder/triage_workflow_agent_swarm`](../../examples/flow_builder/triage_workflow_agent_swarm/tools/triage_issue_flow.py)
+Source: [`examples/flow_builder/triage_workflow_agent_swarm`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/triage_workflow_agent_swarm/tools/triage_issue_flow.py)
 
 ### `@flow` decorator — additional parameters
 
@@ -739,11 +739,12 @@ aflow.map_output(
 
 **Docproc notes (2.13):**
 - Default extractor model is `mistral-small` (changed in 2.12, still current in 2.13).
-- Page-range extraction is supported (restrict to specific pages).
-- Use structured/vision extractor for forms and tables; unstructured/text for text-heavy docs.
+- **Predefined WDU Schemas:** Pass `kvp_schemas=[]` with `kvp_force_schema_name="<SchemaName>"` (e.g., `"Invoice"`, `"UtilityBill"`) to activate the built-in WDU catalog.
+- ⚠️ **Unstructured / Classic extractors DO NOT support tables:** `DocExtConfigTableField` cannot be used with classic extraction methods.
+- Full 28-schema catalog and blueprints → **[references/document-processing-schemas.md](document-processing-schemas.md)**.
 
 **Document upload rule:**
-Agents **cannot** pass user-uploaded files to a flow. The `docproc` node prompts the user for the upload itself.
+Agents **cannot** pass user-uploaded files to a flow. The `docproc` / `docext` node prompts the user for the upload itself.
 ✅ Agent instructions: "When the user wants to process a document, immediately invoke `doc_flow`."
 ❌ NOT: "Ask the user to upload a document first, then pass it to the flow."
 
@@ -809,6 +810,7 @@ def build_extract_contract(aflow: Flow) -> Flow:
 - `available_options` — constrain output to a list of valid values (reduces hallucination; requires `field_extraction_method="layout"`)
 
 **`DocExtConfigTableField` parameters:** `name`, `field_name`, `description`, `fields` (list of `DocExtConfigField`).
+⚠️ **MANDATORY:** `field_extraction_method="layout"` must be set on `aflow.docext()` whenever `DocExtConfigTableField` or `available_options` is used.
 
 ### `aflow.docclassifier(...)` — document classification
 
@@ -856,7 +858,7 @@ aflow.edge(extractor_node, END)
 aflow.edge(legacy_proc_node, END)
 ```
 
-Source: [`examples/flow_builder/document_extractor`](../../examples/flow_builder/document_extractor/tools/document_extractor_flow.py) · [`examples/flow_builder/document_classifier`](../../examples/flow_builder/document_classifier/tools/document_classifier_flow.py) · [`examples/flow_builder/document_processing`](../../examples/flow_builder/document_processing/tools/document_processing_flow.py)
+Source: [`examples/flow_builder/document_extractor`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/document_extractor/tools/document_extractor_flow.py) · [`examples/flow_builder/document_classifier`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/document_classifier/tools/document_classifier_flow.py) · [`examples/flow_builder/document_processing`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/document_processing/tools/document_processing_flow.py)
 
 ---
 
@@ -993,7 +995,7 @@ uf.assign_to(policy=UserAssignmentPolicy.USER, assignees='flow.private.designate
 # or: uf.assign_to(policy=UserAssignmentPolicy.FLOW_INITIATOR)
 ```
 
-Source: [`examples/flow_builder/user_activity`](../../examples/flow_builder/user_activity/tools/user_flow.py) · [`examples/flow_builder/user_activity_with_forms`](../../examples/flow_builder/user_activity_with_forms/tools/user_flow_forms.py) · [`examples/flow_builder/user_activity_user_assignment`](../../examples/flow_builder/user_activity_user_assignment/tools/user_flow.py)
+Source: [`examples/flow_builder/user_activity`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/user_activity/tools/user_flow.py) · [`examples/flow_builder/user_activity_with_forms`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/user_activity_with_forms/tools/user_flow_forms.py) · [`examples/flow_builder/user_activity_user_assignment`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/user_activity_user_assignment/tools/user_flow.py)
 
 ---
 
