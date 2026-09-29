@@ -40,7 +40,7 @@ _AGENT_ADK_INTERNAL_FIELDS = {
     'voice_configuration', 'voice_configuration_id',
     'plugins', 'skills', 'toolkits', 'structured_output',
     'custom_join_tool', 'sync_tool_flow_interactions',
-    'compaction_settings', 'is_schedulable',
+    'compaction_settings', 'is_schedulable', 'tool_shortlisting',
 }
 
 # ADK-internal fields on ToolSpec that the catalog tool schema rejects.

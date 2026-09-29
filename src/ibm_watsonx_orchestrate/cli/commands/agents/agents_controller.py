@@ -23,7 +23,7 @@ from typing import Any, Iterable, List, Optional, TypeVar
 import requests
 import rich
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -90,7 +90,17 @@ class CustomAgentConfig(BaseModel):
     entrypoint: str
     agent_name: str
     agent_description: str
+    requirements: List[str] = []
     file_count: int
+
+    @field_validator('requirements', mode='before')
+    @classmethod
+    def parse_requirements(cls, v):
+        """Convert requirements from string to list if needed."""
+        if isinstance(v, str):
+            if '\n' in v:
+                return [r.strip() for r in v.split('\n') if r.strip()]
+        return [v] if v is not None else []
 
 
 class CustomAgentUploadResponse(BaseModel):
@@ -1425,12 +1435,20 @@ class AgentsController:
             
             # Store workspace_id separately before model validation (it gets dropped during validation)
             # Format: [(agent_object, workspace_id), ...]
-            existing_native_agents = [(Agent.model_validate(agent_dict), agent_dict.get('workspace_id'))
-                                     for agent_dict in existing_native_agents_raw]
-            existing_external_agents = [(ExternalAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
-                                       for agent_dict in existing_external_agents_raw]
-            existing_assistant_agents = [(AssistantAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
-                                        for agent_dict in existing_assistant_agents_raw]
+            # Use "prefetch" context so that CUSTOMER_CARE agents with unsupported fields
+            # (e.g. chat_with_docs.enabled=True) produce warnings instead of raising.
+            # "prefetch" is semantically distinct from "list" — this is a pre-flight read
+            # to discover existing agents for upsert logic, not a user-facing list operation.
+            token = validation_context.set("prefetch")
+            try:
+                existing_native_agents = [(Agent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                         for agent_dict in existing_native_agents_raw]
+                existing_external_agents = [(ExternalAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                           for agent_dict in existing_external_agents_raw]
+                existing_assistant_agents = [(AssistantAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                            for agent_dict in existing_assistant_agents_raw]
+            finally:
+                validation_context.reset(token)
 
             all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
 
@@ -1649,6 +1667,7 @@ class AgentsController:
         config_table.add_row("Entrypoint", config.entrypoint)
         config_table.add_row("Agent Name", config.agent_name)
         config_table.add_row("Agent Description", config.agent_description)
+        config_table.add_row("Requirements", '\n'.join(config.requirements) if config.requirements else "None")
         config_table.add_row("Files in Package", str(config.file_count))
 
         console.print(config_table)

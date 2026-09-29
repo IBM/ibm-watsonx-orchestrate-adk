@@ -165,6 +165,17 @@ class ChatWithDocsConfig(BaseModel):
     query_source: QuerySource = QuerySource.Agent
     agent_query_description: str = "The query to search for in the knowledge base"
     
+class ToolShortlistingConfig(BaseModel):
+    """Controls whether the agent narrows its full toolset down to a shortlist before reasoning.
+
+    Both fields are a tri-state: omitting one leaves the agent runtime on its
+    per-style default rather than sending a value the author never wrote.
+    """
+    enabled: Optional[bool] = None
+    """Whether tool shortlisting is enabled. Unset defers to the agent style's default."""
+    max_tools: Optional[int] = Field(default=None, gt=0)
+    """Maximum number of tools to shortlist. Unset defers to the agent style's default."""
+
 class AgentStyle(str, Enum):
     DEFAULT = "default"
     REACT = "react"
@@ -224,6 +235,7 @@ class AgentSpec(BaseAgentSpec):
     llm_config: Optional[dict] = None
     is_schedulable: Optional[bool] = None
     compaction_settings: Optional[CompactionSettings] = None
+    tool_shortlisting: Optional[ToolShortlistingConfig] = None
 
 
     def __init__(self, *args, **kwargs):
@@ -303,6 +315,11 @@ def validate_customer_care_fields(values: dict):
         if llm and not "gpt-oss-120b" in llm:
             logger.warning(f"'{llm} is unsupported for {AgentStyle.CUSTOMER_CARE.value} style agents. Please use 'groq/openai/gpt-oss-120b'")
 
+        # The Python customer-care runtime does its own always-on shortlisting and
+        # never reads this block; only the v2 chat completions API acts on it.
+        if values.get("tool_shortlisting"):
+            logger.warning(f"'tool_shortlisting' is only applied to {AgentStyle.CUSTOMER_CARE.value} style agents served by the v2 chat completions API. It has no effect on the v1 chat API.")
+
         unsupported_fields = []
 
         if values.get("tools"):
@@ -332,7 +349,7 @@ def validate_customer_care_fields(values: dict):
                 unsupported_fields.append("chat_with_docs.enabled")
 
         if unsupported_fields:
-            if context in ("list", "get", "get_by_id"):
+            if context in ("list", "get", "get_by_id", "prefetch"):
                 logger.warning(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
             else:
                 raise BadRequest(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
@@ -344,7 +361,7 @@ def validate_customer_care_fields(values: dict):
             if toolkits == ["scheduling_tools"] or values.get("is_schedulable") is not None:
                 pass
             else:
-                if context in ("list", "get", "get_by_id"):
+                if context in ("list", "get", "get_by_id", "prefetch"):
                     logger.warning(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
                 else:
                     raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")

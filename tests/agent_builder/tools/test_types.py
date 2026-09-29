@@ -5,6 +5,48 @@ import pytest
 import urllib.parse
 from ibm_watsonx_orchestrate_core.types.tools.types import WXOFile
 
+# ── ToolRequestBody ──────────────────────────────────────────────────────────
+
+def test_tool_request_body_type_defaults_to_object_when_missing():
+    """Regression test for wo-tracker#98714.
+
+    Built-in server-side tools (e.g. example_document_processing_flow) return an
+    input_schema without a 'type' field. ToolRequestBody.type is optional with a
+    default of 'object' so ToolSpec.model_validate() does not raise a ValidationError
+    during 'orchestrate tools list' / 'orchestrate agents list'.
+    """
+    from ibm_watsonx_orchestrate_core.types.tools.types import ToolSpec
+
+    raw = {
+        "name": "example_document_processing_flow",
+        "description": "Built-in docproc flow tool",
+        "permission": "admin",
+        "input_schema": {
+            "properties": {
+                "document_path": {"type": "string", "description": "Path to document"}
+            },
+            "required": ["document_path"]
+            # 'type' field intentionally absent — simulates server response
+        },
+        "binding": {"flow": {}},
+    }
+
+    spec = ToolSpec.model_validate(raw)
+
+    assert spec.input_schema is not None
+    assert spec.input_schema.type == "object"
+
+
+def test_tool_request_body_type_explicit_value():
+    """When 'type' is explicitly provided it is preserved as-is."""
+    from ibm_watsonx_orchestrate_core.types.tools.types import ToolRequestBody
+
+    rb = ToolRequestBody(type="string", properties={}, required=[])
+
+    assert rb.type == "string"
+
+
+
 
 def test_wxo_file_type_get_file_metadata():
     url = "https://a-mock-s3-presigned-url"

@@ -1,5 +1,5 @@
 import json
-from typing import Any, List, cast, Type
+from typing import Any, ClassVar, List, NoReturn, cast, Type
 import uuid
 
 import yaml
@@ -9,9 +9,31 @@ from ibm_watsonx_orchestrate.flow_builder.types import UserForm
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PageRange, PromptNodeSpec, SchemaRef, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserField, UserField, UserFieldKind, UserFieldOption, UserForm, UserFormButton, UserNodeSpec, DocProcSpec, \
-                    DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig, LanguageCode
+                    DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig, LanguageCode, _build_activity_field
 
-from .data_map import DataMap, DataMapSpec, Assignment
+from .data_map import DataMap, DataMapSpec, Assignment, ensure_datamap, add_assignment
+
+
+def _merge_input_maps(default: Any, **bounds: Any) -> Any | None:
+    """Merge bound DataMaps into the default's input_map.
+
+    `default` is passed through untouched when there are no bounds, so existing
+    dict / DataMapSpec defaults keep working; it must be a DataMap only when merging.
+    """
+    for name, bound in bounds.items():
+        ensure_datamap(bound, name)
+    present = [b for b in bounds.values() if b is not None]
+    if not present:
+        return default
+    ensure_datamap(default, "default")
+    # Build a fresh DataMap so the caller's default/bound maps are never mutated.
+    base = DataMap()
+    if default is not None:
+        base.maps.extend(default.maps or [])
+    for bound in present:
+        add_assignment(base, bound)
+    return base
+
 
 class Node(BaseModel):
     spec: SerializeAsAny[NodeSpec]
@@ -154,6 +176,53 @@ class UserNode(Node):
     def get_spec(self) -> UserNodeSpec:
         return cast(UserNodeSpec, self.spec)
 
+    # Widgets wired for the spec_version 2.0 UserActivity path. Kept here so the
+    # error raised for an unsupported widget can name the alternatives.
+    ACTIVITY_SUPPORTED_WIDGETS: ClassVar[tuple[str, ...]] = (
+        "text_input_field", "boolean_input_field", "number_input_field",
+        "date_input_field", "datetime_input_field", "file_upload_field",
+        "message_output_field",
+    )
+
+    def _raise_missing_container(self) -> NoReturn:
+        """Raise the right error when a field or behaviour is added to a node
+        that has no form and no supported activity path.
+
+        Always raises. Annotated NoReturn so callers narrow correctly after the
+        call — the form-path code that follows is only reachable when form is set.
+
+        A node created via activity() must not be told to "call form() first" —
+        it already has a container; the widget simply is not wired for the
+        activity path yet.
+        """
+        if self.get_spec().is_activity:
+            raise ValueError(
+                "This is not supported on a UserActivity. A UserActivity holds a "
+                f"single widget, one of: {', '.join(self.ACTIVITY_SUPPORTED_WIDGETS)}. "
+                "Use form() for multi-field layouts, other widget types, and "
+                "dynamic behaviours."
+            )
+        raise ValueError(
+            "Form has not been created. "
+            "Please call the form() or activity() method before adding fields."
+        )
+
+    def _add_activity_field(self, **kwargs) -> UserField:
+        """Attach the single widget field to this UserActivity node.
+
+        Raises if a widget has already been attached — a UserActivity holds
+        exactly one widget by definition.
+        """
+        spec = self.get_spec()
+        if spec.fields:
+            raise ValueError(
+                "A UserActivity holds exactly one widget. "
+                "Create another activity for a second widget."
+            )
+        field = _build_activity_field(**kwargs)
+        spec.fields = [field]
+        return field
+
     def field(self,
               name: str,
               kind: UserFieldKind = UserFieldKind.Text,
@@ -224,6 +293,7 @@ class UserNode(Node):
             default: Any| None=None,
             regex: str | None = None,
             regex_error_message: str | None = "Input does not match the required pattern",
+            agent_message: str | None = None,
     ) -> UserField:
         """
         Creates a text input field in the form.
@@ -249,8 +319,23 @@ class UserNode(Node):
             ValueError: If field references are invalid.
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
-        
+            if self.get_spec().is_activity:
+                return self._add_activity_field(
+                    name=name,
+                    kind=UserFieldKind.Text,
+                    direction="input",
+                    label=label,
+                    agent_message=agent_message,
+                    required=required,
+                    input_map=default,
+                    single_line=single_line,
+                    placeholder_text=placeholder_text,
+                    help_text=help_text,
+                    regex=regex,
+                    regex_error_message=regex_error_message,
+                )
+            self._raise_missing_container()
+
         return self.get_spec().form.text_input_field(
             name=name,
             label=label,
@@ -269,7 +354,9 @@ class UserNode(Node):
             single_checkbox: bool = True,
             default: Any| None=None,
             true_label: str = "True",
-            false_label: str = "False"
+            false_label: str = "False",
+            required: bool = False,
+            agent_message: str | None = None,
         ) -> UserField:
         """
         Creates a boolean input field in the form.
@@ -291,15 +378,29 @@ class UserNode(Node):
             ValueError: If the form has not been created. Call form() method first.
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
-        
+            if self.get_spec().is_activity:
+                return self._add_activity_field(
+                    name=name,
+                    kind=UserFieldKind.Boolean,
+                    direction="input",
+                    label=label,
+                    agent_message=agent_message,
+                    required=required,
+                    input_map=default,
+                    single_checkbox=single_checkbox,
+                    true_label=true_label,
+                    false_label=false_label,
+                )
+            self._raise_missing_container()
+
         return self.get_spec().form.boolean_input_field(
             name=name,
             label=label,
             single_checkbox=single_checkbox,
             true_label=true_label,
             false_label=false_label,
-            input_map=default
+            input_map=default,
+            required=required,
         )
     def date_range_input_field(self,
                                 name: str,
@@ -333,7 +434,7 @@ class UserNode(Node):
                 ValueError: If the form has not been created. Call form() method first.
             """
             if self.get_spec().form is None:
-                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+                self._raise_missing_container()
             
             return self.get_spec().form.date_range_input_field(
                 name = name,
@@ -355,6 +456,7 @@ class UserNode(Node):
             min_date: Any | None = None,
             max_date: Any | None = None,
             multiple_dates: bool = False,
+            agent_message: str | None = None,
     ) -> UserField:
          """
          Creates a date input field in the form.
@@ -375,8 +477,20 @@ class UserNode(Node):
              ValueError: If the form has not been created. Call form() method first.
          """
          if self.get_spec().form is None:
-             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
-         
+             if self.get_spec().is_activity:
+                 return self._add_activity_field(
+                     name=name,
+                     kind=UserFieldKind.Date,
+                     direction="input",
+                     label=label,
+                     agent_message=agent_message,
+                     required=required,
+                     input_map=_merge_input_maps(default, min_date=min_date, max_date=max_date),
+                     multiple_dates=multiple_dates,
+                     has_range_limit=min_date is not None or max_date is not None,
+                 )
+             self._raise_missing_container()
+
          return self.get_spec().form.date_input_field(
                 name=name,
                 label=label,
@@ -395,6 +509,7 @@ class UserNode(Node):
             min_time: Any | None = None,
             max_time: Any | None = None,
             inputType: UserFieldKind = UserFieldKind.DateTime,
+            agent_message: str | None = None,
     ) -> UserField:
          """
          Creates a datetime or time input field in the form.
@@ -420,7 +535,18 @@ class UserNode(Node):
              raise ValueError(f"inputType must be one of DateTime or Time, got {inputType}")
 
          if self.get_spec().form is None:
-             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+             if self.get_spec().is_activity:
+                 return self._add_activity_field(
+                     name=name,
+                     kind=inputType,
+                     direction="input",
+                     label=label,
+                     agent_message=agent_message,
+                     required=required,
+                     input_map=_merge_input_maps(default, min_time=min_time, max_time=max_time),
+                     has_range_limit=min_time is not None or max_time is not None,
+                 )
+             self._raise_missing_container()
 
          return self.get_spec().form.datetime_input_field(
                 name=name,
@@ -464,7 +590,7 @@ class UserNode(Node):
                 ValueError: If the form has not been created. Call form() method first.
             """
             if self.get_spec().form is None:
-                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+                self._raise_missing_container()
 
             return self.get_spec().form.datetime_range_input_field(
                 name=name,
@@ -487,7 +613,8 @@ class UserNode(Node):
             help_text: str | None = None,
             default: Any| None=None,
             minimum: Any | None=None,
-            maximum: Any | None=None
+            maximum: Any | None=None,
+            agent_message: str | None = None,
 
     ) -> UserField:
          """
@@ -510,8 +637,19 @@ class UserNode(Node):
              ValueError: If the form has not been created. Call form() method first.
          """
          if self.get_spec().form is None:
-             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
-         
+             if self.get_spec().is_activity:
+                 return self._add_activity_field(
+                     name=name,
+                     kind=UserFieldKind.Number,
+                     direction="input",
+                     label=label,
+                     agent_message=agent_message,
+                     required=required,
+                     input_map=_merge_input_maps(default, minimum=minimum, maximum=maximum),
+                     help_text=help_text,
+                 )
+             self._raise_missing_container()
+
          return self.get_spec().form.number_input_field(
                 name = name,
                 label = label,
@@ -533,6 +671,7 @@ class UserNode(Node):
             supported_file_types : List[str] | None = None,
             min_num_files: Any | None = None,
             max_num_files: Any | None = None,
+            agent_message: str | None = None,
 
     ) -> UserField:
             """
@@ -556,12 +695,29 @@ class UserNode(Node):
                 ValueError: If the form has not been created. Call form() method first.
                 ValueError: If min_num_files or max_num_files is set when allow_multiple_files=False.
             """
-            if self.get_spec().form is None:
-                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            ensure_datamap(min_num_files, "min_num_files")
+            ensure_datamap(max_num_files, "max_num_files")
 
             if (min_num_files is not None or max_num_files is not None) and not allow_multiple_files:
                 raise ValueError("min_num_files and max_num_files are only valid when allow_multiple_files=True")
-            
+
+            if self.get_spec().form is None:
+                if self.get_spec().is_activity:
+                    return self._add_activity_field(
+                        name=name,
+                        kind=UserFieldKind.File,
+                        direction="input",
+                        label=label,
+                        agent_message=agent_message,
+                        required=required,
+                        input_map=_merge_input_maps(None, min_num_files=min_num_files, max_num_files=max_num_files),
+                        help_text=instructions,
+                        allow_multiple_files=allow_multiple_files,
+                        file_max_size=file_max_size,
+                        supported_file_types=supported_file_types,
+                    )
+                self._raise_missing_container()
+
             return self.get_spec().form.file_upload_field(
                 name = name,
                 label = label,
@@ -577,7 +733,8 @@ class UserNode(Node):
             self,
             name: str,
             label: str | None = None,
-            message: str | None = None
+            message: str | None = None,
+            text: str | None = None,
         ) -> UserField:
             """
             Creates a message output field in the form to display static text.
@@ -594,8 +751,15 @@ class UserNode(Node):
                 ValueError: If the form has not been created. Call form() method first.
             """
             if self.get_spec().form is None:
-                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
-            
+                if self.get_spec().is_activity:
+                    return self._add_activity_field(
+                        name=name,
+                        kind=UserFieldKind.Text,
+                        direction="output",
+                        agent_message=text if text is not None else message,
+                    )
+                self._raise_missing_container()
+
             return self.get_spec().form.message_output_field(
                     name = name,
                     label = label,
@@ -622,7 +786,7 @@ class UserNode(Node):
                 ValueError: If the form has not been created. Call form() method first.
             """
             if self.get_spec().form is None:
-                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+                self._raise_missing_container()
             
             return self.get_spec().form.field_output_field(
                         name = name,
@@ -652,7 +816,7 @@ class UserNode(Node):
              ValueError: If the form has not been created. Call form() method first.
          """
          if self.get_spec().form is None:
-             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+             self._raise_missing_container()
          
          return self.get_spec().form.list_output_field(
                         name = name,
@@ -686,7 +850,7 @@ class UserNode(Node):
              ValueError: If the form has not been created. Call form() method first.
          """
          if self.get_spec().form is None:
-             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+             self._raise_missing_container()
          
          return self.get_spec().form.list_input_field(
                         name = name,
@@ -717,7 +881,7 @@ class UserNode(Node):
              ValueError: If the form has not been created. Call form() method first.
          """
          if self.get_spec().form is None:
-             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+             self._raise_missing_container()
          if value is None : 
              raise ValueError("A file to donwload is required.") 
          
@@ -762,7 +926,7 @@ class UserNode(Node):
             ValueError: If the form has not been created. Call form() method first.
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            self._raise_missing_container()
         
         return self.get_spec().form.choice_input_field(
                         name = name,
@@ -815,7 +979,7 @@ class UserNode(Node):
             ValueError: If the form has not been created. Call form() method first.
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            self._raise_missing_container()
         
         return self.get_spec().form.choice_input_field(
                         name = name,
@@ -863,7 +1027,7 @@ class UserNode(Node):
             ValueError: If min_num_users or max_num_users are provided when multiple_users=False.
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            self._raise_missing_container()
         
         return self.get_spec().form.user_input_field(
             name=name,
@@ -897,7 +1061,7 @@ class UserNode(Node):
             ValueError: If the form has not been created. Call form() method first.
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            self._raise_missing_container()
         
         # Validate that on_change_to_field exists (trigger field must exist)
         # Note: impacted_field can be added after the behaviour is defined
@@ -939,7 +1103,7 @@ class UserNode(Node):
             ValueError: If field references are invalid.
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            self._raise_missing_container()
         
         # Validate that on_change_to_field exists (trigger field must exist)
         # Note: impacted_field can be added after the behaviour is defined
@@ -1035,7 +1199,7 @@ class UserNode(Node):
             )
         """
         if self.get_spec().form is None:
-            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            self._raise_missing_container()
         
         # New simplified API mode
         if tool_name and tool_id and field_mappings is not None:
@@ -1119,8 +1283,8 @@ class DocClassifierNode(Node):
         return cast(DocClassifierSpec, self.spec)
 
     @staticmethod
-    def generate_config(llm: str, input_classes: type[BaseModel], min_confidence: float) -> DocClassifierConfig:
-        return DocClassifierConfig(llm=llm, classes=input_classes.__dict__.values(), min_confidence=min_confidence)
+    def generate_config(llm: str, input_classes: type[BaseModel], min_confidence: float, page_range: PageRange | None = None) -> DocClassifierConfig:
+        return DocClassifierConfig(llm=llm, classes=input_classes.__dict__.values(), min_confidence=min_confidence, page_range=page_range)
     
 class TimerNode(Node):
     def __repr__(self):
