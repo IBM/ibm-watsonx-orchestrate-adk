@@ -3,9 +3,6 @@ from typing import Optional
 from urllib.parse import urlencode
 
 import requests
-from botocore.auth import SigV4Auth
-from botocore.awsrequest import AWSRequest
-from botocore.credentials import Credentials
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +52,16 @@ class BedrockDiscoveryService:
             A :class:`requests.PreparedRequest` with ``Authorization``,
             ``x-amz-date``, and (when present) ``x-amz-security-token`` headers set.
         """
+        try:
+            from botocore.auth import SigV4Auth
+            from botocore.awsrequest import AWSRequest
+            from botocore.credentials import Credentials
+        except ImportError:
+            raise ImportError(
+                "The 'botocore' package is required for AWS Bedrock agent discovery. "
+                "Install it with: pip install 'ibm-watsonx-orchestrate[aws]'"
+            )
+
         credentials = Credentials(
             access_key=access_key_id,
             secret_key=secret_access_key,
