@@ -256,14 +256,16 @@ class TracerConfig:
     def ssl_verify(self) -> Union[bool, str, None]:
         """Return the SSL verification setting from the underlying session.
 
-        This mirrors ``AgenticSession.verify``:
-        - ``False``      — disable certificate verification (self-signed / on-prem CPD)
-        - ``str``        — path to a CA bundle file
-        - ``None``/``True`` — use the default system CA store
+        Mirrors ``AgenticSession.verify``:
 
-        The value is forwarded to the OTLP ``requests.Session`` so that
-        trace export works on CPD environments with self-signed certificates
-        without requiring external monkey-patching.
+        - ``False``  — disable certificate verification (CPD on-prem self-signed certs)
+        - ``str``    — path to a CA bundle file to use for verification
+        - ``True``   — verify using the system CA store (library default)
+
+        Returns ``None`` when no session is present (e.g. pure env-var OTLP
+        path).  Callers should treat ``None`` as "do not mutate the exporter
+        default" — it is distinct from ``True`` (explicit enable) and ``False``
+        (explicit disable).
         """
         if self._session is not None:
             return self._session.verify

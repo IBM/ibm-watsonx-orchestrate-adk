@@ -4,12 +4,15 @@ Builds the appropriate OpenTelemetry SpanExporter based on TracerConfig:
   * OTLP HTTP exporter when ``WXO_OTLP_ENDPOINT`` or trace_injection_url is set.
   * Includes authentication headers from AgenticSession or API key.
   * Supports dynamic token refresh for long-running applications.
+  * Propagates ``session.verify`` so CPD on-prem self-signed certificates are
+    accepted without any monkey-patching.
   * Console exporter as a fallback (with a warning).
 """
 
 from __future__ import annotations
 
 import logging
+import ssl as _ssl
 import threading
 from typing import TYPE_CHECKING, Any, Sequence
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
@@ -23,46 +26,58 @@ logger = logging.getLogger(__name__)
 
 
 def _apply_ssl_verify(exporter: Any, ssl_verify: Any) -> None:
-    """Push ssl_verify into the transport layer of an OTLPSpanExporter.
+    """Propagate *ssl_verify* to the OTLP exporter's internal transport.
 
-    Called after OTLPSpanExporter(endpoint=..., headers=...) so that
-    verify=False (or a CA-bundle path) is honoured for CPD on-prem
-    self-signed certificates — without passing session= to the exporter
-    (which would break any external Urllib3HTTPTransport monkey-patch).
-
-    Tries both attribute paths used by different package versions:
-      newer: exporter._transport  (Urllib3HTTPTransport / RequestsHTTPTransport)
-      older: exporter._session    (requests.Session directly)
+    No-ops when *ssl_verify* is ``True`` (library default is already correct).
+    Probes three transport layouts across known OTLP library versions:
+    v0.66b0+ (urllib3 pool), mid (_transport.verify), older (_session.verify).
+    Logs a warning if none match.
     """
-    # v0.66b0+: exporter._client._transport._pool (urllib3.PoolManager)
-    client = getattr(exporter, "_client", None)
-    if client is not None:
-        transport = getattr(client, "_transport", None)
-        if transport is not None:
-            if hasattr(transport, "verify"):
-                transport.verify = ssl_verify
-            # urllib3 PoolManager stores cert_reqs in connection_pool_kw
-            pool = getattr(transport, "_pool", None)
-            if pool is not None:
-                kw = getattr(pool, "connection_pool_kw", None)
-                if kw is not None and ssl_verify is False:
-                    import ssl
-                    kw["cert_reqs"] = ssl.CERT_NONE
+    # Only act when explicitly disabling verification or supplying a CA bundle.
+    # True means "use library default" — no mutation needed.
+    if ssl_verify is True:
+        return
+
+    applied = False
+
+    # v0.66b0+: urllib3 PoolManager nested inside _client._transport
+    client_transport = getattr(getattr(exporter, "_client", None), "_transport", None)
+    if client_transport is not None:
+        pool = getattr(client_transport, "_pool", None)
+        if pool is not None:
+            kw = getattr(pool, "connection_pool_kw", None)
+            if kw is not None:
+                if ssl_verify is False:
+                    kw["cert_reqs"] = _ssl.CERT_NONE
                     kw.pop("ca_certs", None)
+                elif isinstance(ssl_verify, str):
+                    kw["ca_certs"] = ssl_verify
+                applied = True
 
-    # mid versions: exporter._transport directly
-    transport = getattr(exporter, "_transport", None)
-    if transport is not None:
-        if hasattr(transport, "verify"):
-            transport.verify = ssl_verify
-        inner = getattr(transport, "_session", None)
-        if inner is not None and hasattr(inner, "verify"):
-            inner.verify = ssl_verify
+    # mid versions: exporter._transport.verify or ._transport._session.verify
+    exporter_transport = getattr(exporter, "_transport", None)
+    if exporter_transport is not None:
+        if hasattr(exporter_transport, "verify"):
+            exporter_transport.verify = ssl_verify
+            applied = True
+        inner_session = getattr(exporter_transport, "_session", None)
+        if inner_session is not None and hasattr(inner_session, "verify"):
+            inner_session.verify = ssl_verify
+            applied = True
 
-    # older versions: exporter._session directly
-    direct = getattr(exporter, "_session", None)
-    if direct is not None and hasattr(direct, "verify"):
-        direct.verify = ssl_verify
+    # older versions: exporter._session.verify directly
+    direct_session = getattr(exporter, "_session", None)
+    if direct_session is not None and hasattr(direct_session, "verify"):
+        direct_session.verify = ssl_verify
+        applied = True
+
+    if not applied:
+        logger.warning(
+            "Could not apply ssl_verify=%r to OTLP exporter: "
+            "no recognised transport attribute found. "
+            "Trace export may fail with SSL errors on CPD on-prem environments.",
+            ssl_verify,
+        )
 
 
 class DynamicAuthOTLPSpanExporter(SpanExporter):
@@ -104,7 +119,10 @@ class DynamicAuthOTLPSpanExporter(SpanExporter):
         self._exporter: Any = OTLPSpanExporter(endpoint=endpoint, headers=initial_headers)
         if config.ssl_verify is not None:
             _apply_ssl_verify(self._exporter, config.ssl_verify)
-        logger.debug("Created DynamicAuthOTLPSpanExporter for endpoint: %s", endpoint)
+        logger.debug(
+            "Created DynamicAuthOTLPSpanExporter for endpoint: %s (ssl_verify=%r)",
+            endpoint, config.ssl_verify,
+        )
 
     def export(self, spans: Sequence["ReadableSpan"]) -> SpanExportResult:
         """Export spans with dynamically refreshed authentication token.
