@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 import requests
@@ -86,7 +87,7 @@ class AzureAIFoundryDiscoveryService:
         next_link: Optional[str] = url
 
         while next_link:
-            params = {"api-version": _AZURE_AI_FOUNDRY_API_VERSION} if next_link == url else {}
+            params = {"api-version": _AZURE_AI_FOUNDRY_API_VERSION}
             response = self.session.get(
                 next_link,
                 headers=headers,
@@ -135,10 +136,11 @@ class AzureAIFoundryDiscoveryService:
             display_name.lower()
             .replace(" ", "_")
             .replace("-", "_")
-        )[:_NAME_MAX_LEN]
+        )
+        sanitized_name = re.sub(r"[^a-z0-9_]", "_", sanitized_name)[:_NAME_MAX_LEN]
 
         if not sanitized_name or not sanitized_name.strip("_"):
-            agent_id_part = agent.get("id", "unknown")
+            agent_id_part = agent.get("id", "unknown") or "unknown"
             sanitized_name = f"azure_agent_{agent_id_part.split('/')[-1]}"
 
         description = (
@@ -146,7 +148,8 @@ class AzureAIFoundryDiscoveryService:
             or f"Microsoft Azure AI Foundry agent: {display_name}"
         )
 
-        agent_id: str = agent.get("id", display_name)
+        raw_id = agent.get("id", "") or display_name
+        agent_id = raw_id.split("/")[-1]
         api_url = (
             f"{endpoint.rstrip('/')}/api/projects/{project_name}/agents/{agent_id}"
         )

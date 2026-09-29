@@ -117,7 +117,7 @@ class TestListAgents:
 
     @patch("requests.Session.get")
     def test_list_agents_pagination(self, mock_get):
-        """Follows nextLink across multiple pages and returns full set."""
+        """Follows nextLink across multiple pages and passes api-version unconditionally."""
         page1 = Mock()
         page1.raise_for_status = Mock()
         page1.json.return_value = {
@@ -134,7 +134,9 @@ class TestListAgents:
 
         assert len(result) == 2
         assert mock_get.call_count == 2
+        assert mock_get.call_args_list[0][1]["params"] == {"api-version": "2025-05-01"}
         assert mock_get.call_args_list[1][0][0] == f"{FAKE_ENDPOINT}/api/projects/{FAKE_PROJECT}/agents?skiptoken=1"
+        assert mock_get.call_args_list[1][1]["params"] == {"api-version": "2025-05-01"}
 
     @patch("ibm_watsonx_orchestrate.agent_builder.agents.azure_ai_foundry_discovery.AzureAIFoundryDiscoveryService._list_agents")
     @patch("ibm_watsonx_orchestrate.agent_builder.agents.azure_ai_foundry_discovery.AzureAIFoundryDiscoveryService._get_token")
@@ -170,13 +172,26 @@ class TestConvertToWxoExternalAgentDict:
             f"{FAKE_ENDPOINT}/api/projects/{FAKE_PROJECT}/agents/agent-abc"
         )
 
-    def test_convert_sets_name_sanitized(self):
-        """name is display name lowercased with spaces/dashes → underscores, max 64 chars."""
-        agent = {**FAKE_AGENT_1, "name": "My Cool Agent-v2"}
+    def test_convert_sets_api_url_with_full_resource_path(self):
+        """Full ARM resource path id extracts only the final segment."""
+        agent = {
+            **FAKE_AGENT_1,
+            "id": "/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/acc/agents/asst_abc123",
+        }
         result = AzureAIFoundryDiscoveryService.convert_to_wxo_external_agent_dict(
             agent, FAKE_ENDPOINT, FAKE_PROJECT
         )
-        assert result["name"] == "my_cool_agent_v2"
+        assert result["api_url"] == (
+            f"{FAKE_ENDPOINT}/api/projects/{FAKE_PROJECT}/agents/asst_abc123"
+        )
+
+    def test_convert_sets_name_sanitized(self):
+        """name is display name lowercased with spaces/dashes/special chars → underscores, max 64 chars."""
+        agent = {**FAKE_AGENT_1, "name": "My Cool Agent v2.0 (prod)"}
+        result = AzureAIFoundryDiscoveryService.convert_to_wxo_external_agent_dict(
+            agent, FAKE_ENDPOINT, FAKE_PROJECT
+        )
+        assert result["name"] == "my_cool_agent_v2_0__prod_"
 
     def test_convert_no_description_uses_fallback(self):
         """Empty description falls back to 'Microsoft Azure AI Foundry agent: <name>'."""
