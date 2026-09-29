@@ -25,7 +25,7 @@ from ibm_watsonx_orchestrate_sdk.observability.config import TracerConfig
 logger = logging.getLogger(__name__)
 
 
-def _apply_ssl_verify(exporter: Any, ssl_verify: Any) -> None:
+def _apply_ssl_verify(exporter: Any, ssl_verify: "bool | str | None") -> None:
     """Propagate *ssl_verify* to the OTLP exporter's internal transport.
 
     No-ops when *ssl_verify* is ``True`` (library default is already correct).
