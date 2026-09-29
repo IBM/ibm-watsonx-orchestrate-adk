@@ -205,7 +205,7 @@ class TestConvertToWxoExternalAgentDict:
 
     def test_convert_empty_name_falls_back_to_id(self):
         """Empty name falls back to azure_agent_<id>."""
-        agent = {"id": "agent-1234", "name": ""}
+        agent = {"id": "1234", "name": ""}
         result = AzureAIFoundryDiscoveryService.convert_to_wxo_external_agent_dict(
             agent, FAKE_ENDPOINT, FAKE_PROJECT
         )
