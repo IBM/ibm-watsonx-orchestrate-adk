@@ -501,11 +501,11 @@ def agent_discover(
     ] = ".well-known/agent-card.json",
     app_id: Annotated[
         Optional[str],
-        typer.Option("--app-id", "-a", help="Connection app_id for credentials (required for --provider vertex_agent, azure_ai_foundry)"),
+        typer.Option("--app-id", "-a", help="Connection app_id for credentials (required for --provider vertex_agent, azure_ai_foundry, bedrock_agent)"),
     ] = None,
     provider: Annotated[
         Optional[str],
-        typer.Option("--provider", "-p", help="External provider to discover from (e.g. vertex_agent, azure_ai_foundry)"),
+        typer.Option("--provider", "-p", help="External provider to discover from (e.g. vertex_agent, azure_ai_foundry, bedrock_agent)"),
     ] = None,
     name: Annotated[
         Optional[List[str]],
@@ -518,6 +518,13 @@ def agent_discover(
             ),
         ),
     ] = None,
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes", "-y",
+            help="Skip the import confirmation prompt (for CI/scripted use).",
+        ),
+    ] = False,
 ):
     """
     Discover and import agents into your WXO workspace.
@@ -533,6 +540,10 @@ def agent_discover(
     Azure AI Foundry discovery:
         Authenticates to Microsoft Entra ID using service principal credentials stored in a connection,
         lists agents in the configured project, and registers them as WXO external agents.
+
+    AWS Bedrock discovery:
+        Authenticates to AWS using IAM credentials stored in a connection,
+        lists agents in the configured region, and registers them as WXO external agents.
 
     Examples:
         # Discover an A2A agent (no authentication)
@@ -554,6 +565,13 @@ def agent_discover(
         # Discover specific Azure AI Foundry agents by name
         orchestrate agents discover --provider azure_ai_foundry --app-id my-azure-conn \\
             --name "Customer Support" --name "Sales Assistant"
+
+        # Discover all AWS Bedrock agents
+        orchestrate agents discover --provider bedrock_agent --app-id my-bedrock-conn
+
+        # Discover specific AWS Bedrock agents by name
+        orchestrate agents discover --provider bedrock_agent --app-id my-bedrock-conn \\
+            --name "Customer Support" --name "Sales Assistant"
     """
     agents_controller = AgentsController()
 
@@ -561,15 +579,22 @@ def agent_discover(
         agents_controller.discover_and_register_vertex_agents(
             app_id=app_id,
             agents=name,
+            yes=yes,
         )
     elif provider == AgentProvider.AZURE_AI_FOUNDRY.value:
         agents_controller.discover_and_register_azure_ai_foundry_agents(
             app_id=app_id,
             agents=name,
         )
+    elif provider == AgentProvider.BEDROCK_AGENT.value:
+        agents_controller.discover_and_register_bedrock_agents(
+            app_id=app_id,
+            agents=name,
+            yes=yes,
+        )
     else:
         if provider is not None:
-            typer.echo(f"Error: unknown --provider '{provider}'. Supported values: vertex_agent, azure_ai_foundry")
+            typer.echo(f"Error: unknown --provider '{provider}'. Supported values: vertex_agent, azure_ai_foundry, bedrock_agent")
             raise SystemExit(1)
         # A2A path — url is required here
         if url is None:
