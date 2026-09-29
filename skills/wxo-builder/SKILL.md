@@ -3,7 +3,11 @@ name: wxo-builder
 description: >-
   Use when building, testing, debugging, or publishing IBM watsonx Orchestrate
   agents, tools, flows, connections, knowledge bases, or custom models with the
-  `orchestrate` CLI or ADK, or when a project contains agent YAML, `@tool`, or `@flow` files.
+  `orchestrate` CLI or ADK, or when a project contains agent YAML, `@tool`, or
+  `@flow` files. Flows can include document processing nodes (`docext`,
+  `docproc`, `docclassifier`) for structured/unstructured extraction, table
+  extraction, and document classification — use this skill whenever building a
+  flow that processes documents.
 metadata:
   tags:
     - watsonx-orchestrate
@@ -11,6 +15,7 @@ metadata:
     - agent-development
     - workflow-automation
     - sop-to-code
+    - document-processing
 ---
 
 # watsonx Orchestrate (wxO): Build · Test · Debug · Publish

@@ -60,13 +60,24 @@ The document processing engine ships with 28 pre-built schemas organized into 11
 | | `AcademicTranscript` | `coursework` (course_code, title, credits, grade) | `student_name`, `student_id`, `institution`, `cumulative_gpa`, `degree_awarded`, `dates_of_attendance` |
 | **Regulatory** | `BusinessLicensePermit` | None | `license_number`, `business_name`, `issuing_authority`, `license_type`, `effective_date`, `expiration_date` |
 
+### Using the catalog as a field-definition source for `docext`
+
+The catalog above serves two independent purposes:
+
+1. **`aflow.docproc` trigger** — pass `kvp_schemas=[]` + `kvp_force_schema_name="<schema_name>"` to activate the server-side schema by name (no field declarations needed).
+2. **`aflow.docext` field blueprint** — translate any catalog row into `DocExtConfigField` / `DocExtConfigTableField` declarations to use with the Structured or Unstructured extractor. The `field_name` values in the catalog become the `field_name` keys in the Pydantic model; table columns become nested `DocExtConfigField` entries inside a `DocExtConfigTableField`.
+
+**Translation is always valid and produces structurally identical output.** When a customer asks to "use the predefined schema" for a `docext` node, translate the catalog row into the Pydantic model — do not say it is impossible. The two representations are equivalent; the catalog entry is simply the canonical source of truth for field names and types.
+
+**When to translate vs. when to ask:** If the customer names a document type that matches a catalog entry (e.g. "Invoice", "Utility Bill", "Bank Statement"), translate the full catalog row automatically and present it. Ask the customer only if they want to add, remove, or rename fields relative to the catalog baseline.
+
 ---
 
 ## 3. Dual Schema Implementation Patterns
 
 ### Pattern A: Structured Document Extractor with Tables (`aflow.docext`)
 
-When extracting custom or predefined schemas using `docext`, convert fields into Pydantic models with `DocExtConfigField` and `DocExtConfigTableField`:
+When extracting custom or predefined schemas using `docext`, convert fields into Pydantic models with `DocExtConfigField` and `DocExtConfigTableField`. The predefined catalog in §2 is a valid source for these field definitions — translate it directly when the customer requests a known document type:
 
 ```python
 from pydantic import BaseModel, Field
@@ -148,7 +159,78 @@ def build_utility_bill_flow(aflow: Flow) -> Flow:
 
 ---
 
-## 4. Multi-Document Classification & Routing Blueprint
+## 4. Output Format Comparison: `docproc` vs `docext`
+
+The two extraction nodes produce **structurally different output**, which directly affects how downstream nodes consume results. This is a key factor in node selection when the goal is field or table extraction.
+
+### `docext` output — typed object with named properties
+
+`aflow.docext()` returns a `(node, OutputSchema)` tuple. The extracted fields are accessible as typed attributes on the node output:
+
+```python
+# Direct attribute access in downstream nodes / script expressions:
+flow.invoice_extractor.output.invoice_id      # str
+flow.invoice_extractor.output.invoice_date    # str (ISO-8601)
+flow.invoice_extractor.output.total           # float
+flow.invoice_extractor.output.line_items      # list of row objects
+
+# Each table row is a typed object:
+flow.invoice_extractor.output.line_items[0].description   # str
+flow.invoice_extractor.output.line_items[0].unit_price    # float
+```
+
+**Output shape (JSON equivalent):**
+```json
+{
+  "invoice_id": "INV-2024-00142",
+  "invoice_date": "2024-11-15",
+  "total": 4750.00,
+  "line_items": [
+    { "description": "Consulting Services", "quantity": 10, "unit_price": 350.00, "amount": 3500.00 },
+    { "description": "Travel Expenses",     "quantity": 1,  "unit_price": 750.00, "amount": 750.00  }
+  ]
+}
+```
+
+---
+
+### `docproc` output — flat `kvps[]` array
+
+`aflow.docproc()` with `output_format=DocProcOutputFormat.object` returns a flat list of KVP objects. Each scalar field is one element; **table rows are also flattened into this same array**, distinguished by `group_id` or `table_id` metadata — they are NOT returned as a nested list.
+
+```json
+{
+  "kvps": [
+    { "key": { "semantic_label": "invoice_id" },   "value": { "raw_text": "INV-2024-00142" } },
+    { "key": { "semantic_label": "total" },         "value": { "raw_text": "4750.00" } },
+    { "key": { "semantic_label": "description" },   "value": { "raw_text": "Consulting Services" }, "group_id": "row_0" },
+    { "key": { "semantic_label": "unit_price" },    "value": { "raw_text": "350.00" },              "group_id": "row_0" },
+    { "key": { "semantic_label": "description" },   "value": { "raw_text": "Travel Expenses" },     "group_id": "row_1" },
+    { "key": { "semantic_label": "unit_price" },    "value": { "raw_text": "750.00" },              "group_id": "row_1" }
+  ]
+}
+```
+
+To recover table rows you must **group by `group_id`** — there is no built-in structured table object. Scalar fields require key lookup by `semantic_label`. All values are raw strings regardless of the declared field type.
+
+---
+
+### Side-by-side comparison
+
+| | `docext` | `docproc` |
+|---|---|---|
+| **Output shape** | Typed object — fields as named properties | Flat `kvps[]` array of `{key, value}` objects |
+| **Field access** | `output.invoice_id`, `output.total` | `[k for k in kvps if k["key"]["semantic_label"]=="invoice_id"][0]["value"]["raw_text"]` |
+| **Table rows** | `output.line_items` — list of typed row objects | Flattened into `kvps[]`, grouped by `group_id` — requires manual groupby to reconstruct rows |
+| **Value types** | Typed: `number` → `float`, `date` → ISO string | Always raw string — caller must parse/cast |
+| **Downstream use** | Direct attribute access in `aflow.script`, `aflow.prompt`, `aflow.conditions` | Pass full `kvps` array to a prompt node (let LLM parse), or write list comprehensions |
+| **Recommended when** | Structured field/table extraction for downstream processing | Document content (text/Markdown/HTML) needed, or feeding raw output to an LLM summarizer |
+
+**Rule of thumb:** if any downstream node needs to read individual field values or iterate table rows programmatically, use `docext`. Reserve `docproc` for document content extraction or cases where the full output is passed verbatim to a prompt node.
+
+---
+
+## 5. Multi-Document Classification & Routing Blueprint
 
 When multiple document formats must be handled dynamically, classify first with `aflow.docclassifier()`, then branch with `aflow.conditions()` to dedicated extractors, and merge into a consolidation node:
 
