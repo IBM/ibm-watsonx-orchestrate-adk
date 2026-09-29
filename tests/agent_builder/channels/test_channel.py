@@ -1137,3 +1137,83 @@ class TestTeamsChannel:
         assert channel.app_password == "password123"
         assert channel.app_id == "app123"
         assert channel.teams_tenant_id == "tenant123"
+
+    def test_enable_feedback_defaults_to_false(self):
+        """Test that enable_feedback defaults to False."""
+        channel = TeamsChannel(
+            channel="teams",
+            name="test_channel",
+            app_password="password123",
+            app_id="app123"
+        )
+        assert channel.enable_feedback == False
+
+    def test_enable_feedback_can_be_set(self):
+        """Test that enable_feedback can be set to True."""
+        channel = TeamsChannel(
+            channel="teams",
+            name="test_channel",
+            app_password="password123",
+            app_id="app123",
+            enable_feedback=True
+        )
+        assert channel.enable_feedback == True
+
+    def test_enable_feedback_in_dumps_spec(self):
+        """Test that enable_feedback appears in dumps_spec output when set to True."""
+        channel = TeamsChannel(
+            channel="teams",
+            name="test_channel",
+            app_password="password123",
+            app_id="app123",
+            enable_feedback=True
+        )
+        spec_json = channel.dumps_spec(exclude_none=False)
+        assert "enable_feedback" in spec_json
+
+
+class TestSlackChannel:
+    """Tests for SlackChannel validation."""
+
+    @pytest.fixture()
+    def valid_slack_channel(self):
+        return {
+            "channel": "byo_slack",
+            "name": "test_slack",
+            "client_id": "test_client_id",
+            "client_secret": "test_client_secret",
+            "signing_secret": "test_signing_secret",
+            "teams": [{"id": "T12345", "bot_access_token": "xoxb-test"}]
+        }
+
+    def test_enable_feedback_defaults_to_false(self, valid_slack_channel):
+        """Test that enable_feedback defaults to False."""
+        channel = SlackChannel(**valid_slack_channel)
+        assert channel.enable_feedback == False
+
+    def test_respond_in_thread_defaults_to_false(self, valid_slack_channel):
+        """Test that respond_in_thread defaults to False."""
+        channel = SlackChannel(**valid_slack_channel)
+        assert channel.respond_in_thread == False
+
+    def test_enable_feedback_and_respond_in_thread_can_be_set(self, valid_slack_channel):
+        """Test that both optional fields can be set to True."""
+        channel = SlackChannel(
+            **valid_slack_channel,
+            enable_feedback=True,
+            respond_in_thread=True
+        )
+        assert channel.enable_feedback == True
+        assert channel.respond_in_thread == True
+
+    def test_enable_feedback_in_dumps_spec(self, valid_slack_channel):
+        """Test that enable_feedback appears in dumps_spec output when set to True."""
+        channel = SlackChannel(**valid_slack_channel, enable_feedback=True)
+        spec_json = channel.dumps_spec(exclude_none=False)
+        assert "enable_feedback" in spec_json
+
+    def test_respond_in_thread_in_dumps_spec(self, valid_slack_channel):
+        """Test that respond_in_thread appears in dumps_spec output when set to True."""
+        channel = SlackChannel(**valid_slack_channel, respond_in_thread=True)
+        spec_json = channel.dumps_spec(exclude_none=False)
+        assert "respond_in_thread" in spec_json
