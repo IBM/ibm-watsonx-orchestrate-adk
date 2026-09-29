@@ -3226,3 +3226,120 @@ class AgentsController:
             "Successfully registered %d Vertex AI agent(s).", len(agent_objects)
         )
 
+    def discover_and_register_azure_ai_foundry_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+    ) -> None:
+        """Discover Microsoft Azure AI Foundry agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    `tenant_id`, `client_id`, `client_secret`, `endpoint`, and `project_name`.
+            agents: Agent name filter list (case-insensitive). `None` = all.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.azure_ai_foundry_discovery import AzureAIFoundryDiscoveryService
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "Azure AI Foundry agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider azure_ai_foundry. "
+                "Provide the connection app_id that holds your Azure service principal credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        required_fields = ["tenant_id", "client_id", "client_secret", "endpoint", "project_name"]
+        for field in required_fields:
+            if field not in creds:
+                logger.error(
+                    f"Connection '{app_id}' is missing the '{field}' credential entry. "
+                    "Run 'orchestrate connections set-credentials' to add it."
+                )
+                sys.exit(1)
+
+        tenant_id: str = creds["tenant_id"]
+        client_id: str = creds["client_id"]
+        client_secret: str = creds["client_secret"]
+        endpoint: str = creds["endpoint"]
+        project_name: str = creds["project_name"]
+
+        # Discover agents
+        try:
+            with AzureAIFoundryDiscoveryService() as svc:
+                logger.info(
+                    "Discovering Azure AI Foundry agents in project '%s'…",
+                    project_name,
+                )
+                raw_agents = svc.list_agents(
+                    endpoint=endpoint,
+                    project_name=project_name,
+                    tenant_id=tenant_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, endpoint, project_name)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list Azure AI Foundry agents: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid Azure AI Foundry credentials or parameters: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No Azure AI Foundry agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered Azure AI Foundry Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        confirmed = typer.confirm(
+            f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+        )
+        if not confirmed:
+            logger.info("Import cancelled.")
+            return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d Azure AI Foundry agent(s).", len(agent_objects)
+        )
+

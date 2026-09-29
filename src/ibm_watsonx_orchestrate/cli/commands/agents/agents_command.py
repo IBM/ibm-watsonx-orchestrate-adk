@@ -501,11 +501,11 @@ def agent_discover(
     ] = ".well-known/agent-card.json",
     app_id: Annotated[
         Optional[str],
-        typer.Option("--app-id", "-a", help="Connection app_id for credentials (required for --provider vertex_agent)"),
+        typer.Option("--app-id", "-a", help="Connection app_id for credentials (required for --provider vertex_agent, azure_ai_foundry)"),
     ] = None,
     provider: Annotated[
         Optional[str],
-        typer.Option("--provider", "-p", help="External provider to discover from (e.g. vertex_agent)"),
+        typer.Option("--provider", "-p", help="External provider to discover from (e.g. vertex_agent, azure_ai_foundry)"),
     ] = None,
     name: Annotated[
         Optional[List[str]],
@@ -513,7 +513,7 @@ def agent_discover(
             "--name",
             "-n",
             help=(
-                "For --provider vertex_agent: display name filter (repeatable, case-insensitive). "
+                "For external providers: name filter (repeatable, case-insensitive). "
                 "For A2A (--url): overrides the discovered agent name. Only the first value is used."
             ),
         ),
@@ -530,6 +530,10 @@ def agent_discover(
         Authenticates to Google Cloud using service account credentials stored in a connection,
         lists agents in the configured project/location, and registers them as WXO external agents.
 
+    Azure AI Foundry discovery:
+        Authenticates to Microsoft Entra ID using service principal credentials stored in a connection,
+        lists agents in the configured project, and registers them as WXO external agents.
+
     Examples:
         # Discover an A2A agent (no authentication)
         orchestrate agents discover -u https://example.com
@@ -543,6 +547,13 @@ def agent_discover(
         # Discover specific Vertex AI agents by name
         orchestrate agents discover --provider vertex_agent --app-id my-vertex-conn \\
             --name "Customer Support" --name "Sales Assistant"
+
+        # Discover all Azure AI Foundry agents
+        orchestrate agents discover --provider azure_ai_foundry --app-id my-azure-conn
+
+        # Discover specific Azure AI Foundry agents by name
+        orchestrate agents discover --provider azure_ai_foundry --app-id my-azure-conn \\
+            --name "Customer Support" --name "Sales Assistant"
     """
     agents_controller = AgentsController()
 
@@ -551,9 +562,14 @@ def agent_discover(
             app_id=app_id,
             agents=name,
         )
+    elif provider == AgentProvider.AZURE_AI_FOUNDRY.value:
+        agents_controller.discover_and_register_azure_ai_foundry_agents(
+            app_id=app_id,
+            agents=name,
+        )
     else:
         if provider is not None:
-            typer.echo(f"Error: unknown --provider '{provider}'. Supported values: vertex_agent")
+            typer.echo(f"Error: unknown --provider '{provider}'. Supported values: vertex_agent, azure_ai_foundry")
             raise SystemExit(1)
         # A2A path — url is required here
         if url is None:
