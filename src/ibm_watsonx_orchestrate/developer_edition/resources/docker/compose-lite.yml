@@ -261,11 +261,10 @@ services:
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
       AGENT_OPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENTS_OPS_RUNTIME_ENDPOINT: https://frontend-server:443
-      DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
-      DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
+      DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:8080
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
-      EVALUATION_SERVICE_URL: https://wxo-doc-processing-evaluation:8080
+      EVALUATION_SERVICE_URL: http://wxo-doc-processing-evaluation:8080
       ACCURACY_EVALUATION: true
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
@@ -467,7 +466,7 @@ services:
       WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/minio:latest
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -485,7 +484,7 @@ services:
       - wxo-server-minio-data:/data
 
   wxo-server-minio-setup:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/mc:latest
     depends_on:
       wxo-server-minio:
         condition: service_healthy
@@ -910,7 +909,7 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
       EXECUTION_TYPE: direct
-      CORE_EXECUTION_TYPE: ${CORE_EXECUTION_TYPE:-sync}
+      CORE_EXECUTION_TYPE: ${CORE_EXECUTION_TYPE:-async}
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
       FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
       FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
@@ -1416,7 +1415,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
-      DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
+      DOCPROC_EVALUATION_BASE_URL: http://wxo-doc-processing-evaluation:8080 
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       WO_USERNAME: ${WO_USERNAME}
@@ -1472,7 +1471,6 @@ services:
 # WDU - 18082
 # WDU (Prometheus) - 18086
 # DPS Cache - 18083
-# LLM Service - 18084
 # Evaluation - 18087
 ######################## 
 
@@ -1482,6 +1480,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-service
+      ISTIO_ENABLED: true
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
       SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
@@ -1501,7 +1500,7 @@ services:
     ports:
       - "18081:8080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      test: ["CMD-SHELL", "curl -fk http://localhost:8080/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -1529,6 +1528,8 @@ services:
       WXAI_VERSION: ${WXAI_VERSION:-}
       WXAI_PROVIDER: ${WXAI_PROVIDER:-openai}
       GLOBAL_WORKER_DOCLING_PIPELINE: ${GLOBAL_WORKER_DOCLING_PIPELINE:-true}
+      # This is a temporary flag to stop memory leaks. Will be removed in WDU 2.19.1 or up
+      MALLOC_ARENA_MAX: 2
 
     profiles:
       - docproc
@@ -1634,14 +1635,14 @@ services:
       CIPHER_AES_REALM_KEY: "dGVzdHRlc3R0ZXN0dGVzdA=="
       SIDECAR_METERED_ENABLED: "false"
       DPI_DEBUG: "false"
-      DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
-      DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
+      DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:8080
       DISABLE_TLS: true
       STANDALONE_DPI: "true"
       REDIS_HOST: wxo-server-redis
       REDIS_PORT: 6379
       REDIS_LOCAL_DEV: "true"
       ENABLE_CANCELLATION: "true"
+      ISTIO_ENABLED: true
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
@@ -1649,38 +1650,11 @@ services:
         condition: service_completed_successfully
       wxo-doc-processing-service:
         condition: service_healthy
-      wxo-doc-processing-llm-service:
-        condition: service_healthy
     ports:
       - 19080:9080
       - 19443:9443
     healthcheck:
       test: ["CMD-SHELL", "HEALTHCHECK_URL=http://localhost:9080/dps/v1/health /healthcheck-all.sh all"]
-      interval: 30s
-      timeout: 30s
-      retries: 10
-
-  wxo-doc-processing-llm-service:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_rag:${DOCPROC_LLMSERVICE_TAG:-20250725-100249-111-51d3e51}
-    platform: linux/amd64
-    restart: unless-stopped
-    environment:
-      SERVICE_NAME: wxo-doc-processing-llm-service
-      LOG_LEVEL: info
-      WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
-      WXO_SERVER_BASE_URL : http://wxo-server:4321
-      IBM_DPS_CACHE_SERVICE: 'http://wxo-doc-processing-cache:8080'
-    profiles:
-      - docproc
-    depends_on:
-      wxo-doc-processing-cache: 
-        condition: service_healthy
-    ports:
-      - "18084:8083"
-    # volumes:
-      # - ./conf/rag/certs:/etc/certs
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8083/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -1732,7 +1706,7 @@ services:
       retries: 50
 
   wxo-doc-processing-dpi-minio-init:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/mc:latest
     platform: linux/amd64
     profiles:
       - docproc
@@ -1747,7 +1721,7 @@ services:
       "
 
   wxo-doc-processing-cache-minio-init:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-quay.io}/minio/mc:latest
     platform: linux/amd64
     profiles:
       - docproc
@@ -1767,6 +1741,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-evaluation
+      ISTIO_ENABLED: true
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
       IBM_DPS_CACHE_SERVICE: 'http://wxo-doc-processing-cache:8080'
@@ -1788,7 +1763,7 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      test: ["CMD-SHELL", "curl -fk http://localhost:8080/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
