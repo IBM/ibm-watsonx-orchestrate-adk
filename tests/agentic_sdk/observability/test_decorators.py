@@ -22,6 +22,7 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
 )
 from ibm_watsonx_orchestrate_sdk.observability.constants import REDACTED
 from ibm_watsonx_orchestrate_sdk.observability.decorators import (
+    _pydantic_or_str,
     configure_tracing,
     trace_agent_call,
     trace_call,
@@ -448,6 +449,117 @@ class TestTraceAgentCall:
         captured = json.loads(raw)
         assert captured["result"] == "completed"
         assert captured["api_key"] == REDACTED
+
+
+# ---------------------------------------------------------------------------
+# Pydantic / LangChain message serialisation
+# ---------------------------------------------------------------------------
+
+
+class _StubHumanMessage:
+    """Minimal stand-in for langchain_core.messages.HumanMessage.
+
+    LangChain messages are Pydantic BaseModel subclasses, so they expose
+    model_dump().  We replicate that here so the tests have no langchain
+    dependency while still exercising the real code path.
+    """
+
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.type = "human"
+
+    def model_dump(self) -> dict:
+        return {"content": self.content, "type": self.type}
+
+
+class _StubPydanticV1Message:
+    """Minimal stand-in for a Pydantic v1 model (no model_dump, only dict)."""
+
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+    def dict(self) -> dict:
+        return {"content": self.content, "type": "human"}
+
+
+class TestPydanticOrStr:
+    """Unit tests for the _pydantic_or_str json.dumps default hook."""
+
+    def test_pydantic_v2_calls_model_dump(self):
+        msg = _StubHumanMessage("hello")
+        result = _pydantic_or_str(msg)
+        assert result == {"content": "hello", "type": "human"}
+
+    def test_pydantic_v1_calls_dict(self):
+        msg = _StubPydanticV1Message("hello")
+        result = _pydantic_or_str(msg)
+        assert result == {"content": "hello", "type": "human"}
+
+    def test_plain_object_falls_back_to_str(self):
+        class Opaque:
+            def __repr__(self):
+                return "Opaque()"
+        assert _pydantic_or_str(Opaque()) == "Opaque()"
+
+    def test_model_dump_preferred_over_dict_when_both_present(self):
+        class BothMethods:
+            def model_dump(self):
+                return {"from": "model_dump"}
+            def dict(self):
+                return {"from": "dict"}
+        assert _pydantic_or_str(BothMethods()) == {"from": "model_dump"}
+
+
+class TestPydanticMessageSerialisation:
+    """Regression: Pydantic message objects must serialise as valid JSON in span attributes."""
+
+    def test_human_message_input_serialises_to_json(self, traced):
+        @trace_agent_call(capture_input=True)
+        def run(messages):
+            return "done"
+
+        run([_StubHumanMessage("hello")])
+
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        assert json.loads(raw)["messages"][0]["content"] == "hello"
+
+    def test_pydantic_v1_message_input_serialises_to_json(self, traced):
+        @trace_agent_call(capture_input=True)
+        def run(message):
+            return "done"
+
+        run(_StubPydanticV1Message("hello"))
+
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        assert json.loads(raw)["message"]["content"] == "hello"
+
+    def test_input_is_not_python_repr_string(self, traced):
+        @trace_agent_call(capture_input=True)
+        def run(messages):
+            return "done"
+
+        run([_StubHumanMessage("hello")])
+
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        assert "additional_kwargs" not in raw
+        assert "response_metadata" not in raw
+        json.loads(raw)
+
+    def test_mixed_message_list_serialises_all(self, traced):
+        @trace_agent_call(capture_input=True)
+        def run(messages):
+            return "done"
+
+        class _StubAIMessage(_StubHumanMessage):
+            def model_dump(self):
+                return {"content": self.content, "type": "ai"}
+
+        run([_StubHumanMessage("hi"), _StubAIMessage("hello back")])
+
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        captured = json.loads(raw)
+        assert captured["messages"][0]["type"] == "human"
+        assert captured["messages"][1]["type"] == "ai"
 
 
 # ---------------------------------------------------------------------------
