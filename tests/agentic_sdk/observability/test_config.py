@@ -111,3 +111,29 @@ class TestEndpointUrlConstruction:
     def test_no_session_falls_back_to_env(self, monkeypatch):
         monkeypatch.setenv(ENV_OTLP_ENDPOINT, "http://collector:4318")
         assert TracerConfig().endpoint == "http://collector:4318"
+
+
+# ---------------------------------------------------------------------------
+# TracerConfig.ssl_verify property
+# ---------------------------------------------------------------------------
+
+
+class TestTracerConfigSSLVerify:
+    def test_returns_false_when_session_verify_is_false(self):
+        cfg = TracerConfig.__new__(TracerConfig)
+        session = MagicMock()
+        session.verify = False
+        object.__setattr__(cfg, "_session", session)
+        assert cfg.ssl_verify is False
+
+    def test_returns_ca_bundle_path(self):
+        cfg = TracerConfig.__new__(TracerConfig)
+        session = MagicMock()
+        session.verify = "/path/to/ca.crt"
+        object.__setattr__(cfg, "_session", session)
+        assert cfg.ssl_verify == "/path/to/ca.crt"
+
+    def test_returns_none_when_no_session(self):
+        cfg = TracerConfig.__new__(TracerConfig)
+        object.__setattr__(cfg, "_session", None)
+        assert cfg.ssl_verify is None
