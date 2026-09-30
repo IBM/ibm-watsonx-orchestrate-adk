@@ -482,7 +482,7 @@ Source: [`examples/flow_builder/document_extractor/`](https://github.com/IBM/ibm
 
 ## Example 7: Table & Line-Item Document Extractor Flow
 
-**Task:** Extract invoice header fields and itemized line items table from an invoice document using `DocExtConfigTableField`.
+**Task:** Extract invoice fields and a line items table from an invoice document using `DocExtConfigTableField`.
 
 ```python
 from pydantic import BaseModel, Field
@@ -523,7 +523,7 @@ def build_invoice_table_flow(aflow: Flow) -> Flow:
     node, _Schema = aflow.docext(
         name="invoice_table_extractor",
         display_name="Extract Invoice Table",
-        description="Extracts invoice header and line items",
+        description="Extracts invoice fields and line items table",
         llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
         fields=InvoiceTableFields(),
         field_extraction_method="layout",   # Required for DocExtConfigTableField

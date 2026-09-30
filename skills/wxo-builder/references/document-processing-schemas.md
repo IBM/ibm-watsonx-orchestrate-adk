@@ -122,7 +122,7 @@ def build_extract_invoice_flow(aflow: Flow) -> Flow:
     extractor_node, _Schema = aflow.docext(
         name="invoice_extractor",
         display_name="Invoice Extractor",
-        description="Extracts invoice header and itemized line items table",
+        description="Extracts invoice fields and line items table",
         llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
         fields=InvoiceExtractorFields(),
         field_extraction_method="layout",   # Required for tables and available_options
@@ -196,7 +196,7 @@ flow.invoice_extractor.output.line_items[0].unit_price    # float
 
 ### `docproc` output — flat `kvps[]` array
 
-`aflow.docproc()` with `output_format=DocProcOutputFormat.object` returns a flat list of KVP objects. Each scalar field is one element; **table rows are also flattened into this same array**, distinguished by `group_id` or `table_id` metadata — they are NOT returned as a nested list.
+`aflow.docproc()` with `output_format=DocProcOutputFormat.object` returns a flat list of KVP objects. Each single-value field is one element; **table rows are also flattened into this same array**, distinguished by `group_id` or `table_id` metadata — they are NOT returned as a nested list.
 
 ```json
 {
