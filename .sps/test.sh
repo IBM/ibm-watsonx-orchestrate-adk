@@ -15,7 +15,7 @@ echo $BASE_DIR
 UNIT_TEST_SCRIPT=$(cat <<EOF
 pip install "./packages/core"
 pip install "./packages/clients"
-pip install ".[dev, agentops]"
+pip install ".[dev, agentops, aws]"
 mkdir -p coverage
 hatch run test:coverage run -m pytest --junitxml coverage/test-results.xml
 #hatch run test:coverage html -d coverage/html

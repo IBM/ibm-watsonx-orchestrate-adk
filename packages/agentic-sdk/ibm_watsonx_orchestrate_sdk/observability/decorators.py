@@ -96,10 +96,22 @@ def redact_sensitive_keys(data: Any) -> Any:
     return redact(data)
 
 
+def _pydantic_or_str(o: Any) -> Any:
+    """``json.dumps`` *default* hook that handles Pydantic models and other
+    non-serialisable objects.
+
+    """
+    if hasattr(o, "model_dump"):  # Pydantic v2
+        return o.model_dump()
+    if hasattr(o, "dict"):        # Pydantic v1
+        return o.dict()
+    return str(o)
+
+
 def _safe_json(obj: Any) -> str:
     """Best-effort JSON serialisation; falls back to ``str()``."""
     try:
-        return json.dumps(redact_sensitive_keys(obj), default=str)
+        return json.dumps(redact_sensitive_keys(obj), default=_pydantic_or_str)
     except Exception:
         return str(obj)
 
