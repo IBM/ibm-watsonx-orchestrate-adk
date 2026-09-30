@@ -297,6 +297,7 @@ class TestAgentDiscoverCommandRouting:
         mock_vertex.assert_called_once_with(
             app_id="vertex-conn",
             agents=None,
+            yes=False,
         )
 
     @patch.object(AgentsController, "discover_and_import_agent")
