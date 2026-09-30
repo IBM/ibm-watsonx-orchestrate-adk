@@ -111,7 +111,7 @@ def _pydantic_or_str(o: Any) -> Any:
 def _safe_json(obj: Any) -> str:
     """Best-effort JSON serialisation; falls back to ``str()``."""
     try:
-        return json.dumps(redact_sensitive_keys(obj), default=str)
+        return json.dumps(redact_sensitive_keys(obj), default=_pydantic_or_str)
     except Exception:
         return str(obj)
 
