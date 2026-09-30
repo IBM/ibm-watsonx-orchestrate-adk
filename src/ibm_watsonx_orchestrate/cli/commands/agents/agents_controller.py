@@ -56,7 +56,7 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_cpd_env
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
@@ -3098,3 +3098,363 @@ class AgentsController:
         except Exception as e:
             logger.error(f"Unexpected error during agent discovery: {str(e)}")
             sys.exit(1)
+
+    def discover_and_register_vertex_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+        yes: bool = False,
+    ) -> None:
+        """Discover Google Vertex AI agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    `service_account_json`, `project_id`, and `location`.
+            agents: Display name filter list (case-insensitive). `None` = all.
+            yes: If ``True``, skip the interactive confirmation prompt.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery import VertexDiscoveryService
+        import json as _json
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "Vertex AI agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider vertex_agent. "
+                "Provide the connection app_id that holds your Google service account credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        if "service_account_json" not in creds:
+            logger.error(
+                f"Connection '{app_id}' is missing the 'service_account_json' credential entry. "
+                "Run 'orchestrate connections set-credentials' to add it."
+            )
+            sys.exit(1)
+
+        if "project_id" not in creds:
+            logger.error(
+                f"Connection '{app_id}' is missing the 'project_id' credential entry. "
+                "Run 'orchestrate connections set-credentials' to add it."
+            )
+            sys.exit(1)
+
+        if "location" not in creds:
+            logger.error(
+                f"Connection '{app_id}' is missing the 'location' credential entry. "
+                "Run 'orchestrate connections set-credentials' to add it."
+            )
+            sys.exit(1)
+
+        try:
+            service_account_json = _json.loads(creds["service_account_json"])
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse 'service_account_json' from connection '{app_id}': {e}")
+            sys.exit(1)
+
+        project_id: str = creds["project_id"]
+        location: str = creds["location"]
+
+        # Discover agents
+        try:
+            with VertexDiscoveryService() as svc:
+                logger.info(
+                    "Discovering Vertex AI agents in project '%s', location '%s'…",
+                    project_id, location,
+                )
+                raw_agents = svc.list_agents(project_id, location, service_account_json)
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, location)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list Vertex AI agents: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid Vertex AI service account credentials: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No Vertex AI agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered Vertex AI Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        if not yes:
+            confirmed = typer.confirm(
+                f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+            )
+            if not confirmed:
+                logger.info("Import cancelled.")
+                return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d Vertex AI agent(s).", len(agent_objects)
+        )
+
+    def discover_and_register_azure_ai_foundry_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+    ) -> None:
+        """Discover Microsoft Azure AI Foundry agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    `tenant_id`, `client_id`, `client_secret`, `endpoint`, and `project_name`.
+            agents: Agent name filter list (case-insensitive). `None` = all.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.azure_ai_foundry_discovery import AzureAIFoundryDiscoveryService
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "Azure AI Foundry agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider azure_ai_foundry. "
+                "Provide the connection app_id that holds your Azure service principal credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        required_fields = ["tenant_id", "client_id", "client_secret", "endpoint", "project_name"]
+        for field in required_fields:
+            if field not in creds:
+                logger.error(
+                    f"Connection '{app_id}' is missing the '{field}' credential entry. "
+                    "Run 'orchestrate connections set-credentials' to add it."
+                )
+                sys.exit(1)
+
+        tenant_id: str = creds["tenant_id"]
+        client_id: str = creds["client_id"]
+        client_secret: str = creds["client_secret"]
+        endpoint: str = creds["endpoint"]
+        project_name: str = creds["project_name"]
+
+        # Discover agents
+        try:
+            with AzureAIFoundryDiscoveryService() as svc:
+                logger.info(
+                    "Discovering Azure AI Foundry agents in project '%s'…",
+                    project_name,
+                )
+                raw_agents = svc.list_agents(
+                    endpoint=endpoint,
+                    project_name=project_name,
+                    tenant_id=tenant_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, endpoint, project_name)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list Azure AI Foundry agents: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid Azure AI Foundry credentials or parameters: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No Azure AI Foundry agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered Azure AI Foundry Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        confirmed = typer.confirm(
+            f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+        )
+        if not confirmed:
+            logger.info("Import cancelled.")
+            return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d Azure AI Foundry agent(s).", len(agent_objects)
+        )
+
+    def discover_and_register_bedrock_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+        yes: bool = False,
+    ) -> None:
+        """Discover AWS Bedrock agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    ``access_key_id``, ``secret_access_key``, and ``region``.
+            agents: Agent name filter list (case-insensitive). ``None`` = all.
+            yes: If ``True``, skip the interactive confirmation prompt.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.bedrock_discovery import BedrockDiscoveryService
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "AWS Bedrock agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider bedrock_agent. "
+                "Provide the connection app_id that holds your AWS IAM credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        for required_key in ("access_key_id", "secret_access_key", "region"):
+            if required_key not in creds:
+                logger.error(
+                    f"Connection '{app_id}' is missing the '{required_key}' credential entry. "
+                    "Run 'orchestrate connections set-credentials' to add it."
+                )
+                sys.exit(1)
+
+        access_key_id: str = creds["access_key_id"]
+        secret_access_key: str = creds["secret_access_key"]
+        region: str = creds["region"]
+        session_token: Optional[str] = creds.get("session_token")
+
+        # Discover agents
+        try:
+            with BedrockDiscoveryService() as svc:
+                logger.info(
+                    "Discovering AWS Bedrock agents in region '%s'…", region
+                )
+                raw_agents = svc.list_agents(
+                    region=region,
+                    access_key_id=access_key_id,
+                    secret_access_key=secret_access_key,
+                    session_token=session_token,
+                )
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, region)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list AWS Bedrock agents: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No AWS Bedrock agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered AWS Bedrock Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        if not yes:
+            confirmed = typer.confirm(
+                f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+            )
+            if not confirmed:
+                logger.info("Import cancelled.")
+                return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d AWS Bedrock agent(s).", len(agent_objects)
+        )

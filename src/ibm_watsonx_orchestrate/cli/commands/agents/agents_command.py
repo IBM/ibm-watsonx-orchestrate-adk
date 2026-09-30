@@ -485,60 +485,126 @@ def agent_copy(
         source_workspace=source_workspace
     )
 
-@agents_app.command(name="discover", help='Discover and import an A2A agent from a well-known URI')
+@agents_app.command(name="discover", help='Discover and import agents from A2A or an external provider')
 def agent_discover(
     url: Annotated[
-        str,
-        typer.Option("--url", "-u", help="Base URL of the A2A agent (e.g. https://example.com)"),
-    ],
+        Optional[str],
+        typer.Option("--url", "-u", help="Base URL of the A2A agent (e.g. https://example.com). Required for A2A discovery."),
+    ] = None,
     endpoint: Annotated[
         str,
         typer.Option(
             "--endpoint",
             "-e",
-            help="Well-known endpoint path for the agent card"
+            help="Well-known endpoint path for the agent card (A2A only)"
         ),
     ] = ".well-known/agent-card.json",
-    name: Annotated[
-        Optional[str],
-        typer.Option("--name", "-n", help="Override agent name (defaults to name from agent card)"),
-    ] = None,
     app_id: Annotated[
         Optional[str],
-        typer.Option("--app-id", "-a", help="Connection app_id for authentication (optional)"),
+        typer.Option("--app-id", "-a", help="Connection app_id for credentials (required for --provider vertex_agent, azure_ai_foundry, bedrock_agent)"),
     ] = None,
+    provider: Annotated[
+        Optional[str],
+        typer.Option("--provider", "-p", help="External provider to discover from (e.g. vertex_agent, azure_ai_foundry, bedrock_agent)"),
+    ] = None,
+    name: Annotated[
+        Optional[List[str]],
+        typer.Option(
+            "--name",
+            "-n",
+            help=(
+                "For external providers: name filter (repeatable, case-insensitive). "
+                "For A2A (--url): overrides the discovered agent name. Only the first value is used."
+            ),
+        ),
+    ] = None,
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes", "-y",
+            help="Skip the import confirmation prompt (for CI/scripted use).",
+        ),
+    ] = False,
 ):
     """
-    Discover and import an A2A agent from a well-known URI.
-    
-    This command fetches an agent card from a standardized endpoint (like .well-known/agent-card.json),
-    converts it to WxO external agent format, and imports it directly into your workspace.
-    
-    Authentication is handled through connections. If the agent requires authentication, provide the
-    connection app_id using the --app-id parameter. The connection must be created first using
-    'orchestrate connections add' with bearer token credentials.
-    
-    If you want to save the agent specification, you can export it later using:
-        orchestrate agents export --name <agent-name> --output <file.yaml>
-    
+    Discover and import agents into your WXO workspace.
+
+    A2A discovery:
+        Fetches an agent card from a standardized endpoint (like .well-known/agent-card.json),
+        converts it to WxO external agent format, and imports it directly into your workspace.
+
+    Vertex AI discovery:
+        Authenticates to Google Cloud using service account credentials stored in a connection,
+        lists agents in the configured project/location, and registers them as WXO external agents.
+
+    Azure AI Foundry discovery:
+        Authenticates to Microsoft Entra ID using service principal credentials stored in a connection,
+        lists agents in the configured project, and registers them as WXO external agents.
+
+    AWS Bedrock discovery:
+        Authenticates to AWS using IAM credentials stored in a connection,
+        lists agents in the configured region, and registers them as WXO external agents.
+
     Examples:
-        # Discover a public agent (no authentication)
+        # Discover an A2A agent (no authentication)
         orchestrate agents discover -u https://example.com
-        
-        # Discover with custom endpoint
-        orchestrate agents discover -u https://example.com -e .well-known/agent-card.json
-                
-        # Discover using a connection for authentication
+
+        # Discover an A2A agent using a connection
         orchestrate agents discover -u https://example.com -a my-a2a-connection
-        
-        # Discover with custom name
-        orchestrate agents discover -u https://example.com -n my_custom_agent -a my-a2a-connection
+
+        # Discover all Vertex AI agents
+        orchestrate agents discover --provider vertex_agent --app-id my-vertex-conn
+
+        # Discover specific Vertex AI agents by name
+        orchestrate agents discover --provider vertex_agent --app-id my-vertex-conn \\
+            --name "Customer Support" --name "Sales Assistant"
+
+        # Discover all Azure AI Foundry agents
+        orchestrate agents discover --provider azure_ai_foundry --app-id my-azure-conn
+
+        # Discover specific Azure AI Foundry agents by name
+        orchestrate agents discover --provider azure_ai_foundry --app-id my-azure-conn \\
+            --name "Customer Support" --name "Sales Assistant"
+
+        # Discover all AWS Bedrock agents
+        orchestrate agents discover --provider bedrock_agent --app-id my-bedrock-conn
+
+        # Discover specific AWS Bedrock agents by name
+        orchestrate agents discover --provider bedrock_agent --app-id my-bedrock-conn \\
+            --name "Customer Support" --name "Sales Assistant"
     """
-    
     agents_controller = AgentsController()
-    agents_controller.discover_and_import_agent(
-        base_url=url,
-        endpoint=endpoint,
-        agent_name=name,
-        app_id=app_id,
-    )
+
+    if provider == AgentProvider.VERTEX_AGENT.value:
+        agents_controller.discover_and_register_vertex_agents(
+            app_id=app_id,
+            agents=name,
+            yes=yes,
+        )
+    elif provider == AgentProvider.AZURE_AI_FOUNDRY.value:
+        agents_controller.discover_and_register_azure_ai_foundry_agents(
+            app_id=app_id,
+            agents=name,
+        )
+    elif provider == AgentProvider.BEDROCK_AGENT.value:
+        agents_controller.discover_and_register_bedrock_agents(
+            app_id=app_id,
+            agents=name,
+            yes=yes,
+        )
+    else:
+        if provider is not None:
+            typer.echo(f"Error: unknown --provider '{provider}'. Supported values: vertex_agent, azure_ai_foundry, bedrock_agent")
+            raise SystemExit(1)
+        # A2A path — url is required here
+        if url is None:
+            typer.echo("Error: --url / -u is required for A2A discovery (or use --provider for other providers).")
+            raise SystemExit(1)
+        # For A2A, --name is a single override value; take first element if provided
+        a2a_name = name[0] if name else None
+        agents_controller.discover_and_import_agent(
+            base_url=url,
+            endpoint=endpoint,
+            agent_name=a2a_name,
+            app_id=app_id,
+        )

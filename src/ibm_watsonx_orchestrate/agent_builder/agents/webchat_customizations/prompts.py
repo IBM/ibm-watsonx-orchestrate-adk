@@ -13,7 +13,7 @@ class PromptState(str,Enum):
 class AgentPrompt(BaseModel):
     id: str
     title: str
-    subtitle: Optional[str] = None
+    subtitle: Optional[str] = ""
     prompt: str
     state: PromptState = PromptState.ACTIVE
         
