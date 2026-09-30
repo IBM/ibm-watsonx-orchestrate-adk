@@ -3103,6 +3103,7 @@ class AgentsController:
         self,
         app_id: Optional[str],
         agents: Optional[List[str]],
+        yes: bool = False,
     ) -> None:
         """Discover Google Vertex AI agents and register them to WXO.
 
@@ -3110,6 +3111,7 @@ class AgentsController:
             app_id: Connection app_id whose key_value credentials contain
                     `service_account_json`, `project_id`, and `location`.
             agents: Display name filter list (case-insensitive). `None` = all.
+            yes: If ``True``, skip the interactive confirmation prompt.
         """
         from ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery import VertexDiscoveryService
         import json as _json
@@ -3207,12 +3209,13 @@ class AgentsController:
         console.print(table)
 
         # Confirm before importing
-        confirmed = typer.confirm(
-            f"Import {len(wxo_specs)} agent(s) into the active workspace?"
-        )
-        if not confirmed:
-            logger.info("Import cancelled.")
-            return
+        if not yes:
+            confirmed = typer.confirm(
+                f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+            )
+            if not confirmed:
+                logger.info("Import cancelled.")
+                return
 
         # Validate and register
         try:
@@ -3343,3 +3346,115 @@ class AgentsController:
             "Successfully registered %d Azure AI Foundry agent(s).", len(agent_objects)
         )
 
+    def discover_and_register_bedrock_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+        yes: bool = False,
+    ) -> None:
+        """Discover AWS Bedrock agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    ``access_key_id``, ``secret_access_key``, and ``region``.
+            agents: Agent name filter list (case-insensitive). ``None`` = all.
+            yes: If ``True``, skip the interactive confirmation prompt.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.bedrock_discovery import BedrockDiscoveryService
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "AWS Bedrock agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider bedrock_agent. "
+                "Provide the connection app_id that holds your AWS IAM credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        for required_key in ("access_key_id", "secret_access_key", "region"):
+            if required_key not in creds:
+                logger.error(
+                    f"Connection '{app_id}' is missing the '{required_key}' credential entry. "
+                    "Run 'orchestrate connections set-credentials' to add it."
+                )
+                sys.exit(1)
+
+        access_key_id: str = creds["access_key_id"]
+        secret_access_key: str = creds["secret_access_key"]
+        region: str = creds["region"]
+        session_token: Optional[str] = creds.get("session_token")
+
+        # Discover agents
+        try:
+            with BedrockDiscoveryService() as svc:
+                logger.info(
+                    "Discovering AWS Bedrock agents in region '%s'…", region
+                )
+                raw_agents = svc.list_agents(
+                    region=region,
+                    access_key_id=access_key_id,
+                    secret_access_key=secret_access_key,
+                    session_token=session_token,
+                )
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, region)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list AWS Bedrock agents: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No AWS Bedrock agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered AWS Bedrock Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        if not yes:
+            confirmed = typer.confirm(
+                f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+            )
+            if not confirmed:
+                logger.info("Import cancelled.")
+                return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d AWS Bedrock agent(s).", len(agent_objects)
+        )
