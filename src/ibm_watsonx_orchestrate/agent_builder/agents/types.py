@@ -91,6 +91,9 @@ class AgentProvider(str, Enum):
     WATSONX = "watsonx" #provider type returned from an assistant agent
     A2A = 'external_chat/A2A/0.2.1'
     A2A_030 = 'external_chat/A2A/0.3.0'
+    VERTEX_AGENT = "vertex_agent"
+    AZURE_AI_FOUNDRY = "azure_ai_foundry"
+    BEDROCK_AGENT = "bedrock_agent"
 
 
 class AssistantAgentAuthType(str, Enum):
