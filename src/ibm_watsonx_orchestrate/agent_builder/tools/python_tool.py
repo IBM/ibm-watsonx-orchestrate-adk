@@ -188,6 +188,16 @@ class PythonTool(BaseTool):
         self.response_format = response_format
 
     def __call__(self, *args, **kwargs):
+        # __call__ is intentionally a regular (sync) def even when self.fn is
+        # async.  Making it ``async def`` would cause inspect.iscoroutinefunction()
+        # on the *PythonTool instance* to return False (Python only checks the raw
+        # code-object flag, not the bound __call__ method), so the TRM server's
+        # iscoroutinefunction(func) guard would silently fall through to
+        # run_in_executor and the coroutine would never be awaited.
+        #
+        # Instead, async functions are driven to completion here via
+        # run_coroutine_sync().  See async_helpers.py for the deadlock caveat
+        # that applies when called from a thread-pool thread (TRM path).
 
         run_context_param = self.get_run_param()
         context_object = None

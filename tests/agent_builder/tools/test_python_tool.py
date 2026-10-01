@@ -235,3 +235,35 @@ def test_sync_tool_still_works_after_async_change():
     result = my_tool()
     assert isinstance(result, ToolResponse)
     assert result.content == "sync_result"
+
+
+def test_async_tool_with_agent_run_context():
+    """async def tool that also uses an AgentRun context parameter.
+
+    Exercises the interaction between the run_context_param injection path
+    (lines 192-199 of python_tool.py) and the iscoroutinefunction branch,
+    which were previously only tested independently.
+    """
+    from ibm_watsonx_orchestrate.run.context import AgentRun
+
+    captured = {}
+
+    @tool(name="async_context_tool", description="Async tool with context")
+    async def my_tool(value: str, context: AgentRun) -> str:
+        """Async tool that inspects its context.
+
+        Args:
+            value: Input value
+            context: The agent run context
+
+        Returns:
+            The input value echoed back
+        """
+        captured["had_context"] = isinstance(context, AgentRun)
+        await asyncio.sleep(0)
+        return f"got: {value}"
+
+    result = my_tool(value="hello", context=AgentRun())
+    assert isinstance(result, ToolResponse)
+    assert result.content == "got: hello"
+    assert captured["had_context"] is True
