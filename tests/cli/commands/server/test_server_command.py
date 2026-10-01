@@ -1150,3 +1150,60 @@ def test_confirm_accepts_license_agreement_skips_if_accepted_via_args():
         mock_logger.warning.assert_any_call(MatchesStringContaining('license agreement')) # it still prints to the user, just no input
 
         assert cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE) == True
+
+
+# ---------------------------------------------------------------------------
+# ModelGatewayEnvConfig — AUTHORIZATION_URL auto-inference tests
+#
+# Regression guard for the MCSP v2 breakage where users with k2: API keys
+# got "I have encountered an error" from Chat because the default AUTHORIZATION_URL
+# was always pointing at the MCSP v1 endpoint (iam.platform.saas.ibm.com/siusermgr).
+# Fix: detect_mcsp_key_type() is now called during config validation so k2: keys
+# automatically resolve to the MCSP v2 endpoint (account-iam.platform.saas.ibm.com).
+# ---------------------------------------------------------------------------
+
+import base64
+
+from ibm_watsonx_orchestrate.cli.commands.server.types import ModelGatewayEnvConfig
+
+# Minimal valid SaaS AWS WO_INSTANCE URL (contains .ibm.com → infers WoAuthType.MCSP)
+_SAAS_INSTANCE = "https://api.dl.watson-orchestrate.ibm.com/instances/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+def _make_key(prefix: str) -> str:
+    """Return a base64-encoded synthetic key with the given MCSP prefix."""
+    return base64.b64encode(f"{prefix}test:secret".encode()).decode()
+
+_K2_KEY = _make_key("k2:")
+_K1_KEY = _make_key("k1:")
+
+
+class TestModelGatewayEnvConfigAuthorizationUrl:
+    """Verify AUTHORIZATION_URL auto-inference based on MCSP key version."""
+
+    def test_k2_key_infers_mcsp_v2_url(self):
+        """k2: (MCSP v2) API key → server must get the v2 token endpoint."""
+        cfg = ModelGatewayEnvConfig(
+            WO_INSTANCE=_SAAS_INSTANCE,
+            WO_API_KEY=_K2_KEY,
+        )
+        assert "account-iam.platform.saas.ibm.com" in cfg.AUTHORIZATION_URL
+        assert "/api/2.0/apikeys/token" in cfg.AUTHORIZATION_URL
+
+    def test_k1_key_infers_mcsp_v1_url(self):
+        """k1: (MCSP v1) API key → server must get the v1 token endpoint (no regression)."""
+        cfg = ModelGatewayEnvConfig(
+            WO_INSTANCE=_SAAS_INSTANCE,
+            WO_API_KEY=_K1_KEY,
+        )
+        assert "iam.platform.saas.ibm.com" in cfg.AUTHORIZATION_URL
+        assert "siusermgr" in cfg.AUTHORIZATION_URL
+
+    def test_explicit_authorization_url_is_preserved(self):
+        """An explicit AUTHORIZATION_URL in .env is always honoured regardless of key type."""
+        custom_url = "https://custom.iam.example.com/api/2.0/apikeys/token"
+        cfg = ModelGatewayEnvConfig(
+            WO_INSTANCE=_SAAS_INSTANCE,
+            WO_API_KEY=_K2_KEY,
+            AUTHORIZATION_URL=custom_url,
+        )
+        assert cfg.AUTHORIZATION_URL == custom_url
