@@ -258,6 +258,109 @@ class TestChatWxOInitialization:
         
         assert llm.temperature == 0.7
         assert llm.max_tokens == 1000
+    
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.build_runs_elsewhere_session')
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.Client')
+    def test_runs_on_local_with_wo_instance_redirects_url_and_token(self, mock_client_class, mock_build_session, monkeypatch):
+        """Test initialization with runs-on mode, local base URL, and WO_INSTANCE/WO_API_KEY set uses SaaS gateway."""
+
+        mock_saas_token_manager = Mock()
+        mock_saas_token_manager.get_token.return_value = "saas-token-abc"
+        mock_saas_session = Mock()
+        mock_saas_session.authenticator = Mock()
+        mock_saas_session.authenticator.token_manager = mock_saas_token_manager
+        mock_build_session.return_value = mock_saas_session
+
+        # Mock Client to return a runs-on session with a local base URL
+        mock_client_instance = Mock()
+        mock_client_instance.session = AgenticSession(
+            mode="runs-on",
+            base_url="http://localhost:4321/v1/orchestrate",
+            access_token="runtime-token-456",
+            authenticator=None,
+            identity=None,
+            verify=True
+        )
+
+        mock_client_class.return_value = mock_client_instance
+
+        monkeypatch.setenv("WO_INSTANCE", "https://saas.example.com")
+        monkeypatch.setenv("WO_API_KEY", "test-api-key")
+
+
+        llm = ChatWxO(
+            model="virtual-model/watsonx/test-model",
+            execution_context={ "access_token": "runtime-token-456", "api_proxy_url": "http://localhost:4321"}
+        )
+
+        mock_build_session.assert_called_once_with(
+            instance_url="https://saas.example.com",
+            api_key="test-api-key",
+            verify=None
+        )
+
+        assert str(llm.openai_api_base).rstrip('/') == "https://saas.example.com/v1/orchestrate/gateway/model"
+
+        assert llm.default_headers["Authorization"] == "Bearer saas-token-abc"
+        assert llm._get_current_token() == "saas-token-abc"
+
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.build_runs_elsewhere_session')
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.Client')
+    def test_runs_on_local_without_wo_instance_uses_docker_url(self, mock_client_class, mock_build_session, monkeypatch):
+        """Test initialization with runs-on mode and local base URL but no WO_INSTANCE uses Docker URL."""
+
+        monkeypatch.delenv("WO_INSTANCE", raising=False)
+        monkeypatch.delenv("WO_API_KEY", raising=False)
+
+        mock_client_instance = Mock()
+        mock_client_instance.session = AgenticSession(
+            mode="runs-on",
+            base_url="http://localhost:4321/v1/orchestrate",
+            access_token="runtime-token-456",
+            authenticator=None,
+            identity=None,
+            verify=True
+        )
+        mock_client_class.return_value = mock_client_instance
+
+        llm = ChatWxO(
+            model="virtual-model/watsonx/test-model",
+            execution_context={ "access_token": "runtime-token-456", "api_proxy_url": "http://localhost:4321"}
+        )
+
+        mock_build_session.assert_not_called()
+        assert "localhost:4321" in str(llm.openai_api_base)
+        assert llm.default_headers["Authorization"] == "Bearer runtime-token-456"
+
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.build_runs_elsewhere_session')
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.Client')
+    def test_runs_on_non_local_with_wo_instance_env_ignored(self, mock_client_class, mock_build_session, monkeypatch):
+        """Test initialization with runs-on mode and non-local base URL ignores WO_INSTANCE."""
+
+        monkeypatch.setenv("WO_INSTANCE", "https://saas.example.com")
+        monkeypatch.setenv("WO_API_KEY", "test-api-key")
+
+        # Mock Client to return a runs-on session with a non-local base URL
+        mock_client_instance = Mock()
+        mock_client_instance.session = AgenticSession(
+            mode="runs-on",
+            base_url="http://proxy.internal/v1/orchestrate",
+            access_token="runtime-token-456",
+            authenticator=None,
+            identity=None,
+            verify=True
+        )
+        mock_client_class.return_value = mock_client_instance
+
+        llm = ChatWxO(
+            model="virtual-model/watsonx/test-model",
+            execution_context={ "access_token": "runtime-token-456", "api_proxy_url": "http://proxy.internal"}
+        )
+
+        mock_build_session.assert_not_called()
+        assert "proxy.internal" in str(llm.openai_api_base)
+        assert llm.default_headers["Authorization"] == "Bearer runtime-token-456"
+
 
 
 class TestChatWxOTokenManagement:
