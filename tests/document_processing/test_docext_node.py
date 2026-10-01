@@ -2,7 +2,7 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
     FlowFactory
 )
 from pydantic import BaseModel, Field
-from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigField, NodeErrorHandlerConfig
+from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigField, NodeErrorHandlerConfig, PageRange
 import os
 import json
 class UserInput(BaseModel):
@@ -73,3 +73,17 @@ class TestDocExtNode():
         spec = doc_ext_node.get_spec().to_json()
 
         assert "error_handler_config" not in spec
+
+    def test_doc_ext_classic_with_page_range(self):
+        aflow = FlowFactory.create_flow(name="custom_flow_docext_classic_page_range")
+        doc_ext_node, _ = aflow.docext(
+            name="contract_extractor",
+            llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+            fields=UserInput(),
+            field_extraction_method="classic",
+            page_range=PageRange(start=1, end=3),
+        )
+        spec = doc_ext_node.get_spec().to_json()
+
+        assert spec["config"]["page_range"] == {"start": 1, "end": 3}
+        assert spec["config"]["field_extraction_method"] == "classic"
