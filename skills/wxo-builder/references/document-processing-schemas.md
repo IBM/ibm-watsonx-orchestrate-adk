@@ -29,36 +29,38 @@ The document processing engine ships with 28 pre-built schemas organized into 11
 
 ### Catalog Summary Index:
 
-| Category | Document Type (`schema_name`) | Table / Array Fields | Typical Key Fields |
-|---|---|---|---|
-| **Accounting & Financial** | `Invoice` | `line_items` (amount, description, product_code, quantity, unit, unit_price) | `invoice_id`, `invoice_date`, `due_date`, `vendor_name`, `customer_name`, `sub_total`, `tax`, `total`, `currency` |
-| | `PurchaseOrder` | `items` (description, item_number, quantity, unit_price, total_price) | `po_number`, `order_date`, `buyer_name`, `vendor_name`, `total_amount`, `payment_terms` |
-| | `Receipt` | None / optional line items | `receipt_id`, `merchant_name`, `transaction_date`, `total_amount`, `tax_amount`, `payment_method` |
-| | `ExpenseReport` | `expenses` | `report_id`, `employee_name`, `employee_id`, `report_period_start`, `report_period_end`, `subtotal`, `total_reimbursement_amount` |
-| **Banking & Statements** | `BankStatement` | `transactions` (date, description, amount, balance) | `bank_name`, `account_number`, `statement_period_start`, `statement_period_end`, `opening_balance`, `closing_balance` |
-| | `CreditCardStatement` | `transactions` (date, description, amount) | `card_issuer`, `card_last_four`, `statement_date`, `payment_due_date`, `minimum_payment`, `new_balance` |
-| | `RemittanceAdvice` | `invoices_paid` | `remittance_id`, `payment_date`, `payer_name`, `payee_name`, `total_payment_amount`, `check_number` |
-| **Taxation & Compliance** | `TaxForm_W9_1099_941_1120` | None | `taxpayer_name`, `business_name`, `tin_or_ssn`, `tax_year`, `federal_tax_classification`, `exempt_payee_code` |
-| | `FinancialStatement` | `line_items` | `company_name`, `statement_type`, `period_ended`, `revenue`, `net_income`, `total_assets`, `total_liabilities` |
-| **Logistics & Shipping** | `BillOfLading` | None / items | `bill_of_lading_number`, `shipper_name`, `shipper_address`, `consignee_name`, `carrier_name`, `origin`, `destination`, `gross_weight` |
-| | `CustomsForm` | `declared_items` | `customs_form_number`, `shipper_exporter_name`, `destination_country`, `total_value`, `hs_tariff_code` |
-| | `DeliveryReceipt` | None / items | `delivery_receipt_number`, `carrier_name`, `date_of_delivery`, `recipient_name`, `recipient_signature` |
-| **Real Estate & Lending** | `MortgageLending` | None | `loan_reference_number`, `borrower_name`, `lender_name`, `property_address`, `loan_principal_amount`, `interest_rate`, `monthly_payment` |
-| **Human Resources** | `I9Form` | None | `employee_first_name`, `employee_last_name`, `date_of_birth`, `ssn`, `citizenship_status`, `document_title`, `expiration_date` |
-| | `W4Form` | None | `first_name`, `last_name`, `ssn`, `marital_status`, `multiple_jobs_or_spouse`, `claim_dependents_amount`, `extra_withholding` |
-| **Identity & KYC** | `DriversLicense` | None | `license_number`, `first_name`, `last_name`, `date_of_birth`, `address`, `issue_date`, `expiration_date`, `state` |
-| | `NationalIdCard` | None | `id_number`, `full_name`, `date_of_birth`, `gender`, `nationality`, `issue_date`, `expiry_date` |
-| | `TravelPassport` | None | `passport_number`, `surname`, `given_names`, `nationality`, `date_of_birth`, `date_of_issue`, `date_of_expiry` |
-| | `UtilityBill` | None | `utility_provider`, `customer_name`, `service_address`, `billing_date`, `due_date`, `amount_due`, `account_number` |
-| **Insurance** | `AcordForm` | None | `policy_number`, `insured_name`, `producer_name`, `effective_date`, `expiration_date`, `coverage_types`, `limits` |
-| | `LifeDisabilityClaimForm` | None | `claimant_name`, `policy_number`, `date_of_disability`, `attending_physician`, `diagnosis`, `employer_name` |
-| | `DeathClaimForm` | None | `deceased_name`, `date_of_death`, `policy_number`, `beneficiary_name`, `cause_of_death` |
-| | `DisabilityStandardForm` | None | `patient_name`, `claim_number`, `disability_type`, `onset_date`, `physician_signature` |
-| **Healthcare** | `InsuranceClaim` | `service_lines` (date, procedure_code, charge) | `patient_name`, `insured_id`, `provider_name`, `total_charge`, `diagnosis_codes`, `facility_type` |
-| | `PatientIntakeForm` | None | `patient_name`, `dob`, `gender`, `emergency_contact`, `allergies`, `primary_insurance_carrier`, `policy_id` |
-| **Education** | `DiplomaCertification` | None | `recipient_name`, `institution_name`, `degree_title`, `major_field`, `graduation_date`, `honors` |
-| | `AcademicTranscript` | `coursework` (course_code, title, credits, grade) | `student_name`, `student_id`, `institution`, `cumulative_gpa`, `degree_awarded`, `dates_of_attendance` |
-| **Regulatory** | `BusinessLicensePermit` | None | `license_number`, `business_name`, `issuing_authority`, `license_type`, `effective_date`, `expiration_date` |
+⚠️ **`kvp_force_schema_name` must be the exact string from the table below** — the engine validates this value case-insensitively but rejects any variation not in its list. Do not invent CamelCase or shorthand names. The `docext` label column is for reference only (used when translating to `DocExtConfigField` declarations).
+
+| Category | Display Name | `kvp_force_schema_name` (exact, for `docproc`) | Table / Array Fields | Typical Key Fields |
+|---|---|---|---|---|
+| **Accounting & Financial** | Invoice | `invoice` | `line_items` (amount, description, product_code, quantity, unit, unit_price) | `invoice_id`, `invoice_date`, `due_date`, `vendor_name`, `customer_name`, `sub_total`, `tax`, `total`, `currency` |
+| | Purchase Order | `purchase_order` | `items` (description, item_number, quantity, unit_price, total_price) | `po_number`, `order_date`, `buyer_name`, `vendor_name`, `total_amount`, `payment_terms` |
+| | Receipt | `receipt` | None / optional line items | `receipt_id`, `merchant_name`, `transaction_date`, `total_amount`, `tax_amount`, `payment_method` |
+| | Expense Reports | `expense_reports` | `expenses` | `report_id`, `employee_name`, `employee_id`, `report_period_start`, `report_period_end`, `subtotal`, `total_reimbursement_amount` |
+| **Banking & Statements** | Bank Statements | `bank_statements` | `transactions` (date, description, amount, balance) | `bank_name`, `account_number`, `statement_period_start`, `statement_period_end`, `opening_balance`, `closing_balance` |
+| | Credit Card Statements | `credit_card_statements` | `transactions` (date, description, amount) | `card_issuer`, `card_last_four`, `statement_date`, `payment_due_date`, `minimum_payment`, `new_balance` |
+| | Remittance / Payment Advice | `remittance_/_payment_advice` | `invoices_paid` | `remittance_id`, `payment_date`, `payer_name`, `payee_name`, `total_payment_amount`, `check_number` |
+| **Taxation & Compliance** | Tax Forms (W-9, 1099, 941, 1120) | `tax_forms_(w-9,_1099,_941,_1120)` | None | `taxpayer_name`, `business_name`, `tin_or_ssn`, `tax_year`, `federal_tax_classification`, `exempt_payee_code` |
+| | Financial Statement | `financial_statement` | `line_items` | `company_name`, `statement_type`, `period_ended`, `revenue`, `net_income`, `total_assets`, `total_liabilities` |
+| **Logistics & Shipping** | Bill of Lading | `bill_of_lading` | None / items | `bill_of_lading_number`, `shipper_name`, `shipper_address`, `consignee_name`, `carrier_name`, `origin`, `destination`, `gross_weight` |
+| | Customs Form | `customs_form` | `declared_items` | `customs_form_number`, `shipper_exporter_name`, `destination_country`, `total_value`, `hs_tariff_code` |
+| | Delivery Receipt | `delivery_receipt` | None / items | `delivery_receipt_number`, `carrier_name`, `date_of_delivery`, `recipient_name`, `recipient_signature` |
+| **Real Estate & Lending** | Mortgage / Lending Document | `mortgage_/_lending_document` | None | `loan_reference_number`, `borrower_name`, `lender_name`, `property_address`, `loan_principal_amount`, `interest_rate`, `monthly_payment` |
+| **Human Resources** | I-9 Form | `i-9_form` | None | `employee_first_name`, `employee_last_name`, `date_of_birth`, `ssn`, `citizenship_status`, `document_title`, `expiration_date` |
+| | W-4 Form | `w-4_form` | None | `first_name`, `last_name`, `ssn`, `marital_status`, `multiple_jobs_or_spouse`, `claim_dependents_amount`, `extra_withholding` |
+| **Identity & KYC** | Driver's License | `driver_license` | None | `license_number`, `first_name`, `last_name`, `date_of_birth`, `address`, `issue_date`, `expiration_date`, `state` |
+| | National ID Card | `national_id_card` | None | `id_number`, `full_name`, `date_of_birth`, `gender`, `nationality`, `issue_date`, `expiry_date` |
+| | Travel Passport | `passport` | None | `passport_number`, `surname`, `given_names`, `nationality`, `date_of_birth`, `date_of_issue`, `date_of_expiry` |
+| | Utility Bill | `utility_bill` | None | `utility_provider`, `customer_name`, `service_address`, `billing_date`, `due_date`, `amount_due`, `account_number` |
+| **Insurance** | ACORD Insurance Form | `acord_insurance_form` | None | `policy_number`, `insured_name`, `producer_name`, `effective_date`, `expiration_date`, `coverage_types`, `limits` |
+| | Life/Disability Claim (Claimant's Statement) | `claimant's_statement` | None | `claimant_name`, `policy_number`, `date_of_disability`, `attending_physician`, `diagnosis`, `employer_name` |
+| | Initial Claimant's Statement (Income Replacement) | `initial_claimant's_statement_for_income_replacement/waiver_of_premium_benefits` | None | `patient_name`, `claim_number`, `disability_type`, `onset_date`, `physician_signature` |
+| | Life Insurance Authorization Form | `life_insurance_authorization_form` | None | `deceased_name`, `date_of_death`, `policy_number`, `beneficiary_name`, `cause_of_death` |
+| **Healthcare** | Insurance Claim | `insurance_claim` | `service_lines` (date, procedure_code, charge) | `patient_name`, `insured_id`, `provider_name`, `total_charge`, `diagnosis_codes`, `facility_type` |
+| | Patient Intake Form | `patient_intake_form` | None | `patient_name`, `dob`, `gender`, `emergency_contact`, `allergies`, `primary_insurance_carrier`, `policy_id` |
+| **Education** | Diploma / Certification | `diploma_/_certification` | None | `recipient_name`, `institution_name`, `degree_title`, `major_field`, `graduation_date`, `honors` |
+| | Academic Transcripts | `transcripts` | `coursework` (course_code, title, credits, grade) | `student_name`, `student_id`, `institution`, `cumulative_gpa`, `degree_awarded`, `dates_of_attendance` |
+| **Regulatory** | Business Licenses & Permits | `business_licenses_&_permits` | None | `license_number`, `business_name`, `issuing_authority`, `license_type`, `effective_date`, `expiration_date` |
 
 ### Using the catalog as a field-definition source for `docext`
 
@@ -151,7 +153,7 @@ def build_utility_bill_flow(aflow: Flow) -> Flow:
         task="text_extraction",
         output_format=DocProcOutputFormat.object,
         kvp_schemas=[],                          # Empty list activates server-side predefined schema catalog
-        kvp_force_schema_name="UtilityBill",     # Name of the predefined schema
+        kvp_force_schema_name="utility_bill",    # Exact name from the catalog table — see §2
     )
     aflow.sequence(START, doc_node, END)
     return aflow

@@ -700,7 +700,7 @@ def build_doc_flow(aflow: Flow) -> Flow:
         task="text_extraction",
         output_format=DocProcOutputFormat.object,   # returns JSON object instead of file ref
         kvp_schemas=[INVOICE_SCHEMA],
-        kvp_force_schema_name="Invoice"
+        kvp_force_schema_name="invoice"     # Exact name from catalog — see document-processing-schemas.md §2
     )
     node.map_input("document_ref", "flow.input.document_ref")
     aflow.sequence(START, node, END)
