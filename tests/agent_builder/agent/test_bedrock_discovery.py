@@ -4,6 +4,7 @@ Unit tests for BedrockDiscoveryService.
 All HTTP is mocked — no real AWS credentials required.
 Pattern mirrors tests/agent_builder/agent/test_vertex_discovery.py.
 """
+import sys
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -51,6 +52,55 @@ def _make_prepared_request():
 # ---------------------------------------------------------------------------
 
 class TestSignRequest:
+    @pytest.fixture(autouse=True)
+    def mock_botocore(self, monkeypatch):
+        """Mock botocore modules so tests don't require botocore installed."""
+        mock_auth_module = MagicMock()
+        mock_awsrequest_module = MagicMock()
+        mock_credentials_module = MagicMock()
+
+        # Class to emulate AWSRequest
+        class FakeAWSRequest:
+            def __init__(self, method, url, headers=None, data=None):
+                self.method = method
+                self.url = url
+                self.headers = headers or {}
+                self.data = data
+
+        # Class to emulate Credentials
+        class FakeCredentials:
+            def __init__(self, access_key, secret_key, token=None):
+                self.access_key = access_key
+                self.secret_key = secret_key
+                self.token = token
+
+        # Class to emulate SigV4Auth
+        class FakeSigV4Auth:
+            def __init__(self, credentials, service_name, region_name):
+                self.credentials = credentials
+                self.service_name = service_name
+                self.region_name = region_name
+
+            def add_auth(self, request):
+                auth_val = (
+                    f"AWS4-HMAC-SHA256 Credential={self.credentials.access_key}/"
+                    f"20250101/{self.region_name}/{self.service_name}/aws4_request, "
+                    f"SignedHeaders=host;x-amz-date, Signature=fake_sig"
+                )
+                request.headers["Authorization"] = auth_val
+                request.headers["X-Amz-Date"] = "20250101T000000Z"
+                if self.credentials.token:
+                    request.headers["X-Amz-Security-Token"] = self.credentials.token
+
+        mock_auth_module.SigV4Auth = FakeSigV4Auth
+        mock_awsrequest_module.AWSRequest = FakeAWSRequest
+        mock_credentials_module.Credentials = FakeCredentials
+
+        monkeypatch.setitem(sys.modules, "botocore", MagicMock())
+        monkeypatch.setitem(sys.modules, "botocore.auth", mock_auth_module)
+        monkeypatch.setitem(sys.modules, "botocore.awsrequest", mock_awsrequest_module)
+        monkeypatch.setitem(sys.modules, "botocore.credentials", mock_credentials_module)
+
     def test_sign_request_returns_prepared_request(self):
         """_sign_request() returns a PreparedRequest with Authorization header."""
         with BedrockDiscoveryService() as svc:
@@ -148,6 +198,23 @@ class TestSignRequest:
                 secret_access_key=FAKE_SECRET_KEY,
             )
         assert "bedrock-agent" in prepared.headers["Authorization"]
+
+    def test_sign_request_raises_import_error_when_botocore_missing(self, monkeypatch):
+        """When botocore is not installed, _sign_request raises ImportError with install instructions."""
+        monkeypatch.setitem(sys.modules, "botocore", None)
+        monkeypatch.setitem(sys.modules, "botocore.auth", None)
+        monkeypatch.setitem(sys.modules, "botocore.awsrequest", None)
+        monkeypatch.setitem(sys.modules, "botocore.credentials", None)
+
+        with BedrockDiscoveryService() as svc:
+            with pytest.raises(ImportError, match=r"ibm-watsonx-orchestrate\[aws\]"):
+                svc._sign_request(
+                    method="GET",
+                    url=f"https://bedrock-agent.{FAKE_REGION}.amazonaws.com/agents/",
+                    region=FAKE_REGION,
+                    access_key_id=FAKE_ACCESS_KEY,
+                    secret_access_key=FAKE_SECRET_KEY,
+                )
 
 
 # ---------------------------------------------------------------------------
