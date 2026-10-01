@@ -27,6 +27,20 @@ yaml.constructor.SafeConstructor.yaml_constructors[u'tag:yaml.org,2002:timestamp
     yaml.constructor.SafeConstructor.yaml_constructors[u'tag:yaml.org,2002:str']
 
 
+def _ssrf_safe_loader(uri: str):
+    """Loader passed to jsonref.replace_refs to block all non-fragment URI resolution.
+
+    jsonref only invokes this loader for URIs that are not pure in-document fragment
+    references (i.e. anything other than ``#/...``).  Raising here prevents any outbound
+    network request or local file traversal that could be triggered by a malicious
+    ``$ref`` value inside an attacker-supplied OpenAPI spec (CWE-918 / SSRF).
+    """
+    raise BadRequest(
+        f"External $ref '{uri}' is not permitted. "
+        "Only in-document fragment references (#/...) are supported."
+    )
+
+
 class HTTPException(Exception):
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
@@ -117,7 +131,7 @@ def create_openapi_json_tool(
         else:
             return obj
 
-    openapi_contents = jsonref.replace_refs(openapi_spec, jsonschema=True)
+    openapi_contents = jsonref.replace_refs(openapi_spec, jsonschema=True, loader=_ssrf_safe_loader)
     openapi_contents = _resolve_jsonref(openapi_contents)
     paths = openapi_contents.get('paths', {})
     route = paths.get(http_path)
