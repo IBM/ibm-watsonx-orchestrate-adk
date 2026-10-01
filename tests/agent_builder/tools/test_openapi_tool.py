@@ -2,9 +2,11 @@
 # testitall is the assistant builder extension testing framework found here:
 # https://github.com/watson-developer-cloud/assistant-toolkit/tree/master/integrations/extensions/starter-kits/testitall
 import json
+import jsonref
 from os import path
 import pytest
 from pydantic import BaseModel, Field
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 # TO-DO: resolve path issue
 try:
@@ -1030,9 +1032,6 @@ def test_inject_context_extension_absent_leaves_paths_none():
 # Verify that remote $ref values inside a locally-supplied OpenAPI spec are
 # blocked by _ssrf_safe_loader before any outbound network request is made.
 # ---------------------------------------------------------------------------
-
-import jsonref
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 
 def _minimal_spec_with_ref(ref_value: str, extra_top_level: dict = None) -> dict:
