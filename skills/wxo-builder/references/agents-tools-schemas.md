@@ -744,7 +744,7 @@ aflow.map_output(
 - Full 28-schema catalog and blueprints → **[references/document-processing-schemas.md](document-processing-schemas.md)**.
 
 **Document upload rule:**
-Agents **cannot** pass user-uploaded files to a flow. The `docproc` / `docext` node prompts the user for the upload itself.
+Agents **cannot** pass user-uploaded files to a flow. The `docproc` / `docext` / `docclassifier` nodes prompt the user for the upload itself.
 ✅ Agent instructions: "When the user wants to process a document, immediately invoke `doc_flow`."
 ❌ NOT: "Ask the user to upload a document first, then pass it to the flow."
 
