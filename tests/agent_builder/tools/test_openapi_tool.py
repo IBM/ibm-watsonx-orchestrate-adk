@@ -1023,3 +1023,142 @@ def test_inject_context_extension_absent_leaves_paths_none():
     binding = tool.__tool_spec__.binding.openapi
     assert binding.context_request_body_path is None
     assert binding.context_response_body_path is None
+
+
+# ---------------------------------------------------------------------------
+# SSRF prevention tests (CVE #100271 / PVR0899649)
+# Verify that remote $ref values inside a locally-supplied OpenAPI spec are
+# blocked by _ssrf_safe_loader before any outbound network request is made.
+# ---------------------------------------------------------------------------
+
+import jsonref
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+
+
+def _minimal_spec_with_ref(ref_value: str, extra_top_level: dict = None) -> dict:
+    """Return a minimal valid OpenAPI 3.0 spec whose 200-response schema uses the given $ref."""
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "ssrf-test", "version": "1.0.0"},
+        "paths": {
+            "/ping": {
+                "get": {
+                    "operationId": "ping",
+                    "description": "probe",
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": ref_value}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if extra_top_level:
+        spec.update(extra_top_level)
+    return spec
+
+
+class TestSSRFPrevention:
+    """Regression suite for CWE-918 SSRF via remote $ref in OpenAPI specs."""
+
+    def test_remote_http_ref_is_blocked(self, mocker):
+        """A $ref pointing at an http:// URL must raise and never reach the
+        network.  Confirms the direct-remote-ref attack variant is blocked
+        (reproducer: spec3b.json from PVR0899649).
+
+        jsonref wraps our BadRequest in JsonRefError; we assert on the cause
+        to confirm the right code path was hit and that no network call was
+        made.
+        """
+        requests_get = mocker.patch("requests.get")
+        httpx_client = mocker.patch("httpx.AsyncClient")
+
+        spec = _minimal_spec_with_ref("http://127.0.0.1:9999/internal/secret")
+
+        with pytest.raises(jsonref.JsonRefError) as exc_info:
+            create_openapi_json_tool(spec, http_path="/ping", http_method="GET")
+
+        assert isinstance(exc_info.value.__cause__, BadRequest)
+        assert "is not permitted" in str(exc_info.value.__cause__)
+        requests_get.assert_not_called()
+        httpx_client.assert_not_called()
+
+    def test_remote_https_ref_is_blocked(self, mocker):
+        """Same as the http variant but with https:// — both schemes must be blocked."""
+        requests_get = mocker.patch("requests.get")
+
+        spec = _minimal_spec_with_ref("https://attacker.example.com/schema.json")
+
+        with pytest.raises(jsonref.JsonRefError) as exc_info:
+            create_openapi_json_tool(spec, http_path="/ping", http_method="GET")
+
+        assert isinstance(exc_info.value.__cause__, BadRequest)
+        assert "is not permitted" in str(exc_info.value.__cause__)
+        requests_get.assert_not_called()
+
+    def test_remote_id_relative_ref_is_blocked(self, mocker):
+        """A $id that sets a remote base URI combined with a relative $ref must
+        also be blocked.  Confirms the $id-induced base-URI attack variant is
+        blocked (spec.json reproducer from PVR0899649).
+
+        jsonschema=True makes jsonref honour $id as the base URI, so the
+        relative ref resolves to http://127.0.0.1:9999/subschema.json before
+        the loader is ever called.
+        """
+        requests_get = mocker.patch("requests.get")
+
+        spec = _minimal_spec_with_ref(
+            "subschema.json",
+            extra_top_level={"$id": "http://127.0.0.1:9999/"}
+        )
+
+        with pytest.raises(jsonref.JsonRefError) as exc_info:
+            create_openapi_json_tool(spec, http_path="/ping", http_method="GET")
+
+        assert isinstance(exc_info.value.__cause__, BadRequest)
+        assert "is not permitted" in str(exc_info.value.__cause__)
+        requests_get.assert_not_called()
+
+    def test_fragment_ref_still_works(self):
+        """An in-document fragment $ref (#/components/schemas/...) must continue
+        to resolve correctly — the safe loader is never called for these."""
+        spec = {
+            "openapi": "3.0.0",
+            "info": {"title": "fragment-test", "version": "1.0.0"},
+            "components": {
+                "schemas": {
+                    "Pong": {
+                        "type": "object",
+                        "properties": {"message": {"type": "string"}}
+                    }
+                }
+            },
+            "paths": {
+                "/ping": {
+                    "get": {
+                        "operationId": "ping",
+                        "description": "probe",
+                        "responses": {
+                            "200": {
+                                "description": "ok",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {"$ref": "#/components/schemas/Pong"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        # Must not raise — fragment refs are resolved in-document by jsonref
+        tool = create_openapi_json_tool(spec, http_path="/ping", http_method="GET")
+        assert tool is not None
