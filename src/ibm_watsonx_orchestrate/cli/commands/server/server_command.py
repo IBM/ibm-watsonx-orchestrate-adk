@@ -31,6 +31,7 @@ from ibm_watsonx_orchestrate.utils.migration_manager import MigrationsManager
 from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
 
 
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
 from ibm_watsonx_orchestrate.developer_edition.vm_host.lima import LimaLifecycleManager
 from ibm_watsonx_orchestrate.client.utils import get_os_type, path_for_vm
 import base64

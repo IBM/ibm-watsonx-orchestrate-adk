@@ -890,7 +890,14 @@ class TestContentSourceKnowledgeBase:
 
 
 class TestKnowledgeConnectorsDisabled:
-    """Tests for behaviour when KNOWLEDGE_CONNECTORS_ENABLED=False (the default)."""
+    """Tests for behaviour when KNOWLEDGE_CONNECTORS_ENABLED=False."""
+
+    @pytest.fixture(autouse=True)
+    def disable_knowledge_connectors(self, monkeypatch):
+        monkeypatch.setattr(
+            "ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KNOWLEDGE_CONNECTORS_ENABLED",
+            False,
+        )
 
     def test_import_content_source_errors_when_connectors_disabled(self, caplog, content_source_knowledge_base_content):
         """Importing a content_source KB while connectors are disabled must log an error and skip.
