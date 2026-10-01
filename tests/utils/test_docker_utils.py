@@ -37,10 +37,8 @@ def test_docker_login_failure():
     with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=mock_vm_manager), \
          skip_terms_and_conditions():
 
-        with pytest.raises(SystemExit) as exc:
-            DockerLoginService._DockerLoginService__docker_login("bad-key", "bad-registry")
-
-        assert exc.value.code == 1
+        result = DockerLoginService._DockerLoginService__docker_login("bad-key", "bad-registry")
+        assert result is False
 
 
 def test_ensure_docker_installed_success():
@@ -122,3 +120,115 @@ def test_ensure_docker_installed_failure():
 
 #         captured = capsys.readouterr()
 #         assert "Unable to find an installed docker-compose or docker compose" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# DockerLoginService.login_by_dev_edition_source — fallback key tests
+# ---------------------------------------------------------------------------
+
+def _make_login_service():
+    return DockerLoginService(env_service=EnvService(Config()))
+
+
+def test_fallback_key_succeeds_when_primary_fails():
+    """Primary DOCKER_IAM_KEY fails, fallback key succeeds — no sys.exit."""
+    env_dict = {
+        "WO_DEVELOPER_EDITION_SOURCE": "internal",
+        "DOCKER_IAM_KEY": "bad-primary-key",
+        "DOCKER_FALLBACK_IAM_KEY": "good-fallback-key",
+        "REGISTRY_URL": "registry.example.com/myorg",
+    }
+
+    login_results = [False, True]
+
+    with patch.object(
+        DockerLoginService,
+        "_DockerLoginService__docker_login",
+        side_effect=login_results,
+    ) as mock_login:
+        _make_login_service().login_by_dev_edition_source(env_dict)
+
+    assert mock_login.call_count == 2
+    mock_login.assert_any_call("bad-primary-key", "registry.example.com", "iamapikey")
+    mock_login.assert_any_call("good-fallback-key", "registry.example.com", "iamapikey")
+
+
+def test_primary_succeeds_fallback_never_tried():
+    """Primary DOCKER_IAM_KEY succeeds — fallback key is never consulted."""
+    env_dict = {
+        "WO_DEVELOPER_EDITION_SOURCE": "internal",
+        "DOCKER_IAM_KEY": "good-primary-key",
+        "DOCKER_FALLBACK_IAM_KEY": "fallback-key",
+        "REGISTRY_URL": "registry.example.com/myorg",
+    }
+
+    with patch.object(
+        DockerLoginService,
+        "_DockerLoginService__docker_login",
+        return_value=True,
+    ) as mock_login:
+        _make_login_service().login_by_dev_edition_source(env_dict)
+
+    assert mock_login.call_count == 1
+    mock_login.assert_called_once_with("good-primary-key", "registry.example.com", "iamapikey")
+
+
+def test_primary_fails_no_fallback_key_exits():
+    """Primary DOCKER_IAM_KEY fails and no DOCKER_FALLBACK_IAM_KEY is set — sys.exit(1)."""
+    env_dict = {
+        "WO_DEVELOPER_EDITION_SOURCE": "internal",
+        "DOCKER_IAM_KEY": "bad-primary-key",
+        "REGISTRY_URL": "registry.example.com/myorg",
+    }
+
+    with patch.object(
+        DockerLoginService,
+        "_DockerLoginService__docker_login",
+        return_value=False,
+    ):
+        with pytest.raises(SystemExit) as exc:
+            _make_login_service().login_by_dev_edition_source(env_dict)
+
+    assert exc.value.code == 1
+
+
+def test_both_keys_fail_exits():
+    """Both DOCKER_IAM_KEY and DOCKER_FALLBACK_IAM_KEY fail — sys.exit(1)."""
+    env_dict = {
+        "WO_DEVELOPER_EDITION_SOURCE": "internal",
+        "DOCKER_IAM_KEY": "bad-primary-key",
+        "DOCKER_FALLBACK_IAM_KEY": "bad-fallback-key",
+        "REGISTRY_URL": "registry.example.com/myorg",
+    }
+
+    with patch.object(
+        DockerLoginService,
+        "_DockerLoginService__docker_login",
+        return_value=False,
+    ) as mock_login:
+        with pytest.raises(SystemExit) as exc:
+            _make_login_service().login_by_dev_edition_source(env_dict)
+
+    assert exc.value.code == 1
+    assert mock_login.call_count == 2
+
+
+def test_non_internal_source_not_affected_by_fallback():
+    """MYIBM source with a failing login still exits — no fallback attempted."""
+    env_dict = {
+        "WO_DEVELOPER_EDITION_SOURCE": "myibm",
+        "WO_ENTITLEMENT_KEY": "bad-entitlement-key",
+        "DOCKER_FALLBACK_IAM_KEY": "some-fallback-key",
+        "REGISTRY_URL": "registry.example.com/myorg",
+    }
+
+    with patch.object(
+        DockerLoginService,
+        "_DockerLoginService__docker_login",
+        return_value=False,
+    ) as mock_login:
+        with pytest.raises(SystemExit) as exc:
+            _make_login_service().login_by_dev_edition_source(env_dict)
+
+    assert exc.value.code == 1
+    assert mock_login.call_count == 1  # fallback never tried for MYIBM
