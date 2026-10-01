@@ -1,11 +1,14 @@
+import asyncio
 import json
 from typing import Any, Optional, List, Dict
 
+import pytest
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolPermission, tool
 from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind, WXOFile
+from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 
 
 def test_should_allow_naked_decorators(snapshot):
@@ -19,7 +22,7 @@ def test_should_allow_naked_decorators(snapshot):
     spec = json.loads(my_tool.dumps_spec())
     spec['binding']['python']['function'] = spec['binding']['python']['function'].split('.')[-1]
     snapshot.assert_match(spec)
-    result = my_tool()
+    result = run_coroutine_sync(my_tool())
     assert spec['name'] == 'my_tool'
     assert spec.get('description') == "The description"
     assert spec['permission'] == 'read_only'
@@ -179,3 +182,58 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
         assert "incorrect type for parameter 'task_results'" in str(e)
     else:
         assert False, "Expected error was not raised"
+
+
+# ---------------------------------------------------------------------------
+# Async tool tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_async_tool_naked_decorator():
+    @tool
+    async def my_tool():
+        """The async description"""
+        return 42
+
+    result = await my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == 42
+
+
+@pytest.mark.asyncio
+async def test_async_tool_with_params():
+    @tool(name="async_named_tool", description="An async tool with params")
+    async def my_tool(x: int) -> int:
+        return x * 2
+
+    spec = json.loads(my_tool.dumps_spec())
+    assert spec["name"] == "async_named_tool"
+    assert spec["description"] == "An async tool with params"
+
+    result = await my_tool(x=5)
+    assert isinstance(result, ToolResponse)
+    assert result.content == 10
+
+
+@pytest.mark.asyncio
+async def test_async_tool_with_asyncio_sleep():
+    @tool
+    async def my_tool():
+        """Async tool that does real async work"""
+        await asyncio.sleep(0)
+        return "done"
+
+    result = await my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == "done"
+
+
+def test_sync_tool_still_works_after_async_change():
+    @tool
+    def my_tool():
+        """A plain sync tool"""
+        return "sync_result"
+
+    result = run_coroutine_sync(my_tool())
+    assert isinstance(result, ToolResponse)
+    assert result.content == "sync_result"
