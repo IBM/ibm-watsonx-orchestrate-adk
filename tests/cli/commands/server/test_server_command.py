@@ -1170,7 +1170,12 @@ from ibm_watsonx_orchestrate.cli.commands.server.types import ModelGatewayEnvCon
 _SAAS_INSTANCE = "https://api.dl.watson-orchestrate.ibm.com/instances/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
 def _make_key(prefix: str) -> str:
-    """Return a base64-encoded synthetic key with the given MCSP prefix."""
+    """Return a base64-encoded synthetic key with the given MCSP prefix.
+
+    MCSP keys encode their version in the first bytes after base64 decoding:
+        "k1:" → MCSP v1  (iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token)
+        "k2:" → MCSP v2  (account-iam.platform.saas.ibm.com/api/2.0/apikeys/token)
+    """
     return base64.b64encode(f"{prefix}test:secret".encode()).decode()
 
 _K2_KEY = _make_key("k2:")
