@@ -9,6 +9,7 @@ import logging
 
 from pydantic import TypeAdapter, BaseModel
 
+from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
@@ -186,7 +187,7 @@ class PythonTool(BaseTool):
         self.dynamic_output_schema = dynamic_output_schema
         self.response_format = response_format
 
-    async def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs):
 
         run_context_param = self.get_run_param()
         context_object = None
@@ -198,7 +199,7 @@ class PythonTool(BaseTool):
                 kwargs[run_context_param] = context_object
 
         if inspect.iscoroutinefunction(self.fn):
-            result = await self.fn(*args, **kwargs)
+            result = run_coroutine_sync(self.fn(*args, **kwargs))
         else:
             result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
