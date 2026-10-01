@@ -1,0 +1,25 @@
+FROM --platform=linux/amd64 golang:1.24-alpine AS builder
+
+ARG MINIO_VERSION=RELEASE.2025-10-15T17-29-55Z
+
+RUN apk add --no-cache git
+RUN git clone --depth 1 --branch ${MINIO_VERSION} https://github.com/minio/minio /src
+WORKDIR /src
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /usr/bin/minio .
+
+FROM --platform=linux/amd64 alpine:3.20
+
+# bash is required by the compose-lite healthcheck:
+#   test: timeout 5s bash -c ':> /dev/tcp/127.0.0.1/9000' || exit 1
+RUN apk add --no-cache bash
+
+COPY --from=builder /usr/bin/minio /usr/bin/minio
+RUN chmod +x /usr/bin/minio
+
+COPY docker-entrypoint.sh /usr/bin/docker-entrypoint.sh
+RUN chmod +x /usr/bin/docker-entrypoint.sh
+
+EXPOSE 9000 9001
+
+ENTRYPOINT ["/usr/bin/docker-entrypoint.sh"]
+CMD ["minio"]
