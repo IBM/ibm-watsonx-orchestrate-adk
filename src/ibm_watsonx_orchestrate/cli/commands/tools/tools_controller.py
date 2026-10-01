@@ -1,3 +1,5 @@
+import json
+import jsonref
 import logging
 import importlib
 import inspect
@@ -15,7 +17,6 @@ from os import path
 from pathlib import Path
 from typing import Iterable, List, Any, Optional, cast
 import rich
-import json
 import glob
 
 import rich.table
@@ -386,7 +387,15 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     return tools
 
 async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
-    tools = await create_openapi_json_tools_from_uri(file, connection_id)
+    try:
+        tools = await create_openapi_json_tools_from_uri(file, connection_id)
+    except jsonref.JsonRefError as e:
+        # _ssrf_safe_loader raises BadRequest for any external $ref; jsonref wraps
+        # it as JsonRefError.__cause__.  Re-raise as BadRequest here so the error
+        # surfaces cleanly at the import boundary in all execution contexts (CLI,
+        # MCP server, service) rather than propagating as an unhandled JsonRefError.
+        cause = e.__cause__ if e.__cause__ is not None else e
+        raise BadRequest(str(cause)) from e
     return tools
 
 async def import_langflow_tool(file: str, app_id: List[str] = None):    
