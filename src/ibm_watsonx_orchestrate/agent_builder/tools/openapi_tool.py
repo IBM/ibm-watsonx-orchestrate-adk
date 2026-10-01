@@ -30,10 +30,27 @@ yaml.constructor.SafeConstructor.yaml_constructors[u'tag:yaml.org,2002:timestamp
 def _ssrf_safe_loader(uri: str):
     """Loader passed to jsonref.replace_refs to block all non-fragment URI resolution.
 
-    jsonref only invokes this loader for URIs that are not pure in-document fragment
-    references (i.e. anything other than ``#/...``).  Raising here prevents any outbound
-    network request or local file traversal that could be triggered by a malicious
-    ``$ref`` value inside an attacker-supplied OpenAPI spec (CWE-918 / SSRF).
+    **Timing:** jsonref uses lazy loading (proxies=True, lazy_load=True by default).
+    This function is NOT called at replace_refs() time; it is invoked when the JsonRef
+    proxy is first dereferenced — which happens inside _resolve_jsonref() when
+    ``__subject__`` is accessed.  The resulting exception is wrapped by jsonref as
+    ``JsonRefError.__cause__``.
+
+    **What is blocked:** any URI that reaches this loader — http://, https://,
+    file://, relative paths, and $id-induced base URIs.  Only pure in-document
+    fragment references (``#/...``) never reach the loader because jsonref resolves
+    them in-store before invoking any external loader.
+
+    **Error handling:** BadRequest follows the established CLI pattern in this
+    codebase — it logs the message and calls sys.exit(1) in non-test environments,
+    producing a clean error exit.  This is intentional: a malicious $ref in an
+    import file should terminate the import command with a clear error, not be
+    silently swallowed.
+
+    **Limitation:** multi-file OpenAPI specs that split schemas across local files
+    using relative $ref values (e.g. ``"$ref": "./other-file.json#/Foo"``) are also
+    blocked.  Pre-bundle such specs into a single self-contained file before
+    importing (e.g. using ``swagger-cli bundle`` or ``redocly bundle``).
     """
     raise BadRequest(
         f"External $ref '{uri}' is not permitted. "
@@ -103,7 +120,16 @@ def create_openapi_json_tool(
         connection_id: str = None
 ) -> OpenAPITool:
     """
-    Creates a tool from an openapi spec
+    Creates a tool from an openapi spec.
+
+    .. note::
+        **Single-file specs only.**  All ``$ref`` values in the spec must be
+        in-document fragment references (``#/components/schemas/...``).  External
+        references — including ``http://``, ``https://``, ``file://``, and relative
+        paths to sibling files — are blocked to prevent Server-Side Request Forgery
+        (CWE-918 / CVE #100271).  Pre-bundle multi-file specs into a single
+        self-contained file before importing (e.g. ``swagger-cli bundle`` or
+        ``redocly bundle``).
 
     :param openapi_spec: The parsed dictionary representation of an openapi spec
     :param http_path: Which path to create a tool for
