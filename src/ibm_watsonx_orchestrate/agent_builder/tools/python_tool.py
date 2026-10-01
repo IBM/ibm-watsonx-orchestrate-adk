@@ -186,7 +186,7 @@ class PythonTool(BaseTool):
         self.dynamic_output_schema = dynamic_output_schema
         self.response_format = response_format
 
-    def __call__(self, *args, **kwargs):
+    async def __call__(self, *args, **kwargs):
 
         run_context_param = self.get_run_param()
         context_object = None
@@ -197,8 +197,10 @@ class PythonTool(BaseTool):
                 context_object = self.__parse_context_param(context_param_value)
                 kwargs[run_context_param] = context_object
 
-
-        result = self.fn(*args, **kwargs)
+        if inspect.iscoroutinefunction(self.fn):
+            result = await self.fn(*args, **kwargs)
+        else:
+            result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
         return ToolResponse(content=result,context_updates=context_updates)
