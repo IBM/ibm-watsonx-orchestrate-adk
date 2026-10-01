@@ -1,0 +1,7 @@
+folder_paths:
+  agents: ./agents
+  tools: ./tools
+  connections: ./connections
+  knowledge_bases: ./knowledge-bases
+  toolkits: ./toolkits
+  models: ./models

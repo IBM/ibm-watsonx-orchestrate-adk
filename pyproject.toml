@@ -68,6 +68,10 @@ agentops = [
     "ibm_watsonx_orchestrate_evaluation_framework==1.5.2",
 ]
 
+aws = [
+    "botocore>=1.34.0",
+]
+
 [tool.pytest.ini_options]
 pythonpath = [
     "src",
@@ -82,6 +86,7 @@ pythonpath = [
 dependencies = [
     "pkg[dev]",
     "pkg[agentops]",
+    "pkg[aws]",
 ]
 detached = true
 
@@ -123,6 +128,7 @@ omit = [
 dependencies = [
     "pkg[dev]",
     "pkg[agentops]",
+    "pkg[aws]",
 ]
 
 [[tool.hatch.envs.test.matrix]]

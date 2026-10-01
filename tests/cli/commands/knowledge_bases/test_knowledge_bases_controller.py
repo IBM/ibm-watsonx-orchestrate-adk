@@ -1292,25 +1292,25 @@ class TestValidateConnectionCreds:
             controller._validate_connection_creds(index_config)
 
     def test_validate_raises_value_error_on_api_exception_with_plain_text_body(self):
-        """ClientAPIException with a plain-text (non-JSON) body uses a generic error message."""
+        """ClientAPIException with a plain-text (non-JSON) body preserves that message."""
         exc = _make_client_api_exception(response_text="Forbidden")
         controller, _ = self._controller_with_mock_client(validate_side_effect=exc)
         index_config = IndexConnection(
             connection_id="conn-1",
             open_search=OpenSearchConnection(url="https://os.example.com", index="idx"),
         )
-        with pytest.raises(ValueError, match="Unexpected server error"):
+        with pytest.raises(ValueError, match="Forbidden"):
             controller._validate_connection_creds(index_config)
 
     def test_validate_raises_value_error_on_api_exception_with_malformed_json_body(self):
-        """ClientAPIException whose body looks like JSON but isn't valid uses a generic error message."""
+        """ClientAPIException with malformed JSON preserves its response text."""
         exc = _make_client_api_exception(response_text="{not valid json")
         controller, _ = self._controller_with_mock_client(validate_side_effect=exc)
         index_config = IndexConnection(
             connection_id="conn-1",
             elastic_search=ElasticSearchConnection(url="https://es.example.com", index="idx"),
         )
-        with pytest.raises(ValueError, match="Unexpected server error"):
+        with pytest.raises(ValueError, match=r"\{not valid json"):
             controller._validate_connection_creds(index_config)
 
     def test_validate_raises_value_error_on_api_exception_with_no_response_body(self):
