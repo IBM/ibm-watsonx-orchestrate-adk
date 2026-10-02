@@ -16,7 +16,7 @@ from rich.console import Console
 
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
-from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException, format_client_api_error
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerUtils
@@ -115,17 +115,6 @@ def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
 
 _VECTOR_INDEX_FIELDS = ("milvus", "elastic_search", "open_search", "astradb", "custom_search")
 
-def _extract_api_error_message(e: ClientAPIException) -> str:
-    """Extract the human-readable detail from a ClientAPIException response body."""
-    try:
-        if e.response is not None and e.response.text:
-            try:
-                return json.loads(e.response.text).get('detail', "Unexpected server error")
-            except Exception:
-                return "Unexpected server error"
-    except Exception:
-        pass
-    return str(e)
 
 class KnowledgeBaseController:
     def __init__(self, safe_mode: bool = False):
@@ -180,7 +169,7 @@ class KnowledgeBaseController:
         try:
             self.get_client().validate_creds(connection_id=connection_id, vector_index_type=vector_index_type, url=url, port=port)
         except ClientAPIException as e:
-            raise ValueError(f"Connection credential validation failed: {_extract_api_error_message(e)}")
+            raise ValueError(f"Connection credential validation failed: {format_client_api_error(e)}")
 
     def import_knowledge_base(self, file: str, app_id: str, sync: bool = False):
         client = self.get_client()
@@ -285,24 +274,7 @@ class KnowledgeBaseController:
                     try:
                         response = client.create_without_files(payload=payload)
                     except ClientAPIException as e:
-                        error_msg = "Unknown error"
-                        try:
-                            if e.response is not None and hasattr(e.response, 'text'):
-                                response_text = e.response.text
-                                if response_text:
-                                    try:
-                                        error_data = json.loads(response_text)
-                                        error_msg = error_data.get('detail', response_text)
-                                    except:
-                                        error_msg = response_text
-                                else:
-                                    error_msg = str(e)
-                            else:
-                                error_msg = str(e)
-                        except Exception:
-                            error_msg = str(e)
-
-                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        logger.error(f"Failed to create knowledge base: {format_client_api_error(e)}")
                         continue
 
                     kb_id = None
@@ -338,7 +310,7 @@ class KnowledgeBaseController:
                     try:
                         response = client.create_built_in(payload=data, files=files)
                     except ClientAPIException as e:
-                        logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
+                        logger.error(f"Failed to create knowledge base: {format_client_api_error(e)}")
                         continue
                     
                     # Poll for import completion when documents are included
@@ -371,13 +343,13 @@ class KnowledgeBaseController:
                             # if kb.sync_job and kb_id:
                             #     self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
                     except ClientAPIException as e:
-                        logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
+                        logger.error(f"Failed to create knowledge base: {format_client_api_error(e)}")
                         continue
                     
                     # No polling needed when no documents are included
                     logger.info(f"Successfully imported knowledge base '{kb.name}'")
             except ClientAPIException as e:
-                logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
+                logger.error(f"Failed to create knowledge base: {format_client_api_error(e)}")
     
     def _poll_knowledge_base_status(
         self,

@@ -322,6 +322,20 @@ INTERNAL_REQUEST_HEADER_KEY = os.getenv("INTERNAL_REQUEST_HEADER_KEY", "x-watson
 INTERNAL_REQUEST_HEADER_VALUE = os.getenv("INTERNAL_REQUEST_HEADER_VALUE", "internal")
 
 
+def _get_ssl_verify() -> Union[str, bool]:
+    """Returns SSL certificate file path if SSL_CERT_FILE is set in environment, otherwise True."""
+    ssl_cert_file = os.getenv("SSL_CERT_FILE")
+    if ssl_cert_file:
+        if not os.path.isfile(ssl_cert_file):
+            logger.warning(
+                f"SSL_CERT_FILE is set to '{ssl_cert_file}' but the file does not exist. "
+                "Falling back to default SSL verification."
+            )
+            return True
+        return ssl_cert_file
+    return True
+
+
 class WXOFile(str):
 
     @classmethod
@@ -372,7 +386,12 @@ class WXOFile(str):
                 if tenant_id:
                     headers['X-Tenant-ID'] = tenant_id
 
-            res = requests.get(url, headers=headers if headers else None)
+            res = requests.get(
+                url,
+                headers=headers if headers else None,
+                timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
+                verify=_get_ssl_verify()
+            )
             return res.content
         except Exception as e:
             raise e
@@ -407,7 +426,8 @@ class WXOFile(str):
                 res = requests.get(url,
                                    headers=headers,
                                    timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
-                                   allow_redirects=False)
+                                   allow_redirects=False,
+                                   verify=_get_ssl_verify())
 
                 # If we get a redirect response (302), follow it manually to get S3 headers
                 if res.status_code == 302 and 'Location' in res.headers:
@@ -415,7 +435,8 @@ class WXOFile(str):
                     s3_url = res.headers['Location']
                     s3_res = requests.get(s3_url,
                                           headers={'Range': 'bytes=0-0'},
-                                          timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
+                                          timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
+                                          verify=_get_ssl_verify())
 
                     # Return S3 headers
                     return s3_res.headers
@@ -425,7 +446,8 @@ class WXOFile(str):
                 # For direct S3 URLs, use default behavior with automatic redirects
                 res = requests.get(url,
                                    headers=headers,
-                                   timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
+                                   timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
+                                   verify=_get_ssl_verify())
                 return res.headers
         except Exception as e:
             raise e

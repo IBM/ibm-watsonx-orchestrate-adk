@@ -1324,58 +1324,6 @@ def _make_client_api_exception(response_text=None, status_code=429):
 
 
 # ---------------------------------------------------------------------------
-# _extract_error_detail
-# ---------------------------------------------------------------------------
-
-class TestExtractErrorDetail:
-    """Unit tests for ToolkitController._extract_error_detail."""
-
-    def test_json_detail_string(self):
-        import json
-        exc = _make_client_api_exception(
-            response_text=json.dumps({"detail": "Maximum tool limit (40) reached for this tenant."})
-        )
-        tc = ToolkitController()
-        assert tc._extract_error_detail(exc) == "Maximum tool limit (40) reached for this tenant."
-
-    def test_json_detail_dict(self):
-        """detail can itself be a dict (quota payload); should be returned as-is."""
-        import json
-        detail_payload = {
-            "code": "RESOURCE_QUOTA_EXCEEDED",
-            "resource": "tool",
-            "current": 449,
-            "requested": 2,
-            "limit": 40,
-            "message": "Maximum tool limit (40) reached for this tenant.",
-        }
-        exc = _make_client_api_exception(response_text=json.dumps({"detail": detail_payload}))
-        tc = ToolkitController()
-        assert tc._extract_error_detail(exc) == detail_payload
-
-    def test_non_json_body(self):
-        exc = _make_client_api_exception(response_text="plain text error")
-        tc = ToolkitController()
-        assert tc._extract_error_detail(exc) == "plain text error"
-
-    def test_empty_body_falls_back_to_str(self):
-        exc = _make_client_api_exception(response_text="")
-        tc = ToolkitController()
-        # Empty text → outer try/except catches the falsy check, falls back to str(e)
-        result = tc._extract_error_detail(exc)
-        assert isinstance(result, str)
-
-    def test_no_response_falls_back_to_str(self):
-        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
-        # response=None causes __repr__ to blow up too; _extract_error_detail must not raise
-        exc = MagicMock(spec=ClientAPIException)
-        exc.response = None
-        tc = ToolkitController()
-        result = tc._extract_error_detail(exc)
-        assert isinstance(result, str)
-
-
-# ---------------------------------------------------------------------------
 # publish_toolkit — upload failure
 # ---------------------------------------------------------------------------
 

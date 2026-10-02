@@ -227,7 +227,7 @@ class DocExtConfig(BaseModel):
     llm: str = Field(description="The LLM used for the document extraction", default="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
-    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from pages within the specified range are extracted. Supported only when field_extraction_method='layout'.", default=None)
+    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from pages within the specified range are extracted.", default=None)
     
     @model_validator(mode='after')
     def validate_field_extraction_method(self) -> Self:
@@ -246,13 +246,6 @@ class DocExtConfig(BaseModel):
                         "'available_options' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
                     )
             
-            # Check for page_range
-            if self.page_range is not None:
-                raise ValueError(
-                    "page_range is only supported when field_extraction_method='layout'. "
-                    f"Current field_extraction_method is '{self.field_extraction_method}'."
-                )
-        
         return self
 
 class LanguageCode(StrEnum):
@@ -3227,6 +3220,9 @@ class FlowCallback(BaseModel):
         return model_spec
 
 
+UserRole = Literal["user", "builder", "admin"]
+
+
 class FlowSpec(NodeSpec):
     """
     FlowSpec represents the specification of a flow.
@@ -3238,6 +3234,12 @@ class FlowSpec(NodeSpec):
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
     schedulable: bool = False
+    # Minimum role required to schedule this flow.
+    # "user"    – any authenticated user may schedule it (default when unset).
+    # "builder" – only builders and admins may schedule it.
+    # "admin"   – only admins may schedule it.
+    # Has no effect unless schedulable=True.
+    schedulable_by_role: UserRole | None = None
     suppress_agent_summarization: bool | None = None
 
     # flow can have private schema
@@ -3261,6 +3263,8 @@ class FlowSpec(NodeSpec):
             model_spec["dimensions"] = {"width": self.dimensions.width, "height": self.dimensions.height}
         if self.schedulable:
             model_spec["schedulable"] = self.schedulable
+        if self.schedulable_by_role is not None:
+            model_spec["schedulable_by_role"] = self.schedulable_by_role
         if self.private_schema:
             model_spec["private_schema"] = _to_json_from_input_schema(self.private_schema)
         if self.context_window:

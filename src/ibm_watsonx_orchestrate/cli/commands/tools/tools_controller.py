@@ -1,3 +1,5 @@
+import json
+import jsonref
 import logging
 import importlib
 import inspect
@@ -15,7 +17,6 @@ from os import path
 from pathlib import Path
 from typing import Iterable, List, Any, Optional, cast
 import rich
-import json
 import glob
 
 import rich.table
@@ -44,6 +45,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.tools.builder_client import BuilderClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException, format_client_api_error
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
@@ -385,7 +387,15 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     return tools
 
 async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
-    tools = await create_openapi_json_tools_from_uri(file, connection_id)
+    try:
+        tools = await create_openapi_json_tools_from_uri(file, connection_id)
+    except jsonref.JsonRefError as e:
+        # _ssrf_safe_loader raises BadRequest for any external $ref; jsonref wraps
+        # it as JsonRefError.__cause__.  Re-raise as BadRequest here so the error
+        # surfaces cleanly at the import boundary in all execution contexts (CLI,
+        # MCP server, service) rather than propagating as an unhandled JsonRefError.
+        cause = e.__cause__ if e.__cause__ is not None else e
+        raise BadRequest(str(cause)) from e
     return tools
 
 async def import_langflow_tool(file: str, app_id: List[str] = None):    
@@ -859,34 +869,12 @@ class ToolsController:
         Returns:
             The ID of the published tool
         """
-        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
-        
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
         try:
             response = self.get_client().create(tool_spec)
         except ClientAPIException as e:
-            # Extract error message from response
-            error_msg = "Unknown error"
-            
-            try:
-                # Don't rely on truthiness of response object - check if it's not None
-                if e.response is not None and hasattr(e.response, 'text'):
-                    response_text = e.response.text
-                    if response_text:
-                        try:
-                            error_data = json.loads(response_text)
-                            error_msg = error_data.get('detail', response_text)
-                        except:
-                            error_msg = response_text
-                    else:
-                        error_msg = str(e)
-                else:
-                    error_msg = str(e)
-            except Exception:
-                error_msg = str(e)
-            
-            logger.error(f"Failed to create tool: {error_msg}")
+            logger.error(f"Failed to create tool: {format_client_api_error(e)}")
             sys.exit(1)
             
         tool_id = response.get("id")
