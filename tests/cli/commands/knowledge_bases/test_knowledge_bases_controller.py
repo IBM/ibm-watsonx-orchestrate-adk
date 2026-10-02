@@ -197,7 +197,7 @@ class MockClient:
     def get_by_names(self, names):
         return [{"name": "existing-knowledge-base", "id": self.expected_id}]
 
-    def validate_creds(self, connection_id, vector_index_type, url=None, port=None):
+    def validate_creds(self, connection_id, connection_type, url=None, port=None):
         pass
 
     
@@ -1270,7 +1270,7 @@ class TestValidateConnectionCreds:
         controller._validate_connection_creds(index_config)  # must not raise
         mock_client.validate_creds.assert_called_once_with(
             connection_id="conn-42",
-            vector_index_type="milvus",
+            connection_type="milvus",
             url="milvus.host",
             port="30564",
         )

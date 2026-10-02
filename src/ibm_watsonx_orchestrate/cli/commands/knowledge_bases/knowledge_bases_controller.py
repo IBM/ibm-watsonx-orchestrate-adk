@@ -167,7 +167,7 @@ class KnowledgeBaseController:
         url, port = self.get_url_and_port_from_index_config(index_config)
 
         try:
-            self.get_client().validate_creds(connection_id=connection_id, vector_index_type=vector_index_type, url=url, port=port)
+            self.get_client().validate_creds(connection_id=connection_id, connection_type=vector_index_type, url=url, port=port)
         except ClientAPIException as e:
             raise ValueError(f"Connection credential validation failed: {format_client_api_error(e)}")
 
