@@ -260,7 +260,7 @@ Before declaring done:
 - [ ] Section 2 exists and covers every stated requirement
 - [ ] Section 3 exists and covers edge cases from the static trace
 - [ ] Every test has exactly one action
-- [ ] Every test has a docstring
+- [ ] Every test has an inline comment or docstring explaining the why
 - [ ] No setup code is duplicated across tests — it lives in fixtures
 - [ ] All tests pass: `pytest tests/<path>/test_<feature>.py -v`
 - [ ] No tests are skipped or marked xfail
