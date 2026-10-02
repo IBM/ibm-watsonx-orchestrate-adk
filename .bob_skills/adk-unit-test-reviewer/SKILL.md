@@ -346,8 +346,9 @@ When writing findings, follow these rules:
 
 ## Reference
 
-Gold-standard example in this repo:
-`tests/mcp_server/test_environment_mcp_tools.py`
+Use the template in the generator skill as the benchmark:
+`.bob_skills/adk-unit-test-generator/example_test_template.py`
 
-Use this file as the benchmark when a finding is borderline. If the submitted
-tests match this file's level of structure and specificity, that is a pass.
+When a finding is borderline, check whether the submitted tests match the
+structure and specificity demonstrated in that template. If they do, that is
+a pass.

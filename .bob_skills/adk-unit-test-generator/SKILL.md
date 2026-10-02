@@ -269,15 +269,10 @@ Before declaring done:
 
 ## Reference
 
-Gold-standard example in this repo:
-`tests/mcp_server/test_environment_mcp_tools.py`
+A generalised template is available alongside this skill:
+`.bob_skills/adk-unit-test-generator/example_test_template.py`
 
-- Module-level `MOCK_ENVS` constant + `mock_config` fixture → Section 1 (Arrange)
-- `mock_config` fixture has a docstring; test methods use inline comments
-- `TestListEnvironments`, `TestAddEnvironment`, etc. → Section 2 (Requirement tests),
-  one class per tool, with a class-level comment explaining the patching convention
-- `test_no_active_environment`, `test_add_insecure_and_verify_raises`,
-  `test_add_missing_required_name_raises` → Section 3 style (edge / error paths)
-- Every test targets exactly one behaviour; inline comments explain the *why*
-- `assert_called_once_with()` used to verify full call contracts including
-  argument renames between layers (e.g. MCP `activate` → controller `should_activate`)
+It demonstrates all three sections, fixture conventions, inline comment style,
+`assert_called_once_with()` usage, and edge case structure. Use it as the
+starting point for any new test file. Replace all `<placeholder>` comments and
+`your.module` references with the actual module being tested.
