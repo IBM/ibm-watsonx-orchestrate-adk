@@ -6,8 +6,9 @@ from typing import Any, Dict, List, Optional
 from ibm_cloud_sdk_core.authenticators import Authenticator
 from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev
 from ibm_watsonx_orchestrate_sdk.client import Client
-from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession, ExecutionContext
+from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession, ExecutionContext, build_runs_elsewhere_session
 from langchain_openai import OpenAIEmbeddings
+import os
 
 
 class WxOEmbeddings(OpenAIEmbeddings):
@@ -144,8 +145,29 @@ class WxOEmbeddings(OpenAIEmbeddings):
         if is_local_dev(agentic_session.base_url):
             local = True
 
+
+        # When running runs-on inside Developer Edition with WO_INSTANCE, build token from WO_API_KEY
+        # Don't reassign self._session because the session is still runs-on
+        wo_instance = os.environ.get("WO_INSTANCE")
+        wo_api_key = os.environ.get("WO_API_KEY")
+        saas_authenticator = None  # assigned to self._saas_authenticator after super().__init__()
+        if (agentic_session.mode == "runs-on"
+                and wo_instance
+                and wo_api_key
+                and local):
+            saas_session = build_runs_elsewhere_session(
+                instance_url=wo_instance,
+                api_key=wo_api_key,
+                verify=verify,
+            )
+            saas_authenticator = saas_session.authenticator
+    
+
         # Extract authentication token
-        if agentic_session.access_token:
+        if saas_authenticator:
+            # Developer Edition + WO_INSTANCE: get a real IAM token for the SaaS gateway
+            auth_key = saas_authenticator.token_manager.get_token()
+        elif agentic_session.access_token:
             auth_key = agentic_session.access_token
         elif agentic_session.authenticator:
             # For runs-elsewhere mode, we need to get token from authenticator
@@ -176,11 +198,14 @@ class WxOEmbeddings(OpenAIEmbeddings):
         # - local: {instance_url}/api/v1 -> need to add /orchestrate
         # - runs-elsewhere: {instance_url}/v1/orchestrate
         # - runs-on: {api_proxy_url}/instances/orchestrate/v1/orchestrate
-        api_base_url = f"{agentic_session.base_url}"
-        if local or agentic_session.mode == "local":
-            api_base_url += "/orchestrate"
-        # add model endpoint path to URL
-        api_base_url += "/gateway/model"
+        if agentic_session.mode == "runs-on" and wo_instance and wo_api_key and local:
+            api_base_url = f"{wo_instance.rstrip('/')}/v1/orchestrate/gateway/model"
+        else:
+            api_base_url = f"{agentic_session.base_url}"
+            if local or agentic_session.mode == "local":
+                api_base_url += "/orchestrate"
+            # add model endpoint path to URL
+            api_base_url += "/gateway/model"
 
         # Configure HTTP client with SSL verification settings
         # For runs-on mode, verify is typically False to allow internal cluster communication
@@ -201,6 +226,7 @@ class WxOEmbeddings(OpenAIEmbeddings):
         # Set instance attributes AFTER super().__init__() for Pydantic v2 compatibility
         self._client = client_instance
         self._session = agentic_session
+        self._saas_authenticator = saas_authenticator
         self._user_id = user_id_value
         self._tenant_id = tenant_id_value
 
@@ -217,8 +243,10 @@ class WxOEmbeddings(OpenAIEmbeddings):
         """
         # For runs-elsewhere mode with authenticator, get fresh token
         if self._session.authenticator:
-            token = self._session.authenticator.token_manager.get_token()
-            return token
+            # runs-on + Developer Edition: local token is invalid for SaaS gateway, use IAM token
+            return self._session.authenticator.token_manager.get_token()
+        elif self._saas_authenticator:
+            return self._saas_authenticator.token_manager.get_token()
         # For runs-on and local modes, use access_token from session
         elif self._session.access_token:
             return self._session.access_token
