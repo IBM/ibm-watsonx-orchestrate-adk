@@ -9,6 +9,7 @@ import logging
 
 from pydantic import TypeAdapter, BaseModel
 
+from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
@@ -187,6 +188,16 @@ class PythonTool(BaseTool):
         self.response_format = response_format
 
     def __call__(self, *args, **kwargs):
+        # __call__ is intentionally a regular (sync) def even when self.fn is
+        # async.  Making it ``async def`` would cause inspect.iscoroutinefunction()
+        # on the *PythonTool instance* to return False (Python only checks the raw
+        # code-object flag, not the bound __call__ method), so the TRM server's
+        # iscoroutinefunction(func) guard would silently fall through to
+        # run_in_executor and the coroutine would never be awaited.
+        #
+        # Instead, async functions are driven to completion here via
+        # run_coroutine_sync().  See async_helpers.py for the deadlock caveat
+        # that applies when called from a thread-pool thread (TRM path).
 
         run_context_param = self.get_run_param()
         context_object = None
@@ -197,8 +208,10 @@ class PythonTool(BaseTool):
                 context_object = self.__parse_context_param(context_param_value)
                 kwargs[run_context_param] = context_object
 
-
-        result = self.fn(*args, **kwargs)
+        if inspect.iscoroutinefunction(self.fn):
+            result = run_coroutine_sync(self.fn(*args, **kwargs))
+        else:
+            result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
         return ToolResponse(content=result,context_updates=context_updates)
