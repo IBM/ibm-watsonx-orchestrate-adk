@@ -56,4 +56,19 @@ Each run generates a timestamp-based tag (e.g. `v-20261005-143022-s3`) so repeat
 | `FEATURE_ARM_PUSH` | `true` | Must be `true` to enable the CLI commands |
 | `WORKLOAD_NAME` | `arm-test-agent` | Workload name registered with ARM |
 | `WORKLOAD_TYPE` | `agent` | One of: `agent`, `mcp_toolkit`, `guardrails`, `eval` |
+| `ARCHIVE_PATH` | `/tmp/arm-test-agent.tar` | Local path for the exported Docker tar archive |
 | `SOURCE_IMAGE` | `docker.io/library/hello-world:latest` | OCI image reference for the registry push step |
+
+## Confirming the image works end-to-end
+
+After a successful push, verify the deployed workload responds correctly:
+
+```bash
+# Liveness check
+curl -s http://<workload-host>/health
+
+# Chat invoke — should return {"reply": "Hello, World!"}
+curl -s -X POST http://<workload-host>/chat \
+     -H "Content-Type: application/json" \
+     -d '{"message": "say hello"}' | jq .reply
+```

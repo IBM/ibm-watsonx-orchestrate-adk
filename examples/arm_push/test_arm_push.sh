@@ -28,7 +28,7 @@ FEATURE_ARM_PUSH="${FEATURE_ARM_PUSH:-true}"
 WORKLOAD_NAME="${WORKLOAD_NAME:-arm-test-agent}"
 WORKLOAD_TYPE="${WORKLOAD_TYPE:-agent}"
 IMAGE_NAME="arm-test-agent:latest"
-ARCHIVE_PATH="/tmp/arm-test-agent.tar"
+ARCHIVE_PATH="${ARCHIVE_PATH:-/tmp/arm-test-agent.tar}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKERFILE_DIR="${SCRIPT_DIR}/agent-image"
 

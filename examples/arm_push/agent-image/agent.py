@@ -1,8 +1,12 @@
 """Minimal stub agent used as the ARM image deliverable for integration testing.
 
-Exposes a single /health endpoint so ARM can confirm the image is runnable.
+Exposes:
+  GET  /health  — liveness check so ARM can confirm the container is running.
+  POST /chat    — minimal invoke endpoint returning a fixed greeting, so the
+                  image can be pushed and confirmed end-to-end with a single
+                  curl call.
 """
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
@@ -12,5 +16,12 @@ def health():
     return jsonify({"status": "ok", "agent": "arm-test-agent"})
 
 
+@app.route("/chat", methods=["POST"])
+def chat():
+    return jsonify({"reply": "Hello, World!"})
+
+
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8080)
+    # Bind to 0.0.0.0 so ARM can reach the container over the pod network.
+    # 127.0.0.1 would only be reachable from within the container itself.
+    app.run(host="0.0.0.0", port=8080)  # noqa: S104
