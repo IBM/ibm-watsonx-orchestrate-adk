@@ -1132,46 +1132,6 @@ class AgentsController:
 
         return ref_agent
 
-    def dereference_skills(self, agent: Agent) -> Agent:
-        """Resolve skill names to IDs for agent import/binding."""
-        skills_controller = self.get_skills_controller()
-
-        deref_agent = deepcopy(agent)
-
-        all_skills = skills_controller.get_all_skills()
-        name_id_lookup = {s["name"]: s["id"] for s in all_skills}
-
-        deref_skills = []
-        for name in agent.skills:
-            skill_id = name_id_lookup.get(name)
-            if not skill_id:
-                logger.error(f"Failed to find skill. No skill found with the name '{name}'.")
-                sys.exit(1)
-            deref_skills.append(skill_id)
-
-        deref_agent.skills = deref_skills
-        return deref_agent
-
-    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
-        """Resolve skill IDs back to names for agent export."""
-        skills_controller = self.get_skills_controller()
-
-        ref_agent = deepcopy(agent)
-
-        all_skills = skills_controller.get_all_skills(workspace_id)
-        id_name_lookup = {s["id"]: s["name"] for s in all_skills}
-
-        ref_skills = []
-        for skill_id in agent.skills:
-            name = id_name_lookup.get(skill_id)
-            if not name:
-                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'.")
-                sys.exit(1)
-            ref_skills.append(name)
-
-        ref_agent.skills = ref_skills
-        return ref_agent
-
     def dereference_toolkits(self, agent: Agent) -> Agent:
         client = self.get_toolkit_client()
 
@@ -1380,9 +1340,6 @@ class AgentsController:
             agent = self.reference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits):
             agent = self.reference_toolkits(agent)
-        if agent.skills and len(agent.skills):
-            agent = self.reference_skills(agent, workspace_id=workspace_id)
-
         return agent
     
     def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
