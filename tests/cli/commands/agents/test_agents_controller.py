@@ -2069,13 +2069,23 @@ class TestNativeAgentDependenciesSkills:
             skills=skills,
         )
 
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _mock_sc(self):
+        """Return a MagicMock skills controller whose get_all_skills returns MOCK_SKILLS.
+
+        Patching get_skills_controller() prevents SkillsController.__init__ from
+        ever running (which would call instantiate_client and require an active env).
+        """
+        return MagicMock(get_all_skills=MagicMock(return_value=MOCK_SKILLS))
+
     # ── reference_skills (export: UUID/name → canonical name) ────────────────
 
     def test_reference_skills_names_pass_through(self):
         """Skills that are already names come out unchanged."""
         agent = self._make_agent(["skill-one", "skill-two"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             result = ac.reference_skills(agent)
         assert result.skills == ["skill-one", "skill-two"]
 
@@ -2083,7 +2093,7 @@ class TestNativeAgentDependenciesSkills:
         """Skills stored as UUIDs are resolved to their canonical names."""
         agent = self._make_agent(["uuid-skill-one", "uuid-skill-two"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             result = ac.reference_skills(agent)
         assert result.skills == ["skill-one", "skill-two"]
 
@@ -2091,7 +2101,7 @@ class TestNativeAgentDependenciesSkills:
         """Mixed list of UUIDs and names is resolved entirely to names."""
         agent = self._make_agent(["uuid-skill-one", "skill-two"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             result = ac.reference_skills(agent)
         assert result.skills == ["skill-one", "skill-two"]
 
@@ -2099,7 +2109,7 @@ class TestNativeAgentDependenciesSkills:
         """An entry matching neither a known UUID nor name causes sys.exit(1)."""
         agent = self._make_agent(["bb-cartoes-bloqueio"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             with pytest.raises(SystemExit):
                 ac.reference_skills(agent)
 
@@ -2109,7 +2119,7 @@ class TestNativeAgentDependenciesSkills:
         """Skills stored as names are resolved to their UUIDs."""
         agent = self._make_agent(["skill-one", "skill-two"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             result = ac.dereference_skills(agent)
         assert result.skills == ["uuid-skill-one", "uuid-skill-two"]
 
@@ -2117,7 +2127,7 @@ class TestNativeAgentDependenciesSkills:
         """Skills already stored as UUIDs come out unchanged."""
         agent = self._make_agent(["uuid-skill-one", "uuid-skill-two"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             result = ac.dereference_skills(agent)
         assert result.skills == ["uuid-skill-one", "uuid-skill-two"]
 
@@ -2125,7 +2135,7 @@ class TestNativeAgentDependenciesSkills:
         """An entry matching neither a known name nor UUID causes sys.exit(1)."""
         agent = self._make_agent(["does-not-exist"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             with pytest.raises(SystemExit):
                 ac.dereference_skills(agent)
 
@@ -2142,7 +2152,10 @@ class TestNativeAgentDependenciesSkills:
         """Empty skills list does not trigger reference_skills."""
         agent = self._make_agent([])
         ac = AgentsController()
-        result = ac.reference_native_agent_dependencies(agent)
+        # reference_tools is always called (plugins defaults to non-None); mock it out
+        # so the test stays env-independent and focused on skill wiring only.
+        with patch.object(ac, "reference_tools", side_effect=lambda a, **kwargs: a):
+            result = ac.reference_native_agent_dependencies(agent)
         assert result.skills == []
 
     def test_reference_native_agent_dependencies_resolves_skills(self):
@@ -2150,7 +2163,7 @@ class TestNativeAgentDependenciesSkills:
         agent = self._make_agent(["uuid-skill-one"])
         ac = AgentsController()
         with patch.object(ac, "reference_tools", side_effect=lambda a, **kwargs: a), \
-             patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+             patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             result = ac.reference_native_agent_dependencies(agent)
         assert result.skills == ["skill-one"]
 
@@ -2158,7 +2171,7 @@ class TestNativeAgentDependenciesSkills:
         """dereference_native_agent_dependencies calls dereference_skills when skills are present."""
         agent = self._make_agent(["skill-one"])
         ac = AgentsController()
-        with patch.object(ac.get_skills_controller(), "get_all_skills", return_value=MOCK_SKILLS):
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
             result = ac.dereference_native_agent_dependencies(agent)
         assert result.skills == ["uuid-skill-one"]
 
