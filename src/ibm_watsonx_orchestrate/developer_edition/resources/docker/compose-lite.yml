@@ -103,6 +103,7 @@ services:
     ports:
       - "8005:8005"
     environment:
+      ALLOW_PRIVATE_SEARCH_IP: true
       WXO_SERVER_BASE_URL: http://wxo-server:4321
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
@@ -607,10 +608,17 @@ services:
       langfuse-worker:
         condition: service_started
         required: False
+      wxo-opensearch-knowledge:
+        condition: service_healthy
+        required: False
     networks:
       - default
       - jaeger-network
     environment:
+      OPENSEARCH_VERIFY_CERTS: ${OPENSEARCH_VERIFY_CERTS:-false}
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-https://wxo-opensearch-knowledge:9200}
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
       DEFAULT_AGENT_ENABLED: "true"
       DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
@@ -783,6 +791,9 @@ services:
       langfuse-worker:
         condition: service_started
         required: False
+      wxo-opensearch-knowledge:
+        condition: service_healthy
+        required: False
     volumes:
       - ./sdk:/packages
       - tools:/tools
@@ -791,6 +802,10 @@ services:
       - default
       - jaeger-network
     environment:
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-https://wxo-opensearch-knowledge:9200}
+      OPENSEARCH_VERIFY_CERTS: ${OPENSEARCH_VERIFY_CERTS:-false}
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
@@ -957,6 +972,29 @@ services:
       timeout: 5s
       retries: 20
       start_period: 20s
+
+  wxo-opensearch-knowledge:
+    profiles: [knowledge-use-opensearch]
+    image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_KNOWLEDGE_TAG:-3.4.0}
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - cluster.blocks.create_index=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
+    ports:
+      - "${OPENSEARCH_HOST_PORT_KNOWLEDGE:-9205}:9200"
+    volumes:
+      - wxo-opensearch-knowledge-data:/usr/share/opensearch/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "curl -skf -u ${OPENSEARCH_USERNAME:-admin}:${OPENSEARCH_PASSWORD} https://localhost:9200/_cluster/health | grep -q '\"status\":\"\\(green\\|yellow\\)\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 
   wxo-agentic-memory:
     image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
@@ -1924,6 +1962,7 @@ volumes:
     driver: local
   es_data:
   opensearch_data:
+  wxo-opensearch-knowledge-data:
   langflow-data:
 
 networks:
