@@ -16,30 +16,30 @@ from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIExceptio
 def client():
     # ARM_SERVER_URL not set → falls back to the local default.
     # api_key value is a placeholder — not a real credential.
-    return ARMClient(base_url="http://localhost:8080", api_key="test-token", is_local=True)  # noqa: S106
+    return ARMClient(base_url="http://localhost:8080", api_key="test-token", is_local=True)  # noqa: S106  # pragma: allowlist secret
 
 
 class TestARMClientBaseUrl:
     def test_default_local_base_url(self):
         """Without ARM_SERVER_URL the client uses the local default."""
-        c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=True)
+        c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=True)  # pragma: allowlist secret
         assert c.base_url == f"{_DEFAULT_LOCAL_SERVER_URL}/{_ARM_PATH}"
 
     def test_base_url_from_env_var(self):
         """ARM_SERVER_URL overrides the default server URL."""
         custom = "https://dev-conn.example.com/api"
         with patch.dict(os.environ, {"ARM_SERVER_URL": custom}):
-            c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=False)
+            c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=False)  # pragma: allowlist secret
         assert c.base_url == f"{custom}/{_ARM_PATH}"
 
     def test_env_var_trailing_slash_stripped(self):
         """Trailing slash on ARM_SERVER_URL is stripped before appending the path."""
         with patch.dict(os.environ, {"ARM_SERVER_URL": "https://host/api/"}):
-            c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=False)
+            c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=False)  # pragma: allowlist secret
         assert "//" not in c.base_url.replace("https://", "")
 
     def test_base_url_contains_arm_path(self):
-        c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=True)  # noqa: S106
+        c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=True)  # noqa: S106  # pragma: allowlist secret
         assert c.base_url.endswith(f"/{_ARM_PATH}")
 
 
