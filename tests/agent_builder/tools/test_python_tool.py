@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Optional, List, Dict
 
@@ -179,3 +180,90 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
         assert "incorrect type for parameter 'task_results'" in str(e)
     else:
         assert False, "Expected error was not raised"
+
+
+# ---------------------------------------------------------------------------
+# Async tool tests
+# PythonTool.__call__ is a regular (sync) def that internally runs async
+# functions to completion via run_coroutine_sync, so callers do not need
+# to await the result.
+# ---------------------------------------------------------------------------
+
+def test_async_tool_naked_decorator():
+    @tool
+    async def my_tool():
+        """The async description"""
+        return 42
+
+    result = my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == 42
+
+
+def test_async_tool_with_params():
+    @tool(name="async_named_tool", description="An async tool with params")
+    async def my_tool(x: int) -> int:
+        return x * 2
+
+    spec = json.loads(my_tool.dumps_spec())
+    assert spec["name"] == "async_named_tool"
+    assert spec["description"] == "An async tool with params"
+
+    result = my_tool(x=5)
+    assert isinstance(result, ToolResponse)
+    assert result.content == 10
+
+
+def test_async_tool_with_asyncio_sleep():
+    @tool
+    async def my_tool():
+        """Async tool that does real async work"""
+        await asyncio.sleep(0)
+        return "done"
+
+    result = my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == "done"
+
+
+def test_sync_tool_still_works_after_async_change():
+    @tool
+    def my_tool():
+        """A plain sync tool"""
+        return "sync_result"
+
+    result = my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == "sync_result"
+
+
+def test_async_tool_with_agent_run_context():
+    """async def tool that also uses an AgentRun context parameter.
+
+    Exercises the interaction between the run_context_param injection path
+    (lines 192-199 of python_tool.py) and the iscoroutinefunction branch,
+    which were previously only tested independently.
+    """
+    from ibm_watsonx_orchestrate.run.context import AgentRun
+
+    captured = {}
+
+    @tool(name="async_context_tool", description="Async tool with context")
+    async def my_tool(value: str, context: AgentRun) -> str:
+        """Async tool that inspects its context.
+
+        Args:
+            value: Input value
+            context: The agent run context
+
+        Returns:
+            The input value echoed back
+        """
+        captured["had_context"] = isinstance(context, AgentRun)
+        await asyncio.sleep(0)
+        return f"got: {value}"
+
+    result = my_tool(value="hello", context=AgentRun())
+    assert isinstance(result, ToolResponse)
+    assert result.content == "got: hello"
+    assert captured["had_context"] is True
