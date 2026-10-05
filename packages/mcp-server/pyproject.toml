@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["ibm_watsonx_orchestrate_mcp_server"]
 package-data = true
 
 [tool.hatch.build.targets.wheel.force-include]
@@ -30,7 +30,7 @@ package-data = true
 
 [tool.hatch.build]
 include = [
-    "./*"
+    "ibm_watsonx_orchestrate_mcp_server/**"
 ]
 directory="../../dist"
 
