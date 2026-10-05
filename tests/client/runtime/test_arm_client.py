@@ -15,7 +15,8 @@ from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIExceptio
 @pytest.fixture
 def client():
     # ARM_SERVER_URL not set → falls back to the local default.
-    return ARMClient(base_url="http://localhost:8080", api_key="test-token", is_local=True)
+    # api_key value is a placeholder — not a real credential.
+    return ARMClient(base_url="http://localhost:8080", api_key="test-token", is_local=True)  # noqa: S106
 
 
 class TestARMClientBaseUrl:
@@ -38,7 +39,7 @@ class TestARMClientBaseUrl:
         assert "//" not in c.base_url.replace("https://", "")
 
     def test_base_url_contains_arm_path(self):
-        c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=True)
+        c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=True)  # noqa: S106
         assert c.base_url.endswith(f"/{_ARM_PATH}")
 
 
