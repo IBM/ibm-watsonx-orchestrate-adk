@@ -385,6 +385,7 @@ class EnvService:
             "MCP_GATEWAY_ADMIN_PASSWORD",
             "ES_PASSWORD",
             "MILVUS_PASSWORD",
+            "OPENSEARCH_PASSWORD",
             "CLICKHOUSE_PASSWORD",
             "TAVILY_API_KEY", #May not be needed
             "RUNTIME_MANAGER_API_KEY",
