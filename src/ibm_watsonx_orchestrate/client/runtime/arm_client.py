@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 
@@ -26,10 +26,20 @@ _DEFAULT_LOCAL_SERVER_URL = "http://localhost:8080/api"
 class ARMClient(BaseWXOClient):
     """HTTP client for the ARM Placement Engine API.
 
-    The base URL is built as ``{ARM_SERVER_URL}/{_ARM_PATH}``, where
-    ``ARM_SERVER_URL`` defaults to ``http://localhost:8080/api`` for local
-    development and must be overridden via the ``ARM_SERVER_URL`` environment
-    variable for non-local environments (e.g. dev-conn staging).
+    **Base URL**: built as ``{ARM_SERVER_URL}/{_ARM_PATH}`` where
+    ``ARM_SERVER_URL`` is read from the environment (default:
+    ``http://localhost:8080/api`` for local development).  Set
+    ``ARM_SERVER_URL`` to point at a non-local ARM instance (e.g. dev-conn).
+
+    .. note::
+        The ``base_url``, ``api_key``, and ``is_local`` constructor arguments
+        are required by ``BaseWXOClient`` and are forwarded to it unchanged,
+        but they have **no effect on the ARM base URL**.  ``BaseWXOClient``
+        appends a WxO-specific path to ``base_url`` and stores the result in
+        ``self.base_url``; ARMClient immediately overwrites ``self.base_url``
+        with the ARM-specific URL derived from ``ARM_SERVER_URL``.  The WxO
+        orchestrate URL is irrelevant to ARM — only ``ARM_SERVER_URL``
+        controls which ARM server is targeted.
 
     Covers the three calls the ADK needs for the image-push flow:
 
@@ -55,9 +65,9 @@ class ARMClient(BaseWXOClient):
             verify=verify,
             authenticator=authenticator,
         )
-        # ARM has its own server URL independent of the WxO orchestrate API.
-        # ARM_SERVER_URL carries the mutable host+prefix (e.g. https://host/api);
-        # _ARM_PATH is the stable ARM segment appended to it.
+        # ARM_SERVER_URL is the sole authority for the ARM base URL.
+        # BaseWXOClient sets self.base_url to a WxO orchestrate URL — we
+        # immediately overwrite it here with the ARM-specific URL.
         server_url = os.environ.get("ARM_SERVER_URL", _DEFAULT_LOCAL_SERVER_URL).rstrip("/")
         self.base_url = f"{server_url}/{_ARM_PATH}"
 
@@ -88,7 +98,12 @@ class ARMClient(BaseWXOClient):
         basename = Path(filename).name
         return self._post(f"/upload_files/{basename}")
 
-    def upload_to_s3(self, upload_url: str, file_path: str) -> None:
+    def upload_to_s3(
+        self,
+        upload_url: str,
+        file_path: str,
+        progress_callback: Optional[Callable[[int], None]] = None,
+    ) -> None:
         """Stream a local file to S3 using a presigned PUT URL.
 
         The presigned URL already contains the SigV4 signature in its query
@@ -96,8 +111,11 @@ class ARMClient(BaseWXOClient):
         invalidate the signature.
 
         Args:
-            upload_url: The ``upload_url`` value returned by ``get_upload_url``.
-            file_path:  Local path to the archive to upload.
+            upload_url:         The ``upload_url`` value returned by ``get_upload_url``.
+            file_path:          Local path to the archive to upload.
+            progress_callback:  Optional callable invoked with the number of bytes
+                                sent after each chunk.  Used by the CLI to drive a
+                                live progress bar.
 
         Raises:
             requests.HTTPError: if S3 rejects the upload.
@@ -115,12 +133,19 @@ class ARMClient(BaseWXOClient):
                     chunk = fh.read(_UPLOAD_CHUNK_SIZE)
                     if not chunk:
                         break
+                    if progress_callback is not None:
+                        progress_callback(len(chunk))
                     yield chunk
 
         response = requests.put(
             upload_url,
             data=_file_chunks(),
-            headers={"Content-Length": str(file_size)},
+            headers={
+                "Content-Length": str(file_size),
+                # Explicit Content-Type guards against presigned URLs that sign
+                # the Content-Type header — omitting it would cause a 403.
+                "Content-Type": "application/octet-stream",
+            },
             # No Authorization header — signature is in the URL query string.
         )
         response.raise_for_status()

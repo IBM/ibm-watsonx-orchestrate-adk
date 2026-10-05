@@ -89,6 +89,56 @@ class TestUploadToS3:
         headers = call_kwargs[1].get("headers", {})
         assert "Authorization" not in headers
 
+    def test_sends_content_type_header(self, client, tmp_path):
+        """Content-Type: application/octet-stream must be sent on every upload."""
+        archive = tmp_path / "agent.tar.gz"
+        archive.write_bytes(b"fake-tar-content")
+
+        with patch("requests.put") as mock_put:
+            mock_put.return_value = MagicMock(status_code=200)
+            mock_put.return_value.raise_for_status = MagicMock()
+            client.upload_to_s3("https://s3.example.com/url", str(archive))
+
+        headers = mock_put.call_args[1].get("headers", {})
+        assert headers.get("Content-Type") == "application/octet-stream"
+
+    def test_progress_callback_invoked_per_chunk(self, client, tmp_path):
+        """progress_callback must be called with byte counts that sum to the file size."""
+        # Write data larger than one chunk to exercise multi-chunk path.
+        data = b"x" * (8 * 1024 * 1024 + 1)  # 8 MB + 1 byte → two chunks
+        archive = tmp_path / "agent.tar"
+        archive.write_bytes(data)
+
+        received: list[int] = []
+
+        def _consuming_put(url, data, headers):
+            # Exhaust the generator so the callback fires for each chunk.
+            for _ in data:
+                pass
+            resp = MagicMock(status_code=200)
+            resp.raise_for_status = MagicMock()
+            return resp
+
+        with patch("requests.put", side_effect=_consuming_put):
+            client.upload_to_s3(
+                "https://s3.example.com/url",
+                str(archive),
+                progress_callback=lambda n: received.append(n),
+            )
+
+        assert sum(received) == len(data)
+        assert len(received) == 2  # 8 MB chunk + 1 byte remainder
+
+    def test_progress_callback_none_by_default(self, client, tmp_path):
+        """Omitting progress_callback must not raise."""
+        archive = tmp_path / "agent.tar"
+        archive.write_bytes(b"data")
+
+        with patch("requests.put") as mock_put:
+            mock_put.return_value = MagicMock(status_code=200)
+            mock_put.return_value.raise_for_status = MagicMock()
+            client.upload_to_s3("https://s3.example.com/url", str(archive))  # no callback
+
     def test_raises_file_not_found_for_missing_file(self, client):
         with pytest.raises(FileNotFoundError, match="not found"):
             client.upload_to_s3("https://s3.example.com/url", "/nonexistent/path.tar")

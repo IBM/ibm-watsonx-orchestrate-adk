@@ -75,6 +75,13 @@ class TestValidateArchivePath:
         with pytest.raises(ValueError, match="Unsupported file extension"):
             RuntimeController._validate_archive_path(f)
 
+    def test_rejects_sql_gz(self, tmp_path):
+        """agent.sql.gz must be rejected — only .tar.gz is valid, not arbitrary .gz."""
+        f = tmp_path / "agent.sql.gz"
+        f.write_bytes(b"x")
+        with pytest.raises(ValueError, match="Unsupported file extension"):
+            RuntimeController._validate_archive_path(f)
+
     def test_rejects_missing_file(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             RuntimeController._validate_archive_path(tmp_path / "missing.tar")
@@ -179,10 +186,11 @@ class TestPushImageS3:
             )
 
         mock_client.get_upload_url.assert_called_once_with("agent.tar.gz")
-        mock_client.upload_to_s3.assert_called_once_with(
-            "https://s3.example.com/bucket/key?sig=x",
-            str(archive),
-        )
+        # upload_to_s3 is called with a progress_callback kwarg from the controller
+        upload_call = mock_client.upload_to_s3.call_args
+        assert upload_call[0][0] == "https://s3.example.com/bucket/key?sig=x"
+        assert upload_call[0][1] == str(archive)
+        assert callable(upload_call[1].get("progress_callback"))
         mock_client.register_workload.assert_called_once()
         registered_payload = mock_client.register_workload.call_args[0][0]
         assert registered_payload["source_type"] == SOURCE_TYPE_S3

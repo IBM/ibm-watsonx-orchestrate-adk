@@ -1,11 +1,11 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import NoReturn, Optional
 
 import requests
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TransferSpeedColumn, TimeRemainingColumn
 
 from ibm_watsonx_orchestrate.client.runtime.arm_client import ARMClient
 from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException, format_client_api_error
@@ -14,7 +14,9 @@ from ibm_watsonx_orchestrate_clients.common.utils import instantiate_client
 logger = logging.getLogger(__name__)
 
 # Supported archive extensions for S3 upload.
-_VALID_EXTENSIONS = {".tar", ".gz", ".tgz"}
+# .tar.gz files have path.suffix == ".gz" and path.suffixes[-2:] == [".tar", ".gz"].
+_VALID_EXTENSIONS = {".tar", ".tgz"}
+_VALID_DOUBLE_SUFFIXES = {(".tar", ".gz")}
 
 # Valid workload types per ARM ADR.
 VALID_WORKLOAD_TYPES = {"agent", "mcp_toolkit", "guardrails", "eval"}
@@ -110,13 +112,12 @@ class RuntimeController:
             f"Uploading {filename} ({file_size_mb:.1f} MB)..."
         )
 
-        # Step 2 — stream file to S3
+        # Step 2 — stream file to S3 with live progress
         try:
             with Progress(
                 SpinnerColumn(spinner_name="dots"),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
-                DownloadColumn(),
                 TransferSpeedColumn(),
                 TimeRemainingColumn(),
                 console=console,
@@ -125,8 +126,11 @@ class RuntimeController:
                     description=f"Uploading {filename}...",
                     total=image_path.stat().st_size,
                 )
-                client.upload_to_s3(upload_url, str(image_path))
-                progress.update(task, completed=image_path.stat().st_size)
+
+                def _on_chunk(n_bytes: int) -> None:
+                    progress.advance(task, n_bytes)
+
+                client.upload_to_s3(upload_url, str(image_path), progress_callback=_on_chunk)
         except requests.HTTPError as e:
             logger.error(
                 f"S3 upload failed (HTTP {e.response.status_code}): {e.response.text}"
@@ -250,7 +254,7 @@ class RuntimeController:
         return result
 
     @staticmethod
-    def _handle_register_error(e: ClientAPIException, workload_name: str, tag: str) -> None:
+    def _handle_register_error(e: ClientAPIException, workload_name: str, tag: str) -> NoReturn:
         """Translate ARM error codes into user-friendly messages, then exit."""
         response = getattr(e, "response", None)
         code = ""
@@ -288,11 +292,14 @@ class RuntimeController:
             raise FileNotFoundError(f"Image archive not found: {path}")
         if not path.is_file():
             raise ValueError(f"Expected a file, got a directory: {path}")
-        suffix = path.suffix.lower()
-        # Accept .tar, .tgz, and .tar.gz (which has suffix .gz)
-        if suffix not in _VALID_EXTENSIONS:
+        # Check both the last suffix (.tar, .tgz) and the last two suffixes
+        # (.tar.gz) so that e.g. agent.sql.gz is rejected with a clear message
+        # rather than passing through as ".gz" and failing server-side.
+        suffixes = tuple(s.lower() for s in path.suffixes[-2:])
+        last = suffixes[-1] if suffixes else ""
+        if last not in _VALID_EXTENSIONS and suffixes not in _VALID_DOUBLE_SUFFIXES:
             raise ValueError(
-                f"Unsupported file extension '{suffix}'. "
+                f"Unsupported file extension '{path.name}'. "
                 f"Expected one of: .tar, .tar.gz, .tgz"
             )
 
