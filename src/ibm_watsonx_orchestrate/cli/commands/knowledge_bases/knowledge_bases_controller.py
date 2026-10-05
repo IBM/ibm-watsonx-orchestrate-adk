@@ -113,7 +113,7 @@ def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
         return
     return index_config.connection_id
 
-_VECTOR_INDEX_FIELDS = ("milvus", "elastic_search", "open_search", "astradb", "custom_search")
+_CONNECTION_TYPE_FIELDS = ("milvus", "elastic_search", "open_search", "astradb", "custom_search")
 
 
 class KnowledgeBaseController:
@@ -128,9 +128,9 @@ class KnowledgeBaseController:
         return self.client
 
     @staticmethod
-    def get_vector_index_type(index_config: IndexConnection) -> str | None:
-        """Return the vector_index_type string matching the populated connection field."""
-        for field in _VECTOR_INDEX_FIELDS:
+    def get_connection_type(index_config: IndexConnection) -> str | None:
+        """Return the connection_type string matching the populated connection field."""
+        for field in _CONNECTION_TYPE_FIELDS:
             if getattr(index_config, field, None) is not None:
                 return field
         return None
@@ -160,14 +160,14 @@ class KnowledgeBaseController:
         if not connection_id:
             return
 
-        vector_index_type = self.get_vector_index_type(index_config)
-        if not vector_index_type:
+        connection_type = self.get_connection_type(index_config)
+        if not connection_type:
             return
 
         url, port = self.get_url_and_port_from_index_config(index_config)
 
         try:
-            self.get_client().validate_creds(connection_id=connection_id, vector_index_type=vector_index_type, url=url, port=port)
+            self.get_client().validate_creds(connection_id=connection_id, connection_type=connection_type, url=url, port=port)
         except ClientAPIException as e:
             raise ValueError(f"Connection credential validation failed: {format_client_api_error(e)}")
 
