@@ -172,16 +172,16 @@ def push_image(
     # ------------------------------------------------------------------
     # Type-specific validation
     # ------------------------------------------------------------------
-    if workload_type == "mcp_toolkit" and not mcp_transport:
-        logger.error("--mcp-transport is required when --type is mcp_toolkit.")
-        raise typer.Exit(code=1)
-
-    if workload_type == "mcp_toolkit" and mcp_transport != "streamable_http":
-        logger.error(
-            f"Unsupported --mcp-transport '{mcp_transport}'. "
-            f"Only 'streamable_http' is currently supported."
-        )
-        raise typer.Exit(code=1)
+    if workload_type == "mcp_toolkit":
+        if not mcp_transport:
+            logger.error("--mcp-transport is required when --type is mcp_toolkit.")
+            raise typer.Exit(code=1)
+        if mcp_transport != "streamable_http":
+            logger.error(
+                f"Unsupported --mcp-transport '{mcp_transport}'. "
+                f"Only 'streamable_http' is currently supported."
+            )
+            raise typer.Exit(code=1)
 
     if workload_type == "eval" and eval_timeout_seconds is None:
         logger.error("--eval-timeout-seconds is required when --type is eval.")

@@ -35,7 +35,8 @@ class RuntimeController:
     * ``push_image_registry`` — bind a remote registry image to ARM.
     """
 
-    _client: Optional[ARMClient] = None
+    def __init__(self) -> None:
+        self._client: Optional[ARMClient] = None
 
     def _get_client(self) -> ARMClient:
         """Return a lazily-instantiated ARMClient for the active environment."""

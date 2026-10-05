@@ -6,7 +6,7 @@ Exposes:
                   image can be pushed and confirmed end-to-end with a single
                   curl call.
 """
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
