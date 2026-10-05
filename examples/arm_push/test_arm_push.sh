@@ -52,7 +52,6 @@ require_cmd() {
 log "=== Preflight ==="
 require_cmd docker
 require_cmd wxo-dev
-require_cmd jq
 
 [[ "${FEATURE_ARM_PUSH}" == "true" ]] || fail "FEATURE_ARM_PUSH must be 'true'"
 [[ -n "${ARM_SERVER_URL}" ]]          || fail "ARM_SERVER_URL must be set"

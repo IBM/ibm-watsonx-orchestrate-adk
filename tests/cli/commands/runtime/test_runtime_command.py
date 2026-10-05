@@ -9,15 +9,6 @@ from ibm_watsonx_orchestrate.cli.commands.runtime import runtime_command
 _EXIT = (SystemExit, typer.exceptions.Exit)
 
 
-def _make_controller_patch(method, return_value=None, side_effect=None):
-    """Helper to patch a RuntimeController method."""
-    target = f"ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command.RuntimeController.{method}"
-    mock = patch(target)
-    if side_effect:
-        mock.side_effect = side_effect
-    return mock
-
-
 # ---------------------------------------------------------------------------
 # push-image command — S3 source (explicit)
 # ---------------------------------------------------------------------------
