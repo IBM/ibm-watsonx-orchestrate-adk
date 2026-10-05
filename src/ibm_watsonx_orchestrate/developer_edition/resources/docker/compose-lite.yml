@@ -264,7 +264,7 @@ services:
       DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:8080
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
-      EVALUATION_SERVICE_URL: https://wxo-doc-processing-evaluation:8080
+      EVALUATION_SERVICE_URL: http://wxo-doc-processing-evaluation:8080
       ACCURACY_EVALUATION: true
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
@@ -466,6 +466,7 @@ services:
       WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
+
     build:
       context: ./minio
       dockerfile: Dockerfile.minio
@@ -474,6 +475,7 @@ services:
     image: wxo-minio-local:RELEASE.2025-10-15T17-29-55Z
     platform: linux/amd64
     pull_policy: never
+
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -491,6 +493,7 @@ services:
       - wxo-server-minio-data:/data
 
   wxo-server-minio-setup:
+
     build:
       context: ./minio
       dockerfile: Dockerfile.mc
@@ -499,6 +502,7 @@ services:
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
     platform: linux/amd64
     pull_policy: never
+
     depends_on:
       wxo-server-minio:
         condition: service_healthy
@@ -1432,7 +1436,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
-      DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
+      DOCPROC_EVALUATION_BASE_URL: http://wxo-doc-processing-evaluation:8080 
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       WO_USERNAME: ${WO_USERNAME}
@@ -1497,7 +1501,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-service
-      ISTIO_ENABLED: "true"
+      ISTIO_ENABLED: true
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
       SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
@@ -1659,6 +1663,7 @@ services:
       REDIS_PORT: 6379
       REDIS_LOCAL_DEV: "true"
       ENABLE_CANCELLATION: "true"
+      ISTIO_ENABLED: true
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
@@ -1728,6 +1733,7 @@ services:
       args:
         MC_VERSION: RELEASE.2025-08-13T08-35-41Z
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
+
     platform: linux/amd64
     pull_policy: never
     profiles:
@@ -1749,6 +1755,7 @@ services:
       args:
         MC_VERSION: RELEASE.2025-08-13T08-35-41Z
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
+
     platform: linux/amd64
     pull_policy: never
     profiles:
@@ -1769,6 +1776,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-evaluation
+      ISTIO_ENABLED: true
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
       IBM_DPS_CACHE_SERVICE: 'http://wxo-doc-processing-cache:8080'
@@ -1790,7 +1798,7 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      test: ["CMD-SHELL", "curl -fk http://localhost:8080/ping"]
       interval: 30s
       timeout: 30s
       retries: 10

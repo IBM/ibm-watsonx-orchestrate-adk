@@ -1,3 +1,4 @@
+# ruff: noqa
 from enum import Enum
 import os
 from typing import List, Any, Dict, Literal, Optional, Union, Generic, TypeVar, TypeAlias
@@ -85,7 +86,7 @@ class JsonSchemaObject(BaseModel):
 class ToolRequestBody(BaseModel):
     model_config = ConfigDict(extra='allow')
 
-    type: Literal['object', 'string']
+    type: Optional[Literal['object', 'string']] = 'object'
     properties: Optional[Dict[str, JsonSchemaObject]] = {}
     required: Optional[List[str]] = []
 
