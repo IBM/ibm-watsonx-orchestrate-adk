@@ -10,6 +10,9 @@ Source directory: `wxo-clients/examples/` in the ADK repo.
 - [Example 4: Conditional-branch flow](#example-4-conditional-branch-flow)
 - [Example 5: foreach flow (bulk operations)](#example-5-foreach-flow)
 - [Example 6: Document extraction flow](#example-6-document-extraction-flow)
+- [Example 7: Table & line-item document extractor flow](#example-7-table--line-item-document-extractor-flow)
+- [Example 8: Document classifier & dynamic routing flow](#example-8-document-classifier--dynamic-routing-flow)
+- [Example 9: Text extraction OCR & prompt summarization flow](#example-9-text-extraction-ocr--prompt-summarization-flow)
 
 ---
 
@@ -119,7 +122,7 @@ orchestrate agents import -f "${SCRIPT_DIR}/agents/service_now_agent.yaml"
 orchestrate agents import -f "${SCRIPT_DIR}/agents/customer_care_agent.yaml"
 ```
 
-Source: [`examples/agent_builder/customer_care/`](../../examples/agent_builder/customer_care/)
+Source: [`examples/agent_builder/customer_care/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/agent_builder/customer_care/)
 
 ---
 
@@ -196,7 +199,7 @@ orchestrate tools import -k python -f "${SCRIPT_DIR}/tools/get_stock_price.py"
 orchestrate agents import -f "${SCRIPT_DIR}/agents/ibm_agent.yaml"
 ```
 
-Source: [`examples/agent_builder/ibm_knowledge/`](../../examples/agent_builder/ibm_knowledge/)
+Source: [`examples/agent_builder/ibm_knowledge/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/agent_builder/ibm_knowledge/)
 
 ---
 
@@ -321,7 +324,7 @@ orchestrate tools import -k flow -f "${SCRIPT_DIR}/tools/collaborator_agents_flo
 orchestrate agents import -f "${SCRIPT_DIR}/agents/get_city_facts_agent.yaml"
 ```
 
-Source: [`examples/flow_builder/collaborator_agents/`](../../examples/flow_builder/collaborator_agents/)
+Source: [`examples/flow_builder/collaborator_agents/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/collaborator_agents/)
 
 ---
 
@@ -360,7 +363,7 @@ def build_get_pet_facts_flow(aflow: Flow) -> Flow:
 - Both branch endpoints wire to `END` independently.
 - `default=True` is the catch-all — always include one.
 
-Source: [`examples/flow_builder/get_pet_facts_if_else/`](../../examples/flow_builder/get_pet_facts_if_else/)
+Source: [`examples/flow_builder/get_pet_facts_if_else/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/get_pet_facts_if_else/)
 
 ---
 
@@ -403,7 +406,7 @@ def build_send_invitations(aflow: Flow) -> Flow:
 - `ForeachPolicy.PARALLEL` runs all iterations concurrently (no user-activity nodes inside).
 - Inside the foreach subflow, the current item is at `parent._current_item`.
 
-Source: [`examples/flow_builder/foreach_email/`](../../examples/flow_builder/foreach_email/)
+Source: [`examples/flow_builder/foreach_email/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/foreach_email/)
 
 ---
 
@@ -473,4 +476,181 @@ welcome_content:
 - The `docproc`/`docext` node handles the file upload prompt; the agent must **not** prompt for a file separately.
 - `field_extraction_method="layout"` is required when using typed fields (`type="date"`, `type="number"`), tables, or `available_options`.
 
-Source: [`examples/flow_builder/document_extractor/`](../../examples/flow_builder/document_extractor/)
+Source: [`examples/flow_builder/document_extractor/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/document_extractor/)
+
+---
+
+## Example 7: Table & Line-Item Document Extractor Flow
+
+**Task:** Extract invoice fields and a line items table from an invoice document using `DocExtConfigTableField`.
+
+```python
+from pydantic import BaseModel, Field
+from ibm_watsonx_orchestrate.flow_builder.flows import Flow, flow, START, END
+from ibm_watsonx_orchestrate.flow_builder.types import (
+    DocExtConfigField, DocExtConfigTableField, DocumentProcessingCommonInput
+)
+
+class InvoiceTableFields(BaseModel):
+    invoice_number: DocExtConfigField = Field(
+        default=DocExtConfigField(name="Invoice Number", field_name="invoice_id")
+    )
+    invoice_date: DocExtConfigField = Field(
+        default=DocExtConfigField(name="Invoice Date", field_name="invoice_date", type="date")
+    )
+    total_amount: DocExtConfigField = Field(
+        default=DocExtConfigField(name="Total Amount", field_name="total", type="number")
+    )
+    # Repeating Table structure
+    line_items: DocExtConfigTableField = Field(
+        default=DocExtConfigTableField(
+            name="Invoice Line Items",
+            field_name="line_items",
+            description="Itemized products or services on the invoice.",
+            fields=[
+                DocExtConfigField(name="Item Name", field_name="item", type="string"),
+                DocExtConfigField(name="Quantity",  field_name="quantity", type="number"),
+                DocExtConfigField(name="Unit Price",field_name="unit_price", type="number"),
+                DocExtConfigField(name="Amount",    field_name="amount", type="number"),
+            ]
+        )
+    )
+
+@flow(name="extract_invoice_table_flow",
+      description="Extract invoice metadata and line items table",
+      input_schema=DocumentProcessingCommonInput)
+def build_invoice_table_flow(aflow: Flow) -> Flow:
+    node, _Schema = aflow.docext(
+        name="invoice_table_extractor",
+        display_name="Extract Invoice Table",
+        description="Extracts invoice fields and line items table",
+        llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
+        fields=InvoiceTableFields(),
+        field_extraction_method="layout",   # Required for DocExtConfigTableField
+        # enable_hw=True,                   # add only if documents may contain handwritten text
+    )
+    aflow.sequence(START, node, END)
+    return aflow
+```
+
+Source: [`examples/flow_builder/document_extractor_structured/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/document_extractor_structured/)
+
+---
+
+## Example 8: Document Classifier & Dynamic Routing Flow
+
+**Task:** Ingest an uploaded document, classify it into `Invoice` or `Contract`, dynamically route to the appropriate extractor, and merge into a consolidated output.
+
+```python
+from pydantic import BaseModel, Field
+from ibm_watsonx_orchestrate.flow_builder.flows import Flow, flow, START, END, Branch
+from ibm_watsonx_orchestrate.flow_builder.types import (
+    DocClassifierClass, DocExtConfigField, DocumentProcessingCommonInput
+)
+
+class DocumentCategories(BaseModel):
+    invoice: DocClassifierClass = Field(default=DocClassifierClass(class_name="Invoice"))
+    contract: DocClassifierClass = Field(default=DocClassifierClass(class_name="Contract"))
+
+class TriageOutput(BaseModel):
+    doc_type: str
+    summary: str
+
+@flow(name="classify_and_route_flow", input_schema=DocumentProcessingCommonInput, output_schema=TriageOutput)
+def build_classify_and_route_flow(aflow: Flow) -> Flow:
+    classifier = aflow.docclassifier(
+        name="classifier",
+        display_name="Classify Document",
+        description="Identifies document category",
+        llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+        classes=DocumentCategories(),
+    )
+
+    inv_node, _ = aflow.docext(
+        name="invoice_ext",
+        display_name="Invoice Extractor",
+        description="Extracts invoice",
+        fields=InvoiceTableFields(),
+        field_extraction_method="layout",
+    )
+
+    contract_node, _ = aflow.docext(
+        name="contract_ext",
+        display_name="Contract Extractor",
+        description="Extracts contract",
+        fields=ContractFields(),
+        field_extraction_method="layout",
+    )
+
+    # Consolidation node guarantees output schema is populated
+    consolidate = aflow.script(
+        name="consolidate_result",
+        script="""
+self.output.doc_type = flow.classifier.output.class_name
+if flow.classifier.output.class_name.lower() == 'invoice':
+    self.output.summary = f"Invoice ID: {flow.invoice_ext.output.invoice_id}"
+else:
+    self.output.summary = f"Contract Buyer: {flow.contract_ext.output.buyer}"
+""",
+        output_schema=TriageOutput
+    )
+
+    router: Branch = aflow.conditions(name="route_by_class")
+    router.condition(expression="flow.classifier.output.class_name.strip().lower() == 'invoice'", to_node=inv_node) \
+          .condition(expression="flow.classifier.output.class_name.strip().lower() == 'contract'", to_node=contract_node) \
+          .condition(default=True, to_node=inv_node)
+
+    aflow.sequence(START, classifier, router)
+    aflow.edge(inv_node, consolidate)
+    aflow.edge(contract_node, consolidate)
+    aflow.edge(consolidate, END)
+
+    return aflow
+```
+
+Source: [`examples/flow_builder/document_classifier/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/document_classifier/)
+
+---
+
+## Example 9: Text Extraction OCR & Prompt Summarization Flow
+
+**Task:** Extract raw text from a document using `docproc` and pass the extracted text into an LLM prompt node for summarization.
+
+```python
+from pydantic import BaseModel, Field
+from ibm_watsonx_orchestrate.flow_builder.flows import Flow, flow, START, END
+from ibm_watsonx_orchestrate.flow_builder.types import (
+    DocProcInput, DocProcOutputFormat, TextExtractionObjectResponse
+)
+
+class SummaryResult(BaseModel):
+    summary: str = Field(description="Summary of the document")
+
+@flow(name="ocr_and_summarize_flow", input_schema=DocProcInput, output_schema=SummaryResult)
+def build_ocr_summary_flow(aflow: Flow) -> Flow:
+    # 1. OCR text extraction node
+    ocr_node = aflow.docproc(
+        name="ocr_extractor",
+        display_name="OCR Text Extractor",
+        description="Extracts text content from uploaded file",
+        task="text_extraction",
+        output_format=DocProcOutputFormat.object,
+    )
+    ocr_node.map_input("document_ref", "flow.input.document_ref")
+
+    # 2. Prompt node to summarize extracted text
+    summary_node = aflow.prompt(
+        name="summarize_text",
+        display_name="Summarize Text",
+        system_prompt="You are a document analysis assistant. Summarize the key points.",
+        user_prompt=["Document text:\n{text}"],
+        llm="groq/openai/gpt-oss-120b",
+        output_schema=SummaryResult,
+    )
+    summary_node.map_input("text", "flow.ocr_extractor.output.text")
+
+    aflow.sequence(START, ocr_node, summary_node, END)
+    return aflow
+```
+
+Source: [`examples/flow_builder/text_extraction/`](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/text_extraction/)
