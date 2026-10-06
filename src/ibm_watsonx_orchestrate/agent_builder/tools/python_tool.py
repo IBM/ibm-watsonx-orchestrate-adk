@@ -189,7 +189,15 @@ class PythonTool(BaseTool):
         # inspect.iscoroutinefunction(tool_instance) returns True regardless of
         # whether the wrapped fn is sync or async.  TRM uses this check to decide
         # between `await func(...)` (event-loop) and run_in_executor (thread pool).
-        inspect.markcoroutinefunction(self)
+        #
+        # inspect.markcoroutinefunction() was added in Python 3.12.  On 3.11 we
+        # set the same sentinel directly — both code paths produce identical
+        # behaviour because inspect.iscoroutinefunction checks _is_coroutine_mark.
+        if hasattr(inspect, 'markcoroutinefunction'):
+            inspect.markcoroutinefunction(self)
+        else:
+            import asyncio.coroutines as _ac
+            self._is_coroutine = _ac._is_coroutine
 
     async def __call__(self, *args, **kwargs):
         # __call__ is async def — body awaits async fns, calls sync fns directly.
