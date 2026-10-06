@@ -9,7 +9,6 @@ import logging
 
 from pydantic import TypeAdapter, BaseModel
 
-from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
@@ -186,18 +185,22 @@ class PythonTool(BaseTool):
         self.dynamic_input_schema = dynamic_input_schema
         self.dynamic_output_schema = dynamic_output_schema
         self.response_format = response_format
-
-    def __call__(self, *args, **kwargs):
-        # __call__ is intentionally a regular (sync) def even when self.fn is
-        # async.  Making it ``async def`` would cause inspect.iscoroutinefunction()
-        # on the *PythonTool instance* to return False (Python only checks the raw
-        # code-object flag, not the bound __call__ method), so the TRM server's
-        # iscoroutinefunction(func) guard would silently fall through to
-        # run_in_executor and the coroutine would never be awaited.
+        # Mark this instance as a coroutine function so that
+        # inspect.iscoroutinefunction(tool_instance) returns True regardless of
+        # whether the wrapped fn is sync or async.  TRM uses this check to decide
+        # between `await func(...)` (event-loop) and run_in_executor (thread pool).
         #
-        # Instead, async functions are driven to completion here via
-        # run_coroutine_sync().  See async_helpers.py for the deadlock caveat
-        # that applies when called from a thread-pool thread (TRM path).
+        # inspect.markcoroutinefunction() was added in Python 3.12.  On 3.11 we
+        # set the same sentinel directly — both code paths produce identical
+        # behaviour because inspect.iscoroutinefunction checks _is_coroutine_mark.
+        if hasattr(inspect, 'markcoroutinefunction'):
+            inspect.markcoroutinefunction(self)
+        else:
+            import asyncio.coroutines as _ac
+            self._is_coroutine = _ac._is_coroutine
+
+    async def __call__(self, *args, **kwargs):
+        # __call__ is async def — body awaits async fns, calls sync fns directly.
 
         run_context_param = self.get_run_param()
         context_object = None
@@ -209,12 +212,12 @@ class PythonTool(BaseTool):
                 kwargs[run_context_param] = context_object
 
         if inspect.iscoroutinefunction(self.fn):
-            result = run_coroutine_sync(self.fn(*args, **kwargs))
+            result = await self.fn(*args, **kwargs)
         else:
             result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
-        return ToolResponse(content=result,context_updates=context_updates)
+        return ToolResponse(content=result, context_updates=context_updates)
     
     def __parse_context_param(self, context_param_value):
         from ibm_watsonx_orchestrate.run.context import AgentRun

@@ -16,7 +16,7 @@ import docstring_parser
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
 from pydantic import computed_field, field_validator, model_validator
-from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
+from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
 
@@ -3189,6 +3189,67 @@ class PromptLLMParameters(BaseModel):
         if self.stop_sequences:
             model_spec["stop_sequences"] = self.stop_sequences
         return model_spec
+
+
+import json as _json
+
+
+class AITaskLLMParameter(BaseModel):
+    parameter_name: str
+    parameter_type: Literal["string", "number", "integer", "boolean", "object"]
+    parameter_value: str  # always stringified
+    enabled: bool = True
+
+
+class AITaskLLMParameters:
+    """Builder for the structured parameters[] LLM parameter payload."""
+
+    def __init__(self) -> None:
+        self._params: list[AITaskLLMParameter] = []
+
+    @staticmethod
+    def _infer_type(value: Any) -> Literal["string", "number", "integer", "boolean", "object"]:
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, int):
+            return "integer"
+        if isinstance(value, float):
+            return "number"
+        if isinstance(value, (list, dict)):
+            return "object"
+        return "string"
+
+    @staticmethod
+    def _serialize_value(value: Any) -> str:
+        if isinstance(value, (list, dict)):
+            return _json.dumps(value)
+        return str(value)
+
+    def add(self, name: str, value: Any, enabled: bool = True) -> "AITaskLLMParameters":
+        """Add or replace a parameter entry, inferring its type from *value*."""
+        # Replace an existing entry with the same name if present
+        self._params = [p for p in self._params if p.parameter_name != name]
+        self._params.append(
+            AITaskLLMParameter(
+                parameter_name=name,
+                parameter_type=self._infer_type(value),
+                parameter_value=self._serialize_value(value),
+                enabled=enabled,
+            )
+        )
+        return self
+
+    def disable(self, name: str) -> "AITaskLLMParameters":
+        """Set *enabled = False* on the parameter identified by *name*."""
+        for p in self._params:
+            if p.parameter_name == name:
+                p.enabled = False
+                break
+        return self
+
+    def to_json(self) -> dict[str, Any]:
+        """Return the ``{ "parameters": [...] }`` payload expected by the runtime."""
+        return {"parameters": [p.model_dump() for p in self._params]}
     
 class PromptExample(BaseModel):
     input: Optional[str] = None
@@ -3208,11 +3269,13 @@ class PromptExample(BaseModel):
 
 
 class PromptNodeSpec(NodeSpec):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     system_prompt: str | list[str]
     user_prompt: str | list[str]
     prompt_examples: Optional[list[PromptExample]] = None
     llm: Optional[str] = None
-    llm_parameters: Optional[PromptLLMParameters] = None
+    llm_parameters: Optional[Union[PromptLLMParameters, "AITaskLLMParameters", dict]] = None
     error_handler_config: Optional[NodeErrorHandlerConfig] = None
     metadata: dict[str, Any] | None = None
     test_input_data: dict[str, Any] | None = None
@@ -3230,8 +3293,11 @@ class PromptNodeSpec(NodeSpec):
             model_spec["user_prompt"] = self.user_prompt
         if self.llm:
             model_spec["llm"] = self.llm
-        if self.llm_parameters:
-            model_spec["llm_parameters"] = self.llm_parameters.to_json()
+        if self.llm_parameters is not None:
+            if isinstance(self.llm_parameters, dict):
+                model_spec["llm_parameters"] = self.llm_parameters
+            else:
+                model_spec["llm_parameters"] = self.llm_parameters.to_json()
         if self.error_handler_config is not None:
             model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.prompt_examples:
