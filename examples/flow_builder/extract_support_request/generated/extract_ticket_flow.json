@@ -10,7 +10,8 @@
     "output_schema": {
       "$ref": "#/schemas/SupportInformation"
     },
-    "schedulable": false
+    "schedulable": false,
+    "suppress_agent_summarization": true
   },
   "nodes": {
     "email_helpdesk": {
@@ -57,7 +58,8 @@
             "Human:",
             "AI:"
           ]
-        }
+        },
+        "include_agent_context": false
       }
     },
     "__start__": {
@@ -233,6 +235,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-19T16:11:45.048097+00:00"
+    "compiled_on": "2026-09-23T17:50:41.289903+00:00"
   }
 }
