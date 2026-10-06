@@ -1,7 +1,9 @@
 import asyncio
+import inspect
 import json
 from typing import Any, Optional, List, Dict
 
+import pytest
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolPermission, tool
@@ -20,12 +22,12 @@ def test_should_allow_naked_decorators(snapshot):
     spec = json.loads(my_tool.dumps_spec())
     spec['binding']['python']['function'] = spec['binding']['python']['function'].split('.')[-1]
     snapshot.assert_match(spec)
-    result = my_tool()
+    result = asyncio.run(my_tool())
     assert spec['name'] == 'my_tool'
     assert spec.get('description') == "The description"
     assert spec['permission'] == 'read_only'
     assert spec['binding']['python']['function'] == 'test_python_tool:my_tool'
-    assert isinstance(result,ToolResponse)
+    assert isinstance(result, ToolResponse)
     assert result.content == 3
 
 def test_should_use_correct_defaults(snapshot):
@@ -184,23 +186,49 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
 
 # ---------------------------------------------------------------------------
 # Async tool tests
-# PythonTool.__call__ is a regular (sync) def that internally runs async
-# functions to completion via run_coroutine_sync, so callers do not need
-# to await the result.
+# PythonTool.__call__ is async def — TRM awaits it directly on the event loop.
+# Tests use pytest.mark.asyncio so they can await the decorated tool directly,
+# mirroring what TRM does at runtime.
 # ---------------------------------------------------------------------------
 
-def test_async_tool_naked_decorator():
+def test_python_tool_is_identified_as_coroutine_function():
+    """inspect.iscoroutinefunction(tool_instance) must return True so TRM's
+    async-detection gate selects the `await func(...)` path, not run_in_executor."""
+    @tool
+    async def my_tool() -> int:
+        """An async tool"""
+        return 1
+
+    assert inspect.iscoroutinefunction(my_tool), (
+        "PythonTool.__call__ must be async def so TRM can detect and await async tools"
+    )
+
+
+def test_sync_tool_is_also_identified_as_coroutine_function():
+    """Sync-backed tools also expose an async __call__ — TRM will await them too,
+    which is fine: the body executes synchronously in a single step."""
+    @tool
+    def my_tool() -> int:
+        """A sync tool"""
+        return 1
+
+    assert inspect.iscoroutinefunction(my_tool)
+
+
+@pytest.mark.asyncio
+async def test_async_tool_naked_decorator():
     @tool
     async def my_tool():
         """The async description"""
         return 42
 
-    result = my_tool()
+    result = await my_tool()
     assert isinstance(result, ToolResponse)
     assert result.content == 42
 
 
-def test_async_tool_with_params():
+@pytest.mark.asyncio
+async def test_async_tool_with_params():
     @tool(name="async_named_tool", description="An async tool with params")
     async def my_tool(x: int) -> int:
         return x * 2
@@ -209,41 +237,40 @@ def test_async_tool_with_params():
     assert spec["name"] == "async_named_tool"
     assert spec["description"] == "An async tool with params"
 
-    result = my_tool(x=5)
+    result = await my_tool(x=5)
     assert isinstance(result, ToolResponse)
     assert result.content == 10
 
 
-def test_async_tool_with_asyncio_sleep():
+@pytest.mark.asyncio
+async def test_async_tool_with_asyncio_sleep():
     @tool
     async def my_tool():
         """Async tool that does real async work"""
         await asyncio.sleep(0)
         return "done"
 
-    result = my_tool()
+    result = await my_tool()
     assert isinstance(result, ToolResponse)
     assert result.content == "done"
 
 
-def test_sync_tool_still_works_after_async_change():
+@pytest.mark.asyncio
+async def test_sync_tool_still_works_after_async_change():
     @tool
     def my_tool():
         """A plain sync tool"""
         return "sync_result"
 
-    result = my_tool()
+    result = await my_tool()
     assert isinstance(result, ToolResponse)
     assert result.content == "sync_result"
 
 
-def test_async_tool_with_agent_run_context():
-    """async def tool that also uses an AgentRun context parameter.
-
-    Exercises the interaction between the run_context_param injection path
-    (lines 192-199 of python_tool.py) and the iscoroutinefunction branch,
-    which were previously only tested independently.
-    """
+@pytest.mark.asyncio
+async def test_async_tool_with_agent_run_context():
+    """async def tool with an AgentRun context parameter — exercises the
+    run_context_param injection path alongside the iscoroutinefunction branch."""
     from ibm_watsonx_orchestrate.run.context import AgentRun
 
     captured = {}
@@ -263,7 +290,7 @@ def test_async_tool_with_agent_run_context():
         await asyncio.sleep(0)
         return f"got: {value}"
 
-    result = my_tool(value="hello", context=AgentRun())
+    result = await my_tool(value="hello", context=AgentRun())
     assert isinstance(result, ToolResponse)
     assert result.content == "got: hello"
     assert captured["had_context"] is True
