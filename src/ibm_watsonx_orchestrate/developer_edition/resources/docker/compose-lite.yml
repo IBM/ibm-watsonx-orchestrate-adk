@@ -103,6 +103,7 @@ services:
     ports:
       - "8005:8005"
     environment:
+      ALLOW_PRIVATE_SEARCH_IP: true
       WXO_SERVER_BASE_URL: http://wxo-server:4321
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
@@ -264,7 +265,7 @@ services:
       DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:8080
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
-      EVALUATION_SERVICE_URL: https://wxo-doc-processing-evaluation:8080
+      EVALUATION_SERVICE_URL: http://wxo-doc-processing-evaluation:8080
       ACCURACY_EVALUATION: true
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
@@ -466,6 +467,7 @@ services:
       WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
+
     build:
       context: ./minio
       dockerfile: Dockerfile.minio
@@ -474,6 +476,7 @@ services:
     image: wxo-minio-local:RELEASE.2025-10-15T17-29-55Z
     platform: linux/amd64
     pull_policy: never
+
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -491,6 +494,7 @@ services:
       - wxo-server-minio-data:/data
 
   wxo-server-minio-setup:
+
     build:
       context: ./minio
       dockerfile: Dockerfile.mc
@@ -499,6 +503,7 @@ services:
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
     platform: linux/amd64
     pull_policy: never
+
     depends_on:
       wxo-server-minio:
         condition: service_healthy
@@ -603,10 +608,17 @@ services:
       langfuse-worker:
         condition: service_started
         required: False
+      wxo-opensearch-knowledge:
+        condition: service_healthy
+        required: False
     networks:
       - default
       - jaeger-network
     environment:
+      OPENSEARCH_VERIFY_CERTS: ${OPENSEARCH_VERIFY_CERTS:-false}
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-https://wxo-opensearch-knowledge:9200}
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
       DEFAULT_AGENT_ENABLED: "true"
       DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
@@ -779,6 +791,9 @@ services:
       langfuse-worker:
         condition: service_started
         required: False
+      wxo-opensearch-knowledge:
+        condition: service_healthy
+        required: False
     volumes:
       - ./sdk:/packages
       - tools:/tools
@@ -787,6 +802,10 @@ services:
       - default
       - jaeger-network
     environment:
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-https://wxo-opensearch-knowledge:9200}
+      OPENSEARCH_VERIFY_CERTS: ${OPENSEARCH_VERIFY_CERTS:-false}
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
@@ -953,6 +972,29 @@ services:
       timeout: 5s
       retries: 20
       start_period: 20s
+
+  wxo-opensearch-knowledge:
+    profiles: [knowledge-use-opensearch]
+    image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_KNOWLEDGE_TAG:-3.4.0}
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - cluster.blocks.create_index=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
+    ports:
+      - "${OPENSEARCH_HOST_PORT_KNOWLEDGE:-9205}:9200"
+    volumes:
+      - wxo-opensearch-knowledge-data:/usr/share/opensearch/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "curl -skf -u ${OPENSEARCH_USERNAME:-admin}:${OPENSEARCH_PASSWORD} https://localhost:9200/_cluster/health | grep -q '\"status\":\"\\(green\\|yellow\\)\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 
   wxo-agentic-memory:
     image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
@@ -1432,7 +1474,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
-      DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
+      DOCPROC_EVALUATION_BASE_URL: http://wxo-doc-processing-evaluation:8080 
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       WO_USERNAME: ${WO_USERNAME}
@@ -1497,7 +1539,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-service
-      ISTIO_ENABLED: "true"
+      ISTIO_ENABLED: true
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
       SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
@@ -1659,6 +1701,7 @@ services:
       REDIS_PORT: 6379
       REDIS_LOCAL_DEV: "true"
       ENABLE_CANCELLATION: "true"
+      ISTIO_ENABLED: true
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
@@ -1728,6 +1771,7 @@ services:
       args:
         MC_VERSION: RELEASE.2025-08-13T08-35-41Z
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
+
     platform: linux/amd64
     pull_policy: never
     profiles:
@@ -1749,6 +1793,7 @@ services:
       args:
         MC_VERSION: RELEASE.2025-08-13T08-35-41Z
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
+
     platform: linux/amd64
     pull_policy: never
     profiles:
@@ -1769,6 +1814,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-evaluation
+      ISTIO_ENABLED: true
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
       IBM_DPS_CACHE_SERVICE: 'http://wxo-doc-processing-cache:8080'
@@ -1790,7 +1836,7 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      test: ["CMD-SHELL", "curl -fk http://localhost:8080/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -1916,6 +1962,7 @@ volumes:
     driver: local
   es_data:
   opensearch_data:
+  wxo-opensearch-knowledge-data:
   langflow-data:
 
 networks:

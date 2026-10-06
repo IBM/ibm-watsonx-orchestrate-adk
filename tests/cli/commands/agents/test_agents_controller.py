@@ -2048,49 +2048,132 @@ class TestAgentDeploy:
 
 
 
+MOCK_SKILLS = [
+    {"id": "uuid-skill-one", "name": "skill-one"},
+    {"id": "uuid-skill-two", "name": "skill-two"},
+]
+
+
 class TestNativeAgentDependenciesSkills:
-    def test_skills_pass_through_on_dereference_import(self):
-        agent = Agent(
+    """Tests for reference_skills (export) and dereference_skills (import)."""
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _make_agent(self, skills):
+        return Agent(
             spec_version=SpecVersion.V1,
             kind=AgentKind.NATIVE,
             name="test_agent",
             description="desc",
             llm="test_llm",
-            skills=["skill-one"],
+            skills=skills,
         )
 
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _mock_sc(self):
+        """Return a MagicMock skills controller whose get_all_skills returns MOCK_SKILLS.
+
+        Patching get_skills_controller() prevents SkillsController.__init__ from
+        ever running (which would call instantiate_client and require an active env).
+        """
+        return MagicMock(get_all_skills=MagicMock(return_value=MOCK_SKILLS))
+
+    # ── reference_skills (export: UUID/name → canonical name) ────────────────
+
+    def test_reference_skills_names_pass_through(self):
+        """Skills that are already names come out unchanged."""
+        agent = self._make_agent(["skill-one", "skill-two"])
         ac = AgentsController()
-        result = ac.dereference_native_agent_dependencies(agent)
-        assert result.skills == ["skill-one"]
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            result = ac.reference_skills(agent)
+        assert result.skills == ["skill-one", "skill-two"]
 
-    def test_skills_empty_on_dereference_import(self):
-        agent = Agent(
-            spec_version=SpecVersion.V1,
-            kind=AgentKind.NATIVE,
-            name="test_agent",
-            description="desc",
-            llm="test_llm",
-            skills=[],
-        )
+    def test_reference_skills_uuids_resolved_to_names(self):
+        """Skills stored as UUIDs are resolved to their canonical names."""
+        agent = self._make_agent(["uuid-skill-one", "uuid-skill-two"])
+        ac = AgentsController()
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            result = ac.reference_skills(agent)
+        assert result.skills == ["skill-one", "skill-two"]
 
+    def test_reference_skills_mixed_input(self):
+        """Mixed list of UUIDs and names is resolved entirely to names."""
+        agent = self._make_agent(["uuid-skill-one", "skill-two"])
+        ac = AgentsController()
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            result = ac.reference_skills(agent)
+        assert result.skills == ["skill-one", "skill-two"]
+
+    def test_reference_skills_unknown_entry_exits(self):
+        """An entry matching neither a known UUID nor name causes sys.exit(1)."""
+        agent = self._make_agent(["bb-cartoes-bloqueio"])
+        ac = AgentsController()
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            with pytest.raises(SystemExit):
+                ac.reference_skills(agent)
+
+    # ── dereference_skills (import: name/UUID → UUID) ────────────────────────
+
+    def test_dereference_skills_names_resolved_to_uuids(self):
+        """Skills stored as names are resolved to their UUIDs."""
+        agent = self._make_agent(["skill-one", "skill-two"])
+        ac = AgentsController()
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            result = ac.dereference_skills(agent)
+        assert result.skills == ["uuid-skill-one", "uuid-skill-two"]
+
+    def test_dereference_skills_uuids_pass_through(self):
+        """Skills already stored as UUIDs come out unchanged."""
+        agent = self._make_agent(["uuid-skill-one", "uuid-skill-two"])
+        ac = AgentsController()
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            result = ac.dereference_skills(agent)
+        assert result.skills == ["uuid-skill-one", "uuid-skill-two"]
+
+    def test_dereference_skills_unknown_entry_exits(self):
+        """An entry matching neither a known name nor UUID causes sys.exit(1)."""
+        agent = self._make_agent(["does-not-exist"])
+        ac = AgentsController()
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            with pytest.raises(SystemExit):
+                ac.dereference_skills(agent)
+
+    # ── integration: wired into native dependency methods ────────────────────
+
+    def test_skills_empty_not_wired_on_dereference(self):
+        """Empty skills list does not trigger dereference_skills."""
+        agent = self._make_agent([])
         ac = AgentsController()
         result = ac.dereference_native_agent_dependencies(agent)
         assert result.skills == []
 
-    def test_skills_pass_through_on_reference_export(self):
-        agent = Agent(
-            spec_version=SpecVersion.V1,
-            kind=AgentKind.NATIVE,
-            name="test_agent",
-            description="desc",
-            llm="test_llm",
-            skills=["skill-one", "skill-two"],
-        )
-
+    def test_skills_empty_not_wired_on_reference(self):
+        """Empty skills list does not trigger reference_skills."""
+        agent = self._make_agent([])
         ac = AgentsController()
+        # reference_tools is always called (plugins defaults to non-None); mock it out
+        # so the test stays env-independent and focused on skill wiring only.
         with patch.object(ac, "reference_tools", side_effect=lambda a, **kwargs: a):
             result = ac.reference_native_agent_dependencies(agent)
-        assert result.skills == ["skill-one", "skill-two"]
+        assert result.skills == []
+
+    def test_reference_native_agent_dependencies_resolves_skills(self):
+        """reference_native_agent_dependencies calls reference_skills when skills are present."""
+        agent = self._make_agent(["uuid-skill-one"])
+        ac = AgentsController()
+        with patch.object(ac, "reference_tools", side_effect=lambda a, **kwargs: a), \
+             patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            result = ac.reference_native_agent_dependencies(agent)
+        assert result.skills == ["skill-one"]
+
+    def test_dereference_native_agent_dependencies_resolves_skills(self):
+        """dereference_native_agent_dependencies calls dereference_skills when skills are present."""
+        agent = self._make_agent(["skill-one"])
+        ac = AgentsController()
+        with patch.object(ac, "get_skills_controller", return_value=self._mock_sc()):
+            result = ac.dereference_native_agent_dependencies(agent)
+        assert result.skills == ["uuid-skill-one"]
 
 
 class TestCustomAgentsMetadataRoundTrip:

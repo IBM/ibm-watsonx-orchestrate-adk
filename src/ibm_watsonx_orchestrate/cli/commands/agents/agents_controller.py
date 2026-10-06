@@ -1172,6 +1172,59 @@ class AgentsController:
         ref_agent.toolkits = ref_toolkits
         return ref_agent
 
+    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+        """Export path: resolve each agent.skills entry to its canonical name.
+
+        Entries may be either UUIDs or names depending on the tenant.  Both are
+        accepted and mapped to the human-readable skill name so the exported
+        YAML is always portable.
+        """
+        skills_controller = self.get_skills_controller()
+        all_skills = skills_controller.get_all_skills(workspace_id=workspace_id)
+
+        # Build a lookup that accepts either an ID or a name as the key.
+        to_name: dict[str, str] = {}
+        for s in all_skills:
+            to_name[s["id"]] = s["name"]
+            to_name[s["name"]] = s["name"]
+
+        ref_agent = deepcopy(agent)
+        ref_skills = []
+        for entry in agent.skills:
+            name = to_name.get(entry)
+            if not name:
+                logger.error(f"Failed to find skill. No skill found with the id '{entry}'")
+                sys.exit(1)
+            ref_skills.append(name)
+        ref_agent.skills = ref_skills
+        return ref_agent
+
+    def dereference_skills(self, agent: Agent) -> Agent:
+        """Import path: resolve each agent.skills entry to its UUID.
+
+        Entries may be either names or UUIDs depending on the source YAML.
+        Both are accepted and mapped to the server-side UUID.
+        """
+        skills_controller = self.get_skills_controller()
+        all_skills = skills_controller.get_all_skills()
+
+        # Build a lookup that accepts either a name or an ID as the key.
+        to_id: dict[str, str] = {}
+        for s in all_skills:
+            to_id[s["name"]] = s["id"]
+            to_id[s["id"]] = s["id"]
+
+        deref_agent = deepcopy(agent)
+        deref_skills = []
+        for entry in agent.skills:
+            skill_id = to_id.get(entry)
+            if not skill_id:
+                logger.error(f"Failed to find skill. No skill found with the name '{entry}'")
+                sys.exit(1)
+            deref_skills.append(skill_id)
+        deref_agent.skills = deref_skills
+        return deref_agent
+
     def dereference_guidelines(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
         
@@ -1322,10 +1375,8 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
-        # NOTE: dereference_skills (name→UUID) is intentionally skipped here.
-        # The server-side validator on POST /agents rejects skill UUIDs on 2.16.0
-        # tenants. Re-enable once the server fix ships.
-        # Tracking: https://github.ibm.com/WatsonOrchestrate/wxo-clients/issues/82318
+        if agent.skills and len(agent.skills) > 0:
+            agent = self.dereference_skills(agent)
 
         return agent
     
@@ -1340,6 +1391,8 @@ class AgentsController:
             agent = self.reference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits):
             agent = self.reference_toolkits(agent)
+        if agent.skills and len(agent.skills):
+            agent = self.reference_skills(agent, workspace_id=workspace_id)
         return agent
     
     def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
@@ -1393,12 +1446,20 @@ class AgentsController:
             
             # Store workspace_id separately before model validation (it gets dropped during validation)
             # Format: [(agent_object, workspace_id), ...]
-            existing_native_agents = [(Agent.model_validate(agent_dict), agent_dict.get('workspace_id'))
-                                     for agent_dict in existing_native_agents_raw]
-            existing_external_agents = [(ExternalAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
-                                       for agent_dict in existing_external_agents_raw]
-            existing_assistant_agents = [(AssistantAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
-                                        for agent_dict in existing_assistant_agents_raw]
+            # Use "prefetch" context so that CUSTOMER_CARE agents with unsupported fields
+            # (e.g. chat_with_docs.enabled=True) produce warnings instead of raising.
+            # "prefetch" is semantically distinct from "list" — this is a pre-flight read
+            # to discover existing agents for upsert logic, not a user-facing list operation.
+            token = validation_context.set("prefetch")
+            try:
+                existing_native_agents = [(Agent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                         for agent_dict in existing_native_agents_raw]
+                existing_external_agents = [(ExternalAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                           for agent_dict in existing_external_agents_raw]
+                existing_assistant_agents = [(AssistantAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                            for agent_dict in existing_assistant_agents_raw]
+            finally:
+                validation_context.reset(token)
 
             all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
 

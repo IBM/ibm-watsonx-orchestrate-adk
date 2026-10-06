@@ -31,6 +31,7 @@ from ibm_watsonx_orchestrate.utils.migration_manager import MigrationsManager
 from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
 
 
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.feature_flags import KNOWLEDGE_CONNECTORS_ENABLED
 from ibm_watsonx_orchestrate.developer_edition.vm_host.lima import LimaLifecycleManager
 from ibm_watsonx_orchestrate.client.utils import get_os_type, path_for_vm
 import base64
@@ -99,6 +100,7 @@ def run_compose_lite(
         with_langflow=False,
         with_ai_builder=False,
         with_ingestion_from_external_source=False,
+        with_knowledge_opensearch=False,
     ) -> None:
     env_service.prepare_clean_env(final_env_file)
     db_tag = env_service.read_env_file(final_env_file).get('DBTAG', None)
@@ -138,6 +140,8 @@ def run_compose_lite(
         profiles.append("agent-builder")
     if with_ingestion_from_external_source:
         profiles.append("ingestion-from-external-source")
+    if with_knowledge_opensearch:
+        profiles.append("knowledge-use-opensearch")
 
     result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0"])
 
@@ -653,6 +657,11 @@ def server_start(
     if with_ingestion_from_external_source:
         merged_env_dict['INGESTION_FROM_EXTERNAL_SOURCE_ENABLED'] = 'true'
 
+    if 'ENABLE_KB_SOURCE_SYNC' not in merged_env_dict:
+        merged_env_dict['ENABLE_KB_SOURCE_SYNC'] = 'true' if KNOWLEDGE_CONNECTORS_ENABLED else 'false'
+
+    with_knowledge_opensearch = merged_env_dict.get('VECTOR_STORE_PROVIDER', '').lower() == 'opensearch'
+
     if cert_bundle_path:
         cert_path: Path = Path(cert_bundle_path)
         if not cert_path.exists() or not cert_path.is_file():
@@ -702,6 +711,7 @@ def server_start(
                      with_langflow=with_langflow,
                      with_ai_builder=with_ai_builder,
                      with_ingestion_from_external_source=with_ingestion_from_external_source,
+                     with_knowledge_opensearch=with_knowledge_opensearch,
                      env_service=env_service)
     
     run_db_migration(with_ai_builder, merged_env_dict)
