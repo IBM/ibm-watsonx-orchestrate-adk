@@ -25,12 +25,12 @@ base_dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["ibm_watsonx_orchestrate_clients"]
 package-data = true
 
 [tool.hatch.build]
 include = [
-    "./*"
+    "ibm_watsonx_orchestrate_clients/**"
 ]
 directory="../../dist"
 
