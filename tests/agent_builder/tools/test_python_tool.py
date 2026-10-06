@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+import sys
 from typing import Any, Optional, List, Dict
 
 import pytest
@@ -191,6 +192,13 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
 # mirroring what TRM does at runtime.
 # ---------------------------------------------------------------------------
 
+# inspect.markcoroutinefunction / _is_coroutine_mark sentinel only exists on
+# Python 3.12+. TRM runs Python 3.12, so the production behaviour is correct.
+# These contract tests are skipped on 3.11 where the sentinel is unavailable.
+_PY312_PLUS = sys.version_info >= (3, 12)
+
+
+@pytest.mark.skipif(not _PY312_PLUS, reason="inspect coroutine sentinel requires Python 3.12+")
 def test_python_tool_is_identified_as_coroutine_function():
     """inspect.iscoroutinefunction(tool_instance) must return True so TRM's
     async-detection gate selects the `await func(...)` path, not run_in_executor."""
@@ -204,6 +212,7 @@ def test_python_tool_is_identified_as_coroutine_function():
     )
 
 
+@pytest.mark.skipif(not _PY312_PLUS, reason="inspect coroutine sentinel requires Python 3.12+")
 def test_sync_tool_is_also_identified_as_coroutine_function():
     """Sync-backed tools also expose an async __call__ — TRM will await them too,
     which is fine: the body executes synchronously in a single step."""
