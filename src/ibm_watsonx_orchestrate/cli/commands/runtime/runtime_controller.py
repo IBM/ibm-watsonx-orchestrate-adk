@@ -336,7 +336,7 @@ class RuntimeController:
             "workload_name": workload_name,
             "workload_type": workload_type,
             "source_type": source_type,
-            "tag": tag,
+            "image_tag": tag,
         }
         if description is not None:
             payload["description"] = description

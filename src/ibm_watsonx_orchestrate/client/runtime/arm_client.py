@@ -17,10 +17,10 @@ _UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024
 # mutable and supplied via ARM_SERVER_URL; arm/v1 is the stable ARM path.
 _ARM_PATH = "arm/v1"
 
-# Default server URL for local development (matches the ARM service Swagger at
-# http://localhost:8080/api/arm/v1/...).  Override via ARM_SERVER_URL env var
+# Default server URL for local development (matches the ARM service at
+# http://localhost:8080/api/v1/arm/v1/...).  Override via ARM_SERVER_URL env var
 # when targeting a non-local environment (e.g. dev-conn staging).
-_DEFAULT_LOCAL_SERVER_URL = "http://localhost:8080/api"
+_DEFAULT_LOCAL_SERVER_URL = "http://localhost:8080/api/v1"
 
 
 class ARMClient(BaseWXOClient):

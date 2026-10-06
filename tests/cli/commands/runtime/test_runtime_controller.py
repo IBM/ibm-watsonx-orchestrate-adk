@@ -120,7 +120,7 @@ class TestBuildWorkloadPayload:
         assert payload["workload_name"] == "agent-1"
         assert payload["workload_type"] == "agent"
         assert payload["source_type"] == SOURCE_TYPE_S3
-        assert payload["tag"] == "v1"
+        assert payload["image_tag"] == "v1"
         assert payload["source_s3_key"] == "abc123/agent.tar.gz"
 
     def test_registry_payload_includes_required_fields(self):
@@ -194,7 +194,7 @@ class TestPushImageS3:
         registered_payload = mock_client.register_workload.call_args[0][0]
         assert registered_payload["source_type"] == SOURCE_TYPE_S3
         assert registered_payload["source_s3_key"] == "abc123/agent.tar.gz"
-        assert registered_payload["tag"] == "v1"
+        assert registered_payload["image_tag"] == "v1"
         assert result["workload_id"] == "wid-123"
 
     def test_exits_on_missing_archive(self, tmp_path):
@@ -299,7 +299,7 @@ class TestPushImageRegistry:
         assert payload["source_type"] == SOURCE_TYPE_REGISTRY
         assert payload["source_image"] == "docker.io/myorg/agent-1:latest"
         assert payload["source_connection_id"] == "conn-abc"
-        assert payload["tag"] == "v2"
+        assert payload["image_tag"] == "v2"
         assert result["workload_id"] == "wid-123"
 
     def test_public_registry_omits_connection_id(self):

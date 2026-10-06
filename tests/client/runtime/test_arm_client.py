@@ -21,9 +21,10 @@ def client():
 
 class TestARMClientBaseUrl:
     def test_default_local_base_url(self):
-        """Without ARM_SERVER_URL the client uses the local default."""
+        """Without ARM_SERVER_URL the client uses the local default (includes /v1)."""
         c = ARMClient(base_url="http://localhost:8080", api_key="tok", is_local=True)  # pragma: allowlist secret
         assert c.base_url == f"{_DEFAULT_LOCAL_SERVER_URL}/{_ARM_PATH}"
+        assert c.base_url == "http://localhost:8080/api/v1/arm/v1"
 
     def test_base_url_from_env_var(self):
         """ARM_SERVER_URL overrides the default server URL."""
