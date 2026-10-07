@@ -197,7 +197,7 @@ class MockClient:
     def get_by_names(self, names):
         return [{"name": "existing-knowledge-base", "id": self.expected_id}]
 
-    def validate_creds(self, connection_id, vector_index_type, url=None, port=None):
+    def validate_creds(self, connection_id, connection_type, url=None, port=None):
         pass
 
     
@@ -890,7 +890,14 @@ class TestContentSourceKnowledgeBase:
 
 
 class TestKnowledgeConnectorsDisabled:
-    """Tests for behaviour when KNOWLEDGE_CONNECTORS_ENABLED=False (the default)."""
+    """Tests for behaviour when KNOWLEDGE_CONNECTORS_ENABLED=False."""
+
+    @pytest.fixture(autouse=True)
+    def disable_knowledge_connectors(self, monkeypatch):
+        monkeypatch.setattr(
+            "ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KNOWLEDGE_CONNECTORS_ENABLED",
+            False,
+        )
 
     def test_import_content_source_errors_when_connectors_disabled(self, caplog, content_source_knowledge_base_content):
         """Importing a content_source KB while connectors are disabled must log an error and skip.
@@ -1142,48 +1149,48 @@ class TestValidateConnectionCreds:
         return controller, mock_client
 
     # ------------------------------------------------------------------
-    # get_vector_index_type helper
+    # get_connection_type helper
     # ------------------------------------------------------------------
 
-    def test_get_vector_index_type_milvus(self):
+    def test_get_connection_type_milvus(self):
         index_config = IndexConnection(
             connection_id="conn-1",
             milvus=MilvusConnection(grpc_host="host", grpc_port="30564", collection="col", database="db"),
         )
-        assert KnowledgeBaseController.get_vector_index_type(index_config) == "milvus"
+        assert KnowledgeBaseController.get_connection_type(index_config) == "milvus"
 
-    def test_get_vector_index_type_elastic_search(self):
+    def test_get_connection_type_elastic_search(self):
         index_config = IndexConnection(
             connection_id="conn-1",
             elastic_search=ElasticSearchConnection(url="https://es.example.com", index="idx"),
         )
-        assert KnowledgeBaseController.get_vector_index_type(index_config) == "elastic_search"
+        assert KnowledgeBaseController.get_connection_type(index_config) == "elastic_search"
 
-    def test_get_vector_index_type_open_search(self):
+    def test_get_connection_type_open_search(self):
         index_config = IndexConnection(
             connection_id="conn-1",
             open_search=OpenSearchConnection(url="https://os.example.com", index="idx"),
         )
-        assert KnowledgeBaseController.get_vector_index_type(index_config) == "open_search"
+        assert KnowledgeBaseController.get_connection_type(index_config) == "open_search"
 
-    def test_get_vector_index_type_astradb(self):
+    def test_get_connection_type_astradb(self):
         index_config = IndexConnection(
             connection_id="conn-1",
             astradb=AstraDBConnection(api_endpoint="https://astra.example.com", data_type="vector"),
         )
-        assert KnowledgeBaseController.get_vector_index_type(index_config) == "astradb"
+        assert KnowledgeBaseController.get_connection_type(index_config) == "astradb"
 
-    def test_get_vector_index_type_custom_search(self):
+    def test_get_connection_type_custom_search(self):
         index_config = IndexConnection(
             connection_id="conn-1",
             custom_search=CustomSearchConnection(url="https://custom.example.com"),
         )
-        assert KnowledgeBaseController.get_vector_index_type(index_config) == "custom_search"
+        assert KnowledgeBaseController.get_connection_type(index_config) == "custom_search"
 
-    def test_get_vector_index_type_none_when_no_connection_type_set(self):
+    def test_get_connection_type_none_when_no_connection_type_set(self):
         # connection_id present but no recognised connection type field set
         index_config = IndexConnection(connection_id="conn-1")
-        assert KnowledgeBaseController.get_vector_index_type(index_config) is None
+        assert KnowledgeBaseController.get_connection_type(index_config) is None
 
     # ------------------------------------------------------------------
     # get_url_and_port_from_index_config helper
@@ -1248,7 +1255,7 @@ class TestValidateConnectionCreds:
         controller._validate_connection_creds(index_config)
         mock_client.validate_creds.assert_not_called()
 
-    def test_validate_skipped_when_vector_index_type_is_none(self):
+    def test_validate_skipped_when_connection_type_is_none(self):
         """_validate_connection_creds returns immediately when no recognised connection type is set."""
         controller, mock_client = self._controller_with_mock_client()
         # Has a connection_id but no milvus/elastic/etc field populated
@@ -1270,7 +1277,7 @@ class TestValidateConnectionCreds:
         controller._validate_connection_creds(index_config)  # must not raise
         mock_client.validate_creds.assert_called_once_with(
             connection_id="conn-42",
-            vector_index_type="milvus",
+            connection_type="milvus",
             url="milvus.host",
             port="30564",
         )

@@ -11,6 +11,7 @@ from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from ibm_watsonx_orchestrate.client.service_instance import ServiceInstance
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate_clients.common.utils import detect_mcsp_key_type, infer_mcspv2_iam_url
 
 logger = logging.getLogger(__name__)
 
@@ -158,10 +159,15 @@ class ModelGatewayEnvConfig(BaseModel):
             inferred_auth_url = AUTH_TYPE_DEFAULT_URL_MAPPING.get(auth_type)
             if not inferred_auth_url:
                 if auth_type == WoAuthType.CPD:
-                    inferred_auth_url = config.get("WO_INSTANCE") + '/icp4d-api/v1/authorize'   
-                else: 
+                    inferred_auth_url = config.get("WO_INSTANCE") + '/icp4d-api/v1/authorize'
+                else:
                     logger.error(f"No 'AUTHORIZATION_URL' found. Auth type '{auth_type}' does not support defaulting. Please set the 'AUTHORIZATION_URL' explictly")
                     sys.exit(1)
+            # For MCSP, further refine the default by inspecting the key version.
+            # k2: keys (MCSP v2) must use account-iam.platform.saas.ibm.com/api/2.0;
+            # the AUTH_TYPE_DEFAULT_URL_MAPPING points to the v1 endpoint which rejects them.
+            if auth_type == WoAuthType.MCSP and detect_mcsp_key_type(config.get("WO_API_KEY")) == "k2":
+                inferred_auth_url = infer_mcspv2_iam_url(config.get("WO_INSTANCE")) + "/api/2.0/apikeys/token"
             config["AUTHORIZATION_URL"] = inferred_auth_url
         
         if not config.get("AUTHORIZATION_URL_HOSTNAME"):

@@ -16,7 +16,7 @@ import docstring_parser
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
 from pydantic import computed_field, field_validator, model_validator
-from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
+from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
 
@@ -227,7 +227,7 @@ class DocExtConfig(BaseModel):
     llm: str = Field(description="The LLM used for the document extraction", default="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
-    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from pages within the specified range are extracted. Supported only when field_extraction_method='layout'.", default=None)
+    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from pages within the specified range are extracted.", default=None)
     
     @model_validator(mode='after')
     def validate_field_extraction_method(self) -> Self:
@@ -246,13 +246,6 @@ class DocExtConfig(BaseModel):
                         "'available_options' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
                     )
             
-            # Check for page_range
-            if self.page_range is not None:
-                raise ValueError(
-                    "page_range is only supported when field_extraction_method='layout'. "
-                    f"Current field_extraction_method is '{self.field_extraction_method}'."
-                )
-        
         return self
 
 class LanguageCode(StrEnum):
@@ -918,6 +911,8 @@ class UserField(BaseModel):
     input_schema: ToolRequestBody | SchemaRef | JsonSchemaObject | None = None
     output_schema: ToolResponseBody | SchemaRef | JsonSchemaObject | None = None
     uiSchema: dict[str, Any] | None = None
+    jsonSchema: dict[str, Any] | JsonSchemaObject | SchemaRef | None = None
+    spec_version: str | None = None
     regex: str | None = None
     regex_error_msg: str | None = None
 
@@ -983,11 +978,214 @@ class UserField(BaseModel):
                 model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
         if self.uiSchema:
             model_spec["uiSchema"] = self.uiSchema
+        if self.jsonSchema:
+            if isinstance(self.jsonSchema, dict):
+                model_spec["jsonSchema"] = self.jsonSchema
+            else:
+                model_spec["jsonSchema"] = _to_json_from_input_schema(self.jsonSchema)
+        if self.spec_version:
+            model_spec["spec_version"] = self.spec_version
         if self.regex:
             model_spec["regex"] = self.regex
         if self.regex_error_msg:
             model_spec["regex_error_msg"] = self.regex_error_msg
         return model_spec
+
+
+ACTIVITY_SPEC_VERSION = "2.0"
+
+# Widget shape recipes for spec_version 2.0 UserActivity fields.
+# Produces the per-field jsonSchema.properties[<name>] shape for a given widget
+# kind. Kept alongside FORM_SCHEMA_TEMPLATES so the widget catalog stays
+# discoverable in one place.
+#
+# `title` is only set when a label was supplied. The activity jsonSchema is a
+# plain dict that bypasses _to_json_from_json_schema (so that `description`,
+# `oneOf` and `additionalProperties` survive), which also means it bypasses the
+# None-stripping in _assign_attribute — so nulls must not be introduced here.
+def _activity_property_schema(kind: "UserFieldKind", direction: str, label: str | None,
+                              true_label: str = "True", false_label: str = "False",
+                              allow_multiple_files: bool = False,
+                              file_max_size: int | None = None,
+                              supported_file_types: List[str] | None = None,
+                              multiple_dates: bool = False) -> dict[str, Any]:
+    # Present-to-User-Message: no title, the text carries the content.
+    if kind == UserFieldKind.Text and direction == "output":
+        return {"type": "string"}
+
+    if kind == UserFieldKind.Text:
+        schema: dict[str, Any] = {"type": "string"}
+    elif kind == UserFieldKind.Boolean:
+        schema = {
+            "type": "boolean",
+            "oneOf": [
+                {"const": True, "title": true_label},
+                {"const": False, "title": false_label},
+            ],
+        }
+    elif kind == UserFieldKind.Number:
+        schema = {"type": "number"}
+    elif kind == UserFieldKind.Date:
+        if multiple_dates:
+            schema = {"type": "array", "items": {"type": "string", "format": "date"}}
+        else:
+            schema = {"type": "string", "format": "date"}
+    elif kind == UserFieldKind.DateTime:
+        schema = {"type": "string", "format": "datetime"}
+    elif kind == UserFieldKind.Time:
+        schema = {"type": "string", "format": "time"}
+    elif kind == UserFieldKind.File:
+        if allow_multiple_files:
+            schema = {"type": "array", "items": {"type": "string", "format": "wxo-file"}}
+        else:
+            schema = {"type": "string", "format": "wxo-file"}
+        if file_max_size is not None:
+            schema["file_max_size"] = file_max_size
+        if supported_file_types is not None:
+            schema["file_types"] = supported_file_types
+    else:
+        raise ValueError(f"UserActivity does not yet support kind={kind.value} direction={direction}")
+
+    if label is not None:
+        schema["title"] = label
+    return schema
+
+
+def _build_activity_field(
+    *,
+    name: str,
+    kind: "UserFieldKind",
+    direction: str,
+    label: str | None = None,
+    agent_message: str | None = None,
+    required: bool = False,
+    input_map: Any | None = None,
+    single_line: bool = True,
+    single_checkbox: bool = True,
+    true_label: str = "True",
+    false_label: str = "False",
+    placeholder_text: str | None = None,
+    help_text: str | None = None,
+    allow_multiple_files: bool = False,
+    file_max_size: int | None = None,
+    supported_file_types: List[str] | None = None,
+    multiple_dates: bool = False,
+    has_range_limit: bool = False,
+    regex: str | None = None,
+    regex_error_message: str | None = None,
+) -> "UserField":
+    """
+    Build a UserField for a spec_version 2.0 UserActivity (single-widget user node).
+
+    General case: agent_message → jsonSchema.description; label → display_name +
+    uiSchema["ui:title"] + jsonSchema.properties[name].title.
+
+    Present-to-User-Message exception (kind=Text, direction=output): agent_message →
+    field.text; uiSchema uses DataWidget with label:false; no ui:title, no
+    jsonSchema.description, no property title.
+    """
+    # Present-to-User-Message: Text output is the special case.
+    if kind == UserFieldKind.Text and direction == "output":
+        schemas = clone_form_schema("message")
+        ui_schema = schemas["ui_schema"]
+        json_schema: dict[str, Any] = {
+            "type": "object",
+            "required": [],
+            "properties": {name: _activity_property_schema(kind, direction, label)},
+            "additionalProperties": False,
+        }
+        return UserField(
+            name=name,
+            kind=kind,
+            direction=direction,
+            text=agent_message,
+            uiSchema=ui_schema,
+            jsonSchema=json_schema,
+            output_schema=schemas["output_schema"],
+            input_schema=schemas["input_schema"],
+            spec_version=ACTIVITY_SPEC_VERSION,
+        )
+
+    # General case — build the widget-shaped input/output/ui via the form templates.
+    template_type = kind.value
+    ui_config: dict[str, Any] = {"ui:title": label if label is not None else name}
+
+    if kind == UserFieldKind.Text:
+        ui_config["ui:widget"] = "TextWidget" if single_line else "TextareaWidget"
+    elif kind == UserFieldKind.Boolean:
+        widget = "CheckboxWidget" if single_checkbox else "RadioWidget"
+        ui_config["ui:widget"] = widget
+        if widget == "CheckboxWidget":
+            ui_config["ui:options"] = {"label": False}
+    elif kind == UserFieldKind.Date and multiple_dates:
+        ui_config["ui:widget"] = "MultiDateWidget"
+    elif kind in (UserFieldKind.DateTime, UserFieldKind.Time):
+        ui_config["ui:options"] = {
+            "is_range": False,
+            "is_timezone": True,
+            "is_datepicker": kind == UserFieldKind.DateTime,
+        }
+    # For other kinds, clone_form_schema will supply the default ui:widget.
+
+    if help_text is not None:
+        ui_config["ui:help"] = help_text
+    if placeholder_text is not None:
+        ui_config["ui:placeholder"] = placeholder_text
+
+    schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+    json_schema = {
+        "type": "object",
+        "required": [name] if required else [],
+        "properties": {name: _activity_property_schema(kind, direction, label,
+                                                       true_label=true_label,
+                                                       false_label=false_label,
+                                                       allow_multiple_files=allow_multiple_files,
+                                                       file_max_size=file_max_size,
+                                                       supported_file_types=supported_file_types,
+                                                       multiple_dates=multiple_dates)},
+        "additionalProperties": False,
+    }
+    if agent_message is not None:
+        json_schema["description"] = agent_message
+
+    if kind == UserFieldKind.Date and multiple_dates:
+        dates_schema = {"type": "array", "items": {"type": "string", "format": "date"}}
+        schemas["input_schema"].properties["default"] = dates_schema
+        schemas["output_schema"].properties["value"] = dates_schema
+
+    if has_range_limit and kind in (UserFieldKind.Date, UserFieldKind.DateTime, UserFieldKind.Time):
+        prop_prefix = "date" if kind == UserFieldKind.Date else "time"
+        json_format = "date-time" if kind == UserFieldKind.DateTime else kind.value
+        for bound in ("min", "max"):
+            schemas["input_schema"].properties[f"{bound}_{prop_prefix}"] = {
+                "type": "string",
+                "format": json_format,
+            }
+
+    output_schema = schemas["output_schema"]
+    if kind == UserFieldKind.File and allow_multiple_files:
+        output_schema = JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-file"}}},
+            required=["value"]
+        )
+
+    return UserField(
+        name=name,
+        kind=kind,
+        direction=direction,
+        display_name=label,
+        input_map=input_map,
+        uiSchema=schemas["ui_schema"],
+        jsonSchema=json_schema,
+        input_schema=schemas["input_schema"],
+        output_schema=output_schema,
+        spec_version=ACTIVITY_SPEC_VERSION,
+        regex=regex,
+        regex_error_msg=regex_error_message if regex else None,
+    )
+
 
 # Behaviour Rule Classes for Dynamic Forms
 
@@ -1406,7 +1604,8 @@ class UserForm(BaseModel):
             single_checkbox: bool = True,
             input_map: Any| None=None,
             true_label: str = "True",
-            false_label: str = "False"
+            false_label: str = "False",
+            required: bool = False,
     ) -> UserField:
         # Use the template system from utils
         widget = "CheckboxWidget" if single_checkbox else "RadioWidget"
@@ -1455,6 +1654,8 @@ class UserForm(BaseModel):
             ],
             "title": label
         }
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
 
         return userfield
 
@@ -2810,6 +3011,7 @@ class UserNodeSpec(NodeSpec):
     owners: Sequence[str] | None = None
     fields: list[UserField] | None = None
     form: UserForm | None = None
+    is_activity: bool = False
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -2987,6 +3189,67 @@ class PromptLLMParameters(BaseModel):
         if self.stop_sequences:
             model_spec["stop_sequences"] = self.stop_sequences
         return model_spec
+
+
+import json as _json
+
+
+class AITaskLLMParameter(BaseModel):
+    parameter_name: str
+    parameter_type: Literal["string", "number", "integer", "boolean", "object"]
+    parameter_value: str  # always stringified
+    enabled: bool = True
+
+
+class AITaskLLMParameters:
+    """Builder for the structured parameters[] LLM parameter payload."""
+
+    def __init__(self) -> None:
+        self._params: list[AITaskLLMParameter] = []
+
+    @staticmethod
+    def _infer_type(value: Any) -> Literal["string", "number", "integer", "boolean", "object"]:
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, int):
+            return "integer"
+        if isinstance(value, float):
+            return "number"
+        if isinstance(value, (list, dict)):
+            return "object"
+        return "string"
+
+    @staticmethod
+    def _serialize_value(value: Any) -> str:
+        if isinstance(value, (list, dict)):
+            return _json.dumps(value)
+        return str(value)
+
+    def add(self, name: str, value: Any, enabled: bool = True) -> "AITaskLLMParameters":
+        """Add or replace a parameter entry, inferring its type from *value*."""
+        # Replace an existing entry with the same name if present
+        self._params = [p for p in self._params if p.parameter_name != name]
+        self._params.append(
+            AITaskLLMParameter(
+                parameter_name=name,
+                parameter_type=self._infer_type(value),
+                parameter_value=self._serialize_value(value),
+                enabled=enabled,
+            )
+        )
+        return self
+
+    def disable(self, name: str) -> "AITaskLLMParameters":
+        """Set *enabled = False* on the parameter identified by *name*."""
+        for p in self._params:
+            if p.parameter_name == name:
+                p.enabled = False
+                break
+        return self
+
+    def to_json(self) -> dict[str, Any]:
+        """Return the ``{ "parameters": [...] }`` payload expected by the runtime."""
+        return {"parameters": [p.model_dump() for p in self._params]}
     
 class PromptExample(BaseModel):
     input: Optional[str] = None
@@ -3006,11 +3269,13 @@ class PromptExample(BaseModel):
 
 
 class PromptNodeSpec(NodeSpec):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     system_prompt: str | list[str]
     user_prompt: str | list[str]
     prompt_examples: Optional[list[PromptExample]] = None
     llm: Optional[str] = None
-    llm_parameters: Optional[PromptLLMParameters] = None
+    llm_parameters: Optional[Union[PromptLLMParameters, "AITaskLLMParameters", dict]] = None
     error_handler_config: Optional[NodeErrorHandlerConfig] = None
     metadata: dict[str, Any] | None = None
     test_input_data: dict[str, Any] | None = None
@@ -3028,8 +3293,11 @@ class PromptNodeSpec(NodeSpec):
             model_spec["user_prompt"] = self.user_prompt
         if self.llm:
             model_spec["llm"] = self.llm
-        if self.llm_parameters:
-            model_spec["llm_parameters"] = self.llm_parameters.to_json()
+        if self.llm_parameters is not None:
+            if isinstance(self.llm_parameters, dict):
+                model_spec["llm_parameters"] = self.llm_parameters
+            else:
+                model_spec["llm_parameters"] = self.llm_parameters.to_json()
         if self.error_handler_config is not None:
             model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.prompt_examples:
@@ -3310,6 +3578,10 @@ class UserAssignmentPolicy(Enum):
 class UserFlowSpec(FlowSpec):
     owners: Sequence[str] = [ANY_USER]
     assignment_policy : UserAssignmentPolicy = Field(default=UserAssignmentPolicy.FLOW_INITIATOR, description="The initiator of this flow")
+    # Runtime-visible user activity title shown in the Chat. Distinct from
+    # display_name, which is the build-time node name. Supports variable
+    # substitutions, e.g. "Confirmation for {flow.input.myname}".
+    label: str | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -3317,6 +3589,8 @@ class UserFlowSpec(FlowSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
+        if self.label is not None:
+            model_spec["label"] = self.label
         if self.initiators:
             model_spec["owners"] = self.initiators
         if self.assignment_policy:
