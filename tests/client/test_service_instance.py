@@ -118,3 +118,48 @@ class TestGetAuthenticatorMcspV2:
         tm = authenticator.token_manager
         assert tm.url == "https://account-iam.platform.saas.ibm.com"
         assert tm.OPERATION_PATH == "/api/2.0/apikeys/token"
+
+
+class TestScopelessTokenManagerHeader:
+    def test_request_token_sends_x_api_key_header(self):
+        """request_token must include X-API-Key in headers for HIPAA/AWS proxy compatibility.
+
+        The WXO HIPAA/AWS regional proxy's scopeless endpoint returns HTTP 400
+        'API Key Missing' when the key is only in the JSON body. Sending it as
+        X-API-Key header satisfies both that proxy and standard MCSP v2 endpoints.
+
+        This test instantiates _ScopelessMCSPV2TokenManager directly and mocks
+        _request to capture the outbound headers, preventing silent regression if
+        the header map is later refactored.
+
+        Note: self.apikey is always populated — MCSPV2TokenManager.__init__ requires
+        it as a positional argument (line 84: self.apikey = apikey), so it is
+        guaranteed to be set before request_token() is called.
+        """
+        import json
+        api_key = _make_mcsp_key("k2:")  # pragma: allowlist secret
+        tm = _ScopelessMCSPV2TokenManager(
+            apikey=api_key,
+            url="https://api.us-east-1-reg.watson-orchestrate.ibm.com",
+            scope_collection_type="services",
+            scope_id="placeholder",
+        )
+
+        captured = {}
+
+        def fake_request(method, headers, url, params, data, proxies):
+            captured["headers"] = headers
+            captured["body"] = json.loads(data)
+            return MagicMock(get_result=lambda: {"token": "tok", "expiration": 9999999999})
+
+        tm._request = fake_request
+        tm.request_token()
+
+        # X-API-Key header must be present for HIPAA/AWS proxy compatibility
+        assert "X-API-Key" in captured["headers"], (
+            "X-API-Key header missing — the WXO HIPAA/AWS proxy requires it"
+        )
+        assert captured["headers"]["X-API-Key"] == api_key
+
+        # apikey body field must still be present for standard MCSP v2 endpoints
+        assert captured["body"].get("apikey") == api_key
