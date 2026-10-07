@@ -108,7 +108,7 @@ if is_prerelease && ! property_set "wai-release-type"; then
   info "Publishing release candidate version ${VERSION}"
   pypi_repo="testpypi"
   pypi_api_key=$(get_secret "test-pypi-watson-devex")
-  docker_run $BUILD_IMAGE "twine upload --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
+  docker_run $BUILD_IMAGE "twine upload --skip-existing --verbose --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
   COMMIT_MESSAGE=$(cat <<EOF
 ### Release published to testpypi
 Release ${VERSION} has been published to testpypi.
@@ -126,11 +126,11 @@ elif is_release_branch; then
 
   pypi_repo="testpypi"
   pypi_api_key=$(get_secret "test-pypi-watson-devex")
-  docker_run $BUILD_IMAGE "twine upload --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
+  docker_run $BUILD_IMAGE "twine upload --skip-existing --verbose --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
 
   pypi_repo="pypi"
   pypi_api_key=$(get_secret "pypi-watson-devex")
-  docker_run $BUILD_IMAGE "twine upload --repository pypi -u __token__ -p ${pypi_api_key} dist/*"
+  docker_run $BUILD_IMAGE "twine upload --skip-existing --verbose --repository pypi -u __token__ -p ${pypi_api_key} dist/*"
 
   github_create_release ${VERSION}
 fi

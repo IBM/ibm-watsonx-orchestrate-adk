@@ -460,6 +460,13 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     compose_src = env_service.get_compose_file(ignore_cache=True)
     shutil.copy(compose_src, staging_dir / "docker-compose.yml")
 
+    # TODO: short-term hotfix — copy the minio build context so that `build: context: ./minio`
+    # in the compose file resolves correctly against the cache dir instead of the package
+    # install path. Remove this block once the long-term minio replacement has been shipped.
+    minio_src = compose_src.parent / "minio"
+    if minio_src.exists():
+        shutil.copytree(minio_src, staging_dir / "minio", dirs_exist_ok=True)
+
     # Merge default + user env
     default_env = EnvService.get_default_env_file()
     merged_env = EnvService.merge_env(default_env, user_env_file)
