@@ -23,6 +23,60 @@ _ARM_PATH = "arm/v1"
 _DEFAULT_LOCAL_SERVER_URL = "http://localhost:8080/api/v1"
 
 
+class _ProgressFileReader:
+    """File-like wrapper that streams in fixed-size chunks with a known length.
+
+    Passing a plain Python generator to ``requests.put`` causes urllib3 to use
+    ``Transfer-Encoding: chunked`` and discard ``Content-Length``.  S3/MinIO
+    presigned PUT endpoints signed with standard SigV4 reject chunked uploads
+    with HTTP 411 (Length Required).  This wrapper exposes ``__len__`` so that
+    requests can see the payload size upfront, preventing chunked encoding.
+
+    Args:
+        path:       Path to the file to stream.
+        chunk_size: Number of bytes to read per ``read()`` call.
+        callback:   Optional callable invoked with ``len(chunk)`` after each
+                    read.  Used by the CLI to advance a live progress bar.
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        chunk_size: int,
+        callback: Optional[Callable[[int], None]] = None,
+    ) -> None:
+        self._path = path
+        self._chunk_size = chunk_size
+        self._callback = callback
+        self._fh = None
+        self._size = path.stat().st_size
+
+    def __enter__(self) -> "_ProgressFileReader":
+        self._fh = open(self._path, "rb")
+        return self
+
+    def __exit__(self, *args) -> None:
+        if self._fh:
+            self._fh.close()
+
+    def __len__(self) -> int:
+        """Return the total file size so requests sends Content-Length, not chunked."""
+        return self._size
+
+    def read(self, size: int = -1) -> bytes:
+        chunk = self._fh.read(self._chunk_size if size == -1 else size)
+        if chunk and self._callback is not None:
+            self._callback(len(chunk))
+        return chunk
+
+    def __iter__(self):
+        while True:
+            chunk = self.read(self._chunk_size)
+            if not chunk:
+                break
+            yield chunk
+
+
 class ARMClient(BaseWXOClient):
     """HTTP client for the ARM Placement Engine API.
 
@@ -110,11 +164,17 @@ class ARMClient(BaseWXOClient):
         string.  No ``Authorization`` header must be added — doing so would
         invalidate the signature.
 
+        Uses ``_ProgressFileReader`` to stream the file in chunks while
+        retaining an explicit ``Content-Length``.  Passing a plain Python
+        generator to ``requests.put`` causes urllib3 to switch to
+        ``Transfer-Encoding: chunked`` and strip ``Content-Length``, which
+        S3/MinIO presigned PUT endpoints reject with HTTP 411.
+
         Args:
             upload_url:         The ``upload_url`` value returned by ``get_upload_url``.
             file_path:          Local path to the archive to upload.
             progress_callback:  Optional callable invoked with the number of bytes
-                                sent after each chunk.  Used by the CLI to drive a
+                                read after each chunk.  Used by the CLI to drive a
                                 live progress bar.
 
         Raises:
@@ -127,28 +187,19 @@ class ARMClient(BaseWXOClient):
 
         file_size = file_path.stat().st_size
 
-        def _file_chunks():
-            with open(file_path, "rb") as fh:
-                while True:
-                    chunk = fh.read(_UPLOAD_CHUNK_SIZE)
-                    if not chunk:
-                        break
-                    if progress_callback is not None:
-                        progress_callback(len(chunk))
-                    yield chunk
-
-        response = requests.put(
-            upload_url,
-            data=_file_chunks(),
-            headers={
-                "Content-Length": str(file_size),
-                # Explicit Content-Type guards against presigned URLs that sign
-                # the Content-Type header — omitting it would cause a 403.
-                "Content-Type": "application/octet-stream",
-            },
-            # No Authorization header — signature is in the URL query string.
-        )
-        response.raise_for_status()
+        with _ProgressFileReader(file_path, _UPLOAD_CHUNK_SIZE, progress_callback) as stream:
+            response = requests.put(
+                upload_url,
+                data=stream,
+                headers={
+                    "Content-Length": str(file_size),
+                    # Explicit Content-Type guards against presigned URLs that sign
+                    # the Content-Type header — omitting it would cause a 403.
+                    "Content-Type": "application/octet-stream",
+                },
+                # No Authorization header — signature is in the URL query string.
+            )
+            response.raise_for_status()
 
     def register_workload(self, payload: dict) -> dict:
         """Register a workload image with ARM (create or add version).

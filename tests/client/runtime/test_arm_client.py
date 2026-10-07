@@ -8,6 +8,8 @@ from ibm_watsonx_orchestrate.client.runtime.arm_client import (
     ARMClient,
     _ARM_PATH,
     _DEFAULT_LOCAL_SERVER_URL,
+    _ProgressFileReader,
+    _UPLOAD_CHUNK_SIZE,
 )
 from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 
@@ -106,14 +108,14 @@ class TestUploadToS3:
     def test_progress_callback_invoked_per_chunk(self, client, tmp_path):
         """progress_callback must be called with byte counts that sum to the file size."""
         # Write data larger than one chunk to exercise multi-chunk path.
-        data = b"x" * (8 * 1024 * 1024 + 1)  # 8 MB + 1 byte → two chunks
+        data = b"x" * (_UPLOAD_CHUNK_SIZE + 1)  # one full chunk + 1 byte → two reads
         archive = tmp_path / "agent.tar"
         archive.write_bytes(data)
 
         received: list[int] = []
 
         def _consuming_put(url, data, headers):
-            # Exhaust the generator so the callback fires for each chunk.
+            # Exhaust the stream so the callback fires for each chunk.
             for _ in data:
                 pass
             resp = MagicMock(status_code=200)
@@ -128,7 +130,28 @@ class TestUploadToS3:
             )
 
         assert sum(received) == len(data)
-        assert len(received) == 2  # 8 MB chunk + 1 byte remainder
+        assert len(received) == 2  # full chunk + 1 byte remainder
+
+    def test_requests_put_receives_sized_object(self, client, tmp_path):
+        """requests.put must receive an object with __len__ to prevent chunked encoding."""
+        archive = tmp_path / "agent.tar"
+        archive.write_bytes(b"data")
+
+        captured = {}
+
+        def _capture_put(url, data, headers):
+            captured["data"] = data
+            resp = MagicMock(status_code=200)
+            resp.raise_for_status = MagicMock()
+            return resp
+
+        with patch("requests.put", side_effect=_capture_put):
+            client.upload_to_s3("https://s3.example.com/url", str(archive))
+
+        assert hasattr(captured["data"], "__len__"), (
+            "data passed to requests.put must have __len__ to prevent chunked encoding"
+        )
+        assert len(captured["data"]) == 4  # len(b"data")
 
     def test_progress_callback_none_by_default(self, client, tmp_path):
         """Omitting progress_callback must not raise."""
@@ -154,6 +177,49 @@ class TestUploadToS3:
         with patch("requests.put", return_value=mock_response):
             with pytest.raises(requests.HTTPError):
                 client.upload_to_s3("https://s3.example.com/url", str(archive))
+
+
+
+class TestProgressFileReader:
+    def test_len_returns_file_size(self, tmp_path):
+        data = b"hello world"
+        f = tmp_path / "agent.tar"
+        f.write_bytes(data)
+        with _ProgressFileReader(f, _UPLOAD_CHUNK_SIZE) as reader:
+            assert len(reader) == len(data)
+
+    def test_read_returns_chunks(self, tmp_path):
+        data = b"x" * 100
+        f = tmp_path / "agent.tar"
+        f.write_bytes(data)
+        with _ProgressFileReader(f, 40) as reader:
+            chunks = list(reader)
+        assert b"".join(chunks) == data
+        assert len(chunks) == 3  # 40 + 40 + 20
+
+    def test_callback_invoked_with_chunk_sizes(self, tmp_path):
+        data = b"x" * 100
+        f = tmp_path / "agent.tar"
+        f.write_bytes(data)
+        received = []
+        with _ProgressFileReader(f, 40, callback=lambda n: received.append(n)) as reader:
+            list(reader)
+        assert received == [40, 40, 20]
+        assert sum(received) == len(data)
+
+    def test_callback_none_does_not_raise(self, tmp_path):
+        f = tmp_path / "agent.tar"
+        f.write_bytes(b"data")
+        with _ProgressFileReader(f, _UPLOAD_CHUNK_SIZE) as reader:
+            list(reader)  # no callback — must not raise
+
+    def test_context_manager_closes_file(self, tmp_path):
+        f = tmp_path / "agent.tar"
+        f.write_bytes(b"data")
+        with _ProgressFileReader(f, _UPLOAD_CHUNK_SIZE) as reader:
+            assert reader._fh is not None
+        assert reader._fh.closed
+
 
 
 class TestRegisterWorkload:
