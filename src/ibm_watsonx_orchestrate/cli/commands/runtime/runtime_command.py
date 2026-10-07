@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 # ARM push commands are in active development and must only be exposed when
 # FEATURE_ARM_PUSH=true is set in the environment.  This prevents accidental
 # use before the feature is validated on a live WxO instance.
+#
+# TODO: Remove this feature flag once the ARM push feature has been confirmed
+#       working on a live WxO instance and promoted out of preview status.
+#       Target: Oct End.
 # ---------------------------------------------------------------------------
 _FEATURE_ENABLED = os.environ.get("FEATURE_ARM_PUSH", "").strip().lower() == "true"
 
@@ -143,6 +147,19 @@ def push_image(
         ),
     ] = None,
 ) -> None:
+    # ------------------------------------------------------------------
+    # Feature flag guard — fail gracefully if not enabled.
+    # hidden=True only removes the command from --help; it does not block
+    # direct invocation.  This explicit check ensures the user gets a clear
+    # message rather than an unexpected error if the flag is not set.
+    # ------------------------------------------------------------------
+    if not _FEATURE_ENABLED:
+        logger.error(
+            "The 'runtime' commands are currently in preview and not yet enabled. "
+            "To use this feature, set FEATURE_ARM_PUSH=true in your environment."
+        )
+        raise typer.Exit(code=1)
+
     # ------------------------------------------------------------------
     # Resolve source_type when not explicitly supplied.
     # A local file path → s3; anything else (OCI ref) → registry.
