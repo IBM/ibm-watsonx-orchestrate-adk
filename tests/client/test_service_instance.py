@@ -140,7 +140,7 @@ class TestScopelessTokenManagerHeader:
         api_key = _make_mcsp_key("k2:")  # pragma: allowlist secret
         tm = _ScopelessMCSPV2TokenManager(
             apikey=api_key,
-            url="https://api.us-east-1-reg.watson-orchestrate.ibm.com",
+            url="https://api.someunknownregion.watson-orchestrate.ibm.com/",
             scope_collection_type="services",
             scope_id="placeholder",
         )
