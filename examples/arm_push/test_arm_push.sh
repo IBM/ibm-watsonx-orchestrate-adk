@@ -5,7 +5,7 @@
 #
 # Reproduces the local validation workflow confirmed by Aaron Nguyen:
 #   Step 1: Build a Docker image and export it to a .tar archive
-#   Step 2: wxo-dev runtime push-image --source-type s3
+#   Step 2: orchestrate runtime push-image --source-type s3
 #           → POST /arm/v1/upload_files/{filename}  (get presigned S3 URL)
 #           → PUT  <presigned_url>                   (stream archive to S3)
 #           → POST /arm/v1/workloads                 (ARM copies image to registry)
@@ -19,7 +19,7 @@
 # Idempotency: each run uses a timestamp-based tag (e.g. v-20261005-143022-s3)
 # so repeated runs never collide with an existing tag.
 #
-# Prerequisites: docker, wxo-dev (ADK CLI built from this branch)
+# Prerequisites: docker, orchestrate (ADK CLI), jq
 # =============================================================================
 
 set -euo pipefail
@@ -39,6 +39,9 @@ DOCKERFILE_DIR="${SCRIPT_DIR}/agent-image"
 # Timestamp-based tag ensures idempotency across repeated runs
 TAG="v-$(date +%Y%m%d-%H%M%S)-s3"
 
+# Docker context that orchestrate uses (created by the embedded lima binary)
+ORCHESTRATE_DOCKER_CONTEXT="ibm-watsonx-orchestrate"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -55,10 +58,24 @@ require_cmd() {
 # ---------------------------------------------------------------------------
 log "=== Preflight ==="
 require_cmd docker
-require_cmd wxo-dev
+require_cmd orchestrate
+require_cmd jq
 
 [[ "${FEATURE_ARM_PUSH}" == "true" ]] || fail "FEATURE_ARM_PUSH must be 'true'"
 [[ -n "${ARM_SERVER_URL}" ]]          || fail "ARM_SERVER_URL must be set"
+
+# Ensure Docker is pointing at the orchestrate context so that images built
+# here are visible to the containers orchestrate manages.
+CURRENT_CONTEXT=$(docker context show)
+if [[ "${CURRENT_CONTEXT}" != "${ORCHESTRATE_DOCKER_CONTEXT}" ]]; then
+  log "Docker context is '${CURRENT_CONTEXT}', switching to '${ORCHESTRATE_DOCKER_CONTEXT}'..."
+  docker context use "${ORCHESTRATE_DOCKER_CONTEXT}" \
+    || fail "Could not switch Docker context to '${ORCHESTRATE_DOCKER_CONTEXT}'. Is the orchestrate server running?"
+  pass "Docker context switched to ${ORCHESTRATE_DOCKER_CONTEXT}"
+else
+  pass "Docker context is ${ORCHESTRATE_DOCKER_CONTEXT}"
+fi
+
 pass "All prerequisites met"
 pass "ARM_SERVER_URL = ${ARM_SERVER_URL}"
 pass "WORKLOAD_NAME  = ${WORKLOAD_NAME}"
@@ -86,7 +103,7 @@ pass "Exported ${ARCHIVE_PATH} (${ARCHIVE_SIZE_MB} MB)"
 # ---------------------------------------------------------------------------
 log "=== Step 3: S3 push ==="
 
-CMD="wxo-dev runtime push-image \
+CMD="orchestrate runtime push-image \
   --image        ${ARCHIVE_PATH} \
   --name         ${WORKLOAD_NAME} \
   --type         ${WORKLOAD_TYPE} \
@@ -99,7 +116,7 @@ log "Running: ARM_SERVER_URL=${ARM_SERVER_URL} FEATURE_ARM_PUSH=${FEATURE_ARM_PU
 
 ARM_SERVER_URL="${ARM_SERVER_URL}" \
 FEATURE_ARM_PUSH="${FEATURE_ARM_PUSH}" \
-wxo-dev runtime push-image \
+orchestrate runtime push-image \
   --image        "${ARCHIVE_PATH}" \
   --name         "${WORKLOAD_NAME}" \
   --type         "${WORKLOAD_TYPE}" \
