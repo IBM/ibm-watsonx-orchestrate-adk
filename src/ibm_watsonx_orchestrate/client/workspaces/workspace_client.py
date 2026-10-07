@@ -193,16 +193,21 @@ class WorkspaceClient(BaseWXOClient):
 
             response = None
             if "https://cpd" in self.base_url:
-                endpoint = f"{self.base_url}/v1/tenants/{account_id}/users"
-                response = requests.post(endpoint, headers=headers, timeout=30)
+                zen_base_url = self.base_url.removesuffix("/v1/orchestrate")
+                endpoint = f"{zen_base_url}/zen-data/v3/service_instances/{account_id}/users"
+                logger.error("rs: endpoint %r headers %r", endpoint, headers)
+                response = requests.get(endpoint, headers=headers, timeout=30)
                 if response.status_code != 200:
                     # Return None and let controller handle the error message
+                    logger.error("rs: no user 4 - response %r", response)
                     return None
+                logger.error("rs: response json %r", response.json())
             else:
                 response = requests.get(endpoint, headers=headers, timeout=30)
             
             if response.status_code != 200:
                 # Return None and let controller handle the error message
+                logger.error("rs: no user 5 - response %r", response)
                 return None
             
             data = response.json()
@@ -218,11 +223,14 @@ class WorkspaceClient(BaseWXOClient):
                         return iam_id
             
             # User not found - return None and let the controller handle the error message
+            logger.error("rs: no user 1")
             return None
                     
         except requests.exceptions.RequestException:
             # Return None and let controller handle the error message
+            logger.error("rs: no user 2")
             return None
         except Exception:
             # Return None and let controller handle the error message
+            logger.error("rs: no user 3")
             return None
