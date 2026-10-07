@@ -37,7 +37,7 @@
     "typescript-eslint": "^8.23.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
     "pino": "^10.1.0",
