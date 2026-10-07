@@ -9,32 +9,32 @@
 #   all       — run both s3 and registry (default)
 #
 # Usage:
-#   bash examples/arm_push/test_arm_push.sh [s3|registry|all]
+#   bash examples/arm_push/test_arm_push.sh [OPTIONS] [s3|registry|all]
 #
-#   export ARM_SERVER_URL=http://localhost:8080/api/v1   # local ARM default
-#   export FEATURE_ARM_PUSH=true
-#   export WO_API_KEY=<your-token>
+# Options:
+#   --mode <s3|registry|all>       Execution mode (default: all)
+#   --server-url <url>             ARM server URL (default: http://localhost:8080/api/v1)
+#   --workload-name <name>         Workload name (default: arm-test-agent)
+#   --workload-type <type>         Workload type (default: agent)
+#   --source-image <image>         OCI image for registry push (default: docker.io/library/hello-world:latest)
+#   --archive-path <path>          Path for exported tar archive (default: /tmp/arm-test-agent.tar)
+#   --wxo-cmd <cmd>                CLI executable (default: orchestrate)
+#   --skip-context-check           Skip checking/switching Docker context
+#   -h, --help                     Show this help message
 #
-# Idempotency: each run uses a timestamp-based tag (e.g. v-20261005-143022)
-# so repeated runs never collide with an existing tag.
-#
-# Prerequisites: docker, orchestrate (ADK CLI), jq
+# All options can also be supplied via environment variables (ARM_SERVER_URL, WORKLOAD_NAME, etc.).
+# Command-line arguments take precedence over environment variables.
 # =============================================================================
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
-# Mode argument: s3 | registry | all (default: all)
-# ---------------------------------------------------------------------------
-MODE="${1:-all}"
-if [[ "${MODE}" != "s3" && "${MODE}" != "registry" && "${MODE}" != "all" ]]; then
-  echo "Usage: $0 [s3|registry|all]" >&2
-  exit 1
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOCKERFILE_DIR="${SCRIPT_DIR}/agent-image"
 
 # ---------------------------------------------------------------------------
-# Configurable defaults — override via environment variables
+# Configurable defaults — override via environment variables or CLI flags
 # ---------------------------------------------------------------------------
+MODE="${MODE:-all}"
 ARM_SERVER_URL="${ARM_SERVER_URL:-http://localhost:8080/api/v1}"
 FEATURE_ARM_PUSH="${FEATURE_ARM_PUSH:-true}"
 WORKLOAD_NAME="${WORKLOAD_NAME:-arm-test-agent}"
@@ -42,14 +42,90 @@ WORKLOAD_TYPE="${WORKLOAD_TYPE:-agent}"
 IMAGE_NAME="arm-test-agent:latest"
 ARCHIVE_PATH="${ARCHIVE_PATH:-/tmp/arm-test-agent.tar}"
 SOURCE_IMAGE="${SOURCE_IMAGE:-docker.io/library/hello-world:latest}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCKERFILE_DIR="${SCRIPT_DIR}/agent-image"
+WXO_CMD="${WXO_CMD:-orchestrate}"
+ORCHESTRATE_DOCKER_CONTEXT="${ORCHESTRATE_DOCKER_CONTEXT:-lima-ibm-watsonx-orchestrate}"
+SKIP_CONTEXT_CHECK="${SKIP_CONTEXT_CHECK:-false}"
 
 # Timestamp-based tag ensures idempotency across repeated runs
 TAG="v-$(date +%Y%m%d-%H%M%S)"
 
-# Docker context that orchestrate uses (created by the embedded lima binary)
-ORCHESTRATE_DOCKER_CONTEXT="ibm-watsonx-orchestrate"
+# ---------------------------------------------------------------------------
+# CLI Argument parsing
+# ---------------------------------------------------------------------------
+show_usage() {
+  cat <<EOF
+Usage: $0 [OPTIONS] [s3|registry|all]
+
+Arguments:
+  s3 | registry | all             Push mode to test (positional or via --mode, default: all)
+
+Options:
+  --mode <s3|registry|all>       Execution mode
+  --server-url <url>             ARM server URL (env: ARM_SERVER_URL)
+  --workload-name <name>         Workload name (env: WORKLOAD_NAME)
+  --workload-type <type>         Workload type: agent|mcp_toolkit|guardrails|eval
+  --source-image <image>         Remote OCI image for registry mode (env: SOURCE_IMAGE)
+  --archive-path <path>          Tar export path for s3 mode (env: ARCHIVE_PATH)
+  --wxo-cmd <path/name>          ADK CLI command (env: WXO_CMD, default: orchestrate)
+  --skip-context-check           Skip Docker context validation
+  -h, --help                     Show help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    s3|registry|all)
+      MODE="$1"
+      shift
+      ;;
+    --mode)
+      MODE="$2"
+      shift 2
+      ;;
+    --server-url)
+      ARM_SERVER_URL="$2"
+      shift 2
+      ;;
+    --workload-name)
+      WORKLOAD_NAME="$2"
+      shift 2
+      ;;
+    --workload-type)
+      WORKLOAD_TYPE="$2"
+      shift 2
+      ;;
+    --source-image)
+      SOURCE_IMAGE="$2"
+      shift 2
+      ;;
+    --archive-path)
+      ARCHIVE_PATH="$2"
+      shift 2
+      ;;
+    --wxo-cmd)
+      WXO_CMD="$2"
+      shift 2
+      ;;
+    --skip-context-check)
+      SKIP_CONTEXT_CHECK="true"
+      shift
+      ;;
+    -h|--help)
+      show_usage
+      exit 0
+      ;;
+    *)
+      echo "❌ Unknown argument: $1" >&2
+      show_usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "${MODE}" != "s3" && "${MODE}" != "registry" && "${MODE}" != "all" ]]; then
+  echo "❌ Invalid mode '${MODE}'. Expected 's3', 'registry', or 'all'." >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -73,16 +149,16 @@ require_cmd jq
 [[ "${FEATURE_ARM_PUSH}" == "true" ]] || fail "FEATURE_ARM_PUSH must be 'true'"
 [[ -n "${ARM_SERVER_URL}" ]]          || fail "ARM_SERVER_URL must be set"
 
-# Ensure Docker is pointing at the orchestrate context so that images built
-# here are visible to the containers orchestrate manages.
-CURRENT_CONTEXT=$(docker context show)
-if [[ "${CURRENT_CONTEXT}" != "${ORCHESTRATE_DOCKER_CONTEXT}" ]]; then
-  log "Docker context is '${CURRENT_CONTEXT}', switching to '${ORCHESTRATE_DOCKER_CONTEXT}'..."
-  docker context use "${ORCHESTRATE_DOCKER_CONTEXT}" \
-    || fail "Could not switch Docker context to '${ORCHESTRATE_DOCKER_CONTEXT}'. Is the orchestrate server running?"
-  pass "Docker context switched to ${ORCHESTRATE_DOCKER_CONTEXT}"
-else
-  pass "Docker context is ${ORCHESTRATE_DOCKER_CONTEXT}"
+# Ensure Docker is pointing at the orchestrate context if context check enabled
+if [[ "${SKIP_CONTEXT_CHECK}" != "true" ]]; then
+  CURRENT_CONTEXT=$(docker context show 2>/dev/null || echo "default")
+  if [[ "${CURRENT_CONTEXT}" != "${ORCHESTRATE_DOCKER_CONTEXT}" ]]; then
+    log "Docker context is '${CURRENT_CONTEXT}', switching to '${ORCHESTRATE_DOCKER_CONTEXT}'..."
+    docker context use "${ORCHESTRATE_DOCKER_CONTEXT}" 2>/dev/null \
+      || log "⚠️ Could not switch context to '${ORCHESTRATE_DOCKER_CONTEXT}'. Continuing with '${CURRENT_CONTEXT}'..."
+  else
+    pass "Docker context is ${ORCHESTRATE_DOCKER_CONTEXT}"
+  fi
 fi
 
 pass "All prerequisites met"
@@ -109,7 +185,7 @@ run_s3_push() {
   pass "Exported ${ARCHIVE_PATH} (${ARCHIVE_SIZE_MB} MB)"
 
   log "=== [S3] Step 3: Push via ADK CLI ==="
-  local cmd="orchestrate runtime push-image \
+  local cmd="${WXO_CMD} runtime push-image \
   --image        ${ARCHIVE_PATH} \
   --name         ${WORKLOAD_NAME} \
   --type         ${WORKLOAD_TYPE} \
@@ -121,7 +197,7 @@ run_s3_push() {
 
   ARM_SERVER_URL="${ARM_SERVER_URL}" \
   FEATURE_ARM_PUSH="${FEATURE_ARM_PUSH}" \
-  orchestrate runtime push-image \
+  "${WXO_CMD}" runtime push-image \
     --image        "${ARCHIVE_PATH}" \
     --name         "${WORKLOAD_NAME}" \
     --type         "${WORKLOAD_TYPE}" \
@@ -144,7 +220,7 @@ run_registry_push() {
   local registry_tag="${TAG}-registry"
 
   log "=== [Registry] Step 1: Push via ADK CLI ==="
-  local cmd="orchestrate runtime push-image \
+  local cmd="${WXO_CMD} runtime push-image \
   --image        ${SOURCE_IMAGE} \
   --name         ${WORKLOAD_NAME}-registry \
   --type         ${WORKLOAD_TYPE} \
@@ -156,7 +232,7 @@ run_registry_push() {
 
   ARM_SERVER_URL="${ARM_SERVER_URL}" \
   FEATURE_ARM_PUSH="${FEATURE_ARM_PUSH}" \
-  orchestrate runtime push-image \
+  "${WXO_CMD}" runtime push-image \
     --image        "${SOURCE_IMAGE}" \
     --name         "${WORKLOAD_NAME}-registry" \
     --type         "${WORKLOAD_TYPE}" \

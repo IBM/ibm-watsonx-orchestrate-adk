@@ -1,7 +1,7 @@
-FROM registry.redhat.io/ubi9/python-311-minimal:latest
+FROM python:3.11-alpine
 
-# Non-root user required by IBM security policy
-RUN useradd -m -u 1001 appuser
+# Non-root user
+RUN adduser -D -u 1001 appuser
 
 WORKDIR /app
 
