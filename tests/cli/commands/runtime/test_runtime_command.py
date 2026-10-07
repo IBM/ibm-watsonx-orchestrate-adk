@@ -18,7 +18,7 @@ class TestPushImageS3:
         archive = tmp_path / "agent.tar.gz"
         archive.write_bytes(b"x")
 
-        with patch.object(runtime_command, "_FEATURE_ENABLED", True), patch(
+        with patch.object(runtime_command, "ENABLE_ARM_PUSH", True), patch(
             "ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command.RuntimeController.push_image_s3"
         ) as mock_s3:
             runtime_command.push_image(
@@ -43,7 +43,7 @@ class TestPushImageS3:
         archive = tmp_path / "agent.tar"
         archive.write_bytes(b"x")
 
-        with patch.object(runtime_command, "_FEATURE_ENABLED", True), patch(
+        with patch.object(runtime_command, "ENABLE_ARM_PUSH", True), patch(
             "ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command.RuntimeController.push_image_s3"
         ) as mock_s3:
             # source_type=None → auto-detect from file existence
@@ -60,7 +60,7 @@ class TestPushImageS3:
         archive = tmp_path / "toolkit.tar.gz"
         archive.write_bytes(b"x")
 
-        with patch.object(runtime_command, "_FEATURE_ENABLED", True), patch(
+        with patch.object(runtime_command, "ENABLE_ARM_PUSH", True), patch(
             "ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command.RuntimeController.push_image_s3"
         ) as mock_s3:
             runtime_command.push_image(
@@ -85,7 +85,7 @@ class TestPushImageS3:
 
 class TestPushImageRegistry:
     def test_dispatches_to_push_image_registry(self):
-        with patch.object(runtime_command, "_FEATURE_ENABLED", True), patch(
+        with patch.object(runtime_command, "ENABLE_ARM_PUSH", True), patch(
             "ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command.RuntimeController.push_image_registry"
         ) as mock_reg:
             runtime_command.push_image(
@@ -112,7 +112,7 @@ class TestPushImageRegistry:
 
     def test_auto_detects_registry_for_oci_ref(self):
         """A non-existent local path should auto-resolve to registry source."""
-        with patch.object(runtime_command, "_FEATURE_ENABLED", True), patch(
+        with patch.object(runtime_command, "ENABLE_ARM_PUSH", True), patch(
             "ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command.RuntimeController.push_image_registry"
         ) as mock_reg:
             runtime_command.push_image(
@@ -134,7 +134,7 @@ class TestFeatureFlagGuard:
         """push_image must exit with an error when FEATURE_ARM_PUSH is not true."""
         archive = tmp_path / "agent.tar"
         archive.write_bytes(b"x")
-        with patch.object(runtime_command, "_FEATURE_ENABLED", False):
+        with patch.object(runtime_command, "ENABLE_ARM_PUSH", False):
             with pytest.raises(_EXIT):
                 runtime_command.push_image(
                     image=str(archive),
@@ -148,7 +148,7 @@ class TestFeatureFlagGuard:
         """push_image must not exit on the feature flag check when FEATURE_ARM_PUSH=true."""
         archive = tmp_path / "agent.tar"
         archive.write_bytes(b"x")
-        with patch.object(runtime_command, "_FEATURE_ENABLED", True):
+        with patch.object(runtime_command, "ENABLE_ARM_PUSH", True):
             with patch(
                 "ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command.RuntimeController.push_image_s3"
             ):

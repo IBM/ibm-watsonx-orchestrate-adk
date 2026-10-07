@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Supported archive extensions for S3 upload.
 # .tar.gz files have path.suffix == ".gz" and path.suffixes[-2:] == [".tar", ".gz"].
-_VALID_EXTENSIONS = {".tar", ".tgz"}
+_VALID_EXTENSIONS = {".tar", ".tgz", ".zip"}
 _VALID_DOUBLE_SUFFIXES = {(".tar", ".gz")}
 
 # Valid workload types per ARM ADR.
@@ -301,7 +301,7 @@ class RuntimeController:
         if last not in _VALID_EXTENSIONS and suffixes not in _VALID_DOUBLE_SUFFIXES:
             raise ValueError(
                 f"Unsupported file extension '{path.name}'. "
-                f"Expected one of: .tar, .tar.gz, .tgz"
+                f"Expected one of: .tar, .tar.gz, .tgz, .zip"
             )
 
     @staticmethod

@@ -68,11 +68,10 @@ class TestValidateArchivePath:
         f.write_bytes(b"x")
         RuntimeController._validate_archive_path(f)
 
-    def test_rejects_zip(self, tmp_path):
+    def test_accepts_zip(self, tmp_path):
         f = tmp_path / "agent.zip"
         f.write_bytes(b"x")
-        with pytest.raises(ValueError, match="Unsupported file extension"):
-            RuntimeController._validate_archive_path(f)
+        RuntimeController._validate_archive_path(f)  # must not raise
 
     def test_rejects_sql_gz(self, tmp_path):
         """agent.sql.gz must be rejected — only .tar.gz is valid, not arbitrary .gz."""
@@ -208,7 +207,7 @@ class TestPushImageS3:
             )
 
     def test_exits_on_invalid_extension(self, tmp_path):
-        bad_file = tmp_path / "agent.zip"
+        bad_file = tmp_path / "agent.tar.bz2"
         bad_file.write_bytes(b"x")
         controller = RuntimeController()
         with pytest.raises((ValueError, SystemExit)):

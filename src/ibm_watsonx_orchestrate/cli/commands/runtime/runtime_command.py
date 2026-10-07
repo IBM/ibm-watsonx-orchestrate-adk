@@ -18,19 +18,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Feature flag
 # ARM push commands are in active development and must only be exposed when
-# FEATURE_ARM_PUSH=true is set in the environment.  This prevents accidental
-# use before the feature is validated on a live WxO instance.
+# FEATURE_ARM_PUSH=true is set in the environment, or when the server was
+# started with `orchestrate server start --preview-arm`.
 #
 # TODO: Remove this feature flag once the ARM push feature has been confirmed
 #       working on a live WxO instance and promoted out of preview status.
 #       Target: Oct End.
 # ---------------------------------------------------------------------------
-_FEATURE_ENABLED = os.environ.get("FEATURE_ARM_PUSH", "").strip().lower() == "true"
+ENABLE_ARM_PUSH = os.environ.get("FEATURE_ARM_PUSH", "").strip().lower() == "true"
 
 runtime_app = typer.Typer(
     no_args_is_help=True,
     help="[Preview] Manage custom agent and MCP toolkit workload images in ARM.",
-    hidden=not _FEATURE_ENABLED,
+    hidden=not ENABLE_ARM_PUSH,
 )
 
 # Allowed workload types (kept in sync with runtime_controller.VALID_WORKLOAD_TYPES)
@@ -46,7 +46,7 @@ _TAG_HELP = (
     help=(
         "[Preview] Push a custom agent or MCP toolkit Docker image to the ARM registry.\n\n"
         "Two upload methods are supported:\n\n"
-        "  S3 method (default for local files): supply --image as a path to a .tar/.tar.gz/.tgz "
+        "  S3 method (default for local files): supply --image as a path to a .tar/.tar.gz/.tgz/.zip "
         "archive and --source-type s3.  The ADK obtains a short-lived S3 presigned URL from ARM, "
         "streams the archive directly to S3, then calls ARM to copy the image into the cluster "
         "registry.  The entire upload must complete within the presigned URL TTL (default 300s).\n\n"
@@ -61,7 +61,7 @@ def push_image(
         typer.Option(
             "--image", "-i",
             help=(
-                "For --source-type s3: path to a local OCI archive (.tar, .tar.gz, or .tgz). "
+                "For --source-type s3: path to a local OCI archive (.tar, .tar.gz, .tgz, or .zip). "
                 "For --source-type registry: fully-qualified OCI image reference "
                 "(e.g. 'docker.io/myorg/agent-1:latest')."
             ),
@@ -153,7 +153,7 @@ def push_image(
     # direct invocation.  This explicit check ensures the user gets a clear
     # message rather than an unexpected error if the flag is not set.
     # ------------------------------------------------------------------
-    if not _FEATURE_ENABLED:
+    if not ENABLE_ARM_PUSH:
         logger.error(
             "The 'runtime' commands are currently in preview and not yet enabled. "
             "To use this feature, set FEATURE_ARM_PUSH=true in your environment."
