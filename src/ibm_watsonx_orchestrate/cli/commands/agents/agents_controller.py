@@ -167,6 +167,7 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "instructions": args.get("instructions"),
         "llm": args.get("llm"),
         "style": args.get("style"),
+        "coordination": args.get("coordination"),
         "custom_join_tool": args.get("custom_join_tool"),
         "structured_output": args.get("structured_output"),
         "context_access_enabled": args.get("context_access_enabled", True),

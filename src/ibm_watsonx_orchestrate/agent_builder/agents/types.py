@@ -190,7 +190,21 @@ class AgentStyle(str, Enum):
     CODE_ACT = "code_act"
 
     def __str__(self):
-        return self.value 
+        return self.value
+
+    def __repr__(self):
+        return repr(self.value)
+
+class CoordinationMode(str, Enum):
+    """Supported values for the agent coordination field.
+    
+    Only 'parallel' needs to be declared — the default behaviour (absent field)
+    is sequential and requires no explicit value.
+    """
+    PARALLEL = "parallel"
+
+    def __str__(self):
+        return self.value
 
     def __repr__(self):
         return repr(self.value)
@@ -220,6 +234,7 @@ class AgentSpec(BaseAgentSpec):
     structured_output: Optional[JsonSchemaObject] = None
     instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
     guidelines: Optional[List[AgentGuideline]] = None
+    coordination: Optional[CoordinationMode] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
     toolkits: Optional[List[str]] = []
@@ -293,6 +308,22 @@ def validate_agent_fields(values: dict) -> dict:
     for collaborator in collaborators:
         if collaborator == name:
             raise BadRequest(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
+
+    if len(collaborators) > 10:
+        raise BadRequest(f"An agent can have a maximum of 10 direct collaborators. Found {len(collaborators)}.")
+
+    coordination = values.get("coordination")
+    if coordination is not None:
+        # Normalise to the raw string so comparison works before Pydantic coercion
+        coordination_value = coordination.value if isinstance(coordination, CoordinationMode) else str(coordination)
+        if coordination_value != CoordinationMode.PARALLEL.value:
+            raise BadRequest(
+                f"Invalid value '{coordination_value}' for 'coordination'. The only supported value is 'parallel'."
+            )
+        if not (values.get("collaborators") or []):
+            raise BadRequest(
+                "When 'coordination' is set to 'parallel', at least one collaborator must be specified in 'collaborators'."
+            )
 
     if values.get("style") == AgentStyle.PLANNER:
         if values.get("custom_join_tool") and values.get("structured_output"):

@@ -1,5 +1,5 @@
 from ibm_watsonx_orchestrate.cli.commands.agents import agents_command
-from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, ExternalAgentAuthScheme, AgentProvider
+from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, CoordinationMode, ExternalAgentAuthScheme, AgentProvider
 from unittest.mock import patch
 
 class TestAgentImport:
@@ -67,6 +67,7 @@ class TestAgentCreate:
                 provider=AgentProvider.EXT_CHAT,
                 llm="test_llm",
                 style=AgentStyle.REACT_CORE,
+                coordination=None,
                 custom_join_tool=None,
                 structured_output=None,
                 collaborators=[],
@@ -127,6 +128,7 @@ class TestAgentCreate:
                 provider=AgentProvider.EXT_CHAT,
                 llm="test_llm",
                 style=AgentStyle.PLANNER,
+                coordination=None,
                 custom_join_tool='test_join_tool',
                 structured_output={"type": "object", "additionalProperties": False, "properties": {}},
                 collaborators=[],
@@ -138,6 +140,68 @@ class TestAgentCreate:
                 nickname=None,
                 app_id=None,
                 output_file="test.yaml",
+                context_access_enabled=True,
+                context_variables=None,
+                custom_agent_file_path=None,
+                custom_agent_config_file=None,
+                custom_agents_metadata=None,
+            )
+            publish_mock.assert_called_once()
+
+    def test_create_native_agent_with_coordination(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.generate_agent_spec") as generate_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents") as publish_mock:
+            agents_command.agent_create(
+                name="coordinator_agent",
+                kind=AgentKind.NATIVE,
+                description="test coordinator agent",
+                instructions="delegate tasks",
+                title="coordinator",
+                api_url=None,
+                auth_scheme=ExternalAgentAuthScheme.API_KEY,
+                auth_config='{}',
+                provider=AgentProvider.EXT_CHAT,
+                llm="test_llm",
+                style=AgentStyle.REACT_CORE,
+                coordination=CoordinationMode.PARALLEL,
+                custom_join_tool=None,
+                structured_output=None,
+                collaborators=["worker_1", "worker_2"],
+                tools=[],
+                knowledge_base=[],
+                tags=None,
+                chat_params='{}',
+                config='{}',
+                nickname=None,
+                app_id=None,
+                output_file="coordinator.yaml",
+                context_access_enabled=True,
+                context_variables=None,
+            )
+            generate_mock.assert_called_once_with(
+                name="coordinator_agent",
+                kind=AgentKind.NATIVE,
+                description="test coordinator agent",
+                instructions="delegate tasks",
+                title="coordinator",
+                api_url=None,
+                auth_scheme=ExternalAgentAuthScheme.API_KEY,
+                auth_config={},
+                provider=AgentProvider.EXT_CHAT,
+                llm="test_llm",
+                style=AgentStyle.REACT_CORE,
+                coordination=CoordinationMode.PARALLEL,
+                custom_join_tool=None,
+                structured_output=None,
+                collaborators=["worker_1", "worker_2"],
+                tools=[],
+                knowledge_base=[],
+                tags=None,
+                chat_params={},
+                config={},
+                nickname=None,
+                app_id=None,
+                output_file="coordinator.yaml",
                 context_access_enabled=True,
                 context_variables=None,
                 custom_agent_file_path=None,

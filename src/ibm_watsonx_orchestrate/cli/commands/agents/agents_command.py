@@ -1,7 +1,7 @@
 import typer
 from typing_extensions import Annotated, List, Optional
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
-from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentKind, AgentStyle, \
+from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentKind, AgentStyle, CoordinationMode, \
     ExternalAgentAuthScheme, AgentProvider, get_default_llm
 from ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_command import ai_builder_app
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
@@ -200,6 +200,10 @@ def agent_create(
         AgentStyle,
         typer.Option("--style", help="The style of agent you wish to create"),
     ] = AgentStyle.REACT_CORE,
+    coordination: Annotated[
+        Optional[CoordinationMode],
+        typer.Option("--coordination", help="Coordination mode for the agent (e.g. 'parallel'). Defaults to sequential if omitted."),
+    ] = None,
     custom_join_tool: Annotated[
         str | None,
         typer.Option(
@@ -340,6 +344,7 @@ def agent_create(
         provider=provider,
         llm=llm,
         style=style,
+        coordination=coordination,
         custom_join_tool=custom_join_tool,
         structured_output=structured_output_dict,
         collaborators=collaborators,
