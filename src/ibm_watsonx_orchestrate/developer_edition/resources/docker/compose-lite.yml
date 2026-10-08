@@ -467,7 +467,6 @@ services:
       WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
-
     build:
       context: ./minio
       dockerfile: Dockerfile.minio
@@ -476,7 +475,6 @@ services:
     image: wxo-minio-local:RELEASE.2025-10-15T17-29-55Z
     platform: linux/amd64
     pull_policy: never
-
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -494,7 +492,6 @@ services:
       - wxo-server-minio-data:/data
 
   wxo-server-minio-setup:
-
     build:
       context: ./minio
       dockerfile: Dockerfile.mc
@@ -503,7 +500,6 @@ services:
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
     platform: linux/amd64
     pull_policy: never
-
     depends_on:
       wxo-server-minio:
         condition: service_healthy
@@ -1771,7 +1767,6 @@ services:
       args:
         MC_VERSION: RELEASE.2025-08-13T08-35-41Z
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
-
     platform: linux/amd64
     pull_policy: never
     profiles:
@@ -1793,7 +1788,6 @@ services:
       args:
         MC_VERSION: RELEASE.2025-08-13T08-35-41Z
     image: wxo-mc-local:RELEASE.2025-08-13T08-35-41Z
-
     platform: linux/amd64
     pull_policy: never
     profiles:
