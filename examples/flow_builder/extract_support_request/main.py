@@ -2,7 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from examples.flow_builder.extract_support_request.tools.extract_support_info import build_extract_support_info
+from tools.extract_support_info import build_extract_support_info
 from ibm_watsonx_orchestrate.flow_builder.flows.flow import FlowRunStatus
 from ibm_watsonx_orchestrate.flow_builder.types import FlowEventType
 

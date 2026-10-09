@@ -2,7 +2,7 @@ import pytest
 from pydantic_core import ValidationError
 from unittest.mock import patch, mock_open, MagicMock
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
-from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle, AgentGuideline
+from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle, AgentGuideline, CoordinationMode
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate_clients.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
@@ -359,3 +359,108 @@ class TestAgentGuidelineInit:
 
         with pytest.raises(ValidationError) as e:
             _ = AgentGuideline(**guideline_spec)
+
+
+class TestCoordinationMode:
+    """Tests for the coordination field on AgentSpec and its validation rules.
+
+    'parallel' is the only valid value. Omitting the field means sequential
+    (the default) — there is no 'sequential' enum member to set explicitly.
+    """
+
+    BASE_SPEC = {
+        "spec_version": SpecVersion.V1,
+        "kind": AgentKind.NATIVE,
+        "name": "coord_test_agent",
+        "description": "Agent used for coordination tests",
+        "llm": "test_llm",
+    }
+
+    def test_coordination_parallel_with_collaborators_passes(self):
+        agent = Agent(
+            **self.BASE_SPEC,
+            coordination=CoordinationMode.PARALLEL,
+            collaborators=["agent_a", "agent_b"],
+        )
+        assert agent.coordination == CoordinationMode.PARALLEL
+        assert agent.collaborators == ["agent_a", "agent_b"]
+
+    def test_coordination_parallel_string_value_with_collaborators_passes(self):
+        """Raw string 'parallel' (as loaded from YAML) must be accepted."""
+        agent = Agent(
+            **self.BASE_SPEC,
+            coordination="parallel",
+            collaborators=["agent_a"],
+        )
+        assert agent.coordination == CoordinationMode.PARALLEL
+
+    def test_coordination_parallel_without_collaborators_raises(self):
+        with pytest.raises(BadRequest, match="at least one collaborator"):
+            Agent(
+                **self.BASE_SPEC,
+                coordination=CoordinationMode.PARALLEL,
+                collaborators=[],
+            )
+
+    def test_coordination_parallel_none_collaborators_raises(self):
+        """collaborators=None must also be treated as empty for parallel coordination."""
+        with pytest.raises(BadRequest, match="at least one collaborator"):
+            Agent(
+                **self.BASE_SPEC,
+                coordination="parallel",
+                collaborators=None,
+            )
+
+    def test_coordination_omitted_is_valid(self):
+        """Omitting coordination entirely is always valid (defaults to sequential)."""
+        agent = Agent(**self.BASE_SPEC)
+        assert agent.coordination is None
+
+    def test_coordination_omitted_with_no_collaborators_is_valid(self):
+        """Sequential (default) imposes no constraint on collaborators."""
+        agent = Agent(**self.BASE_SPEC, collaborators=[])
+        assert agent.coordination is None
+
+    def test_coordination_serialised_in_spec(self):
+        agent = Agent(
+            **self.BASE_SPEC,
+            coordination=CoordinationMode.PARALLEL,
+            collaborators=["agent_x"],
+        )
+        dumped = agent.model_dump(mode="json", exclude_none=True)
+        assert dumped["coordination"] == "parallel"
+
+    def test_coordination_invalid_value_raises(self):
+        """Any value other than 'parallel' must be rejected."""
+        with pytest.raises(BadRequest, match="only supported value is 'parallel'"):
+            Agent(
+                **self.BASE_SPEC,
+                coordination="sequential",
+                collaborators=["agent_a"],
+            )
+
+    def test_coordination_unknown_value_raises(self):
+        with pytest.raises(BadRequest, match="only supported value is 'parallel'"):
+            Agent(
+                **self.BASE_SPEC,
+                coordination="round_robin",
+                collaborators=["agent_a"],
+            )
+
+    def test_max_collaborators_exceeded_raises(self):
+        """More than 10 collaborators should raise a BadRequest."""
+        collaborators = [f"agent_{i}" for i in range(11)]
+        with pytest.raises(BadRequest, match="maximum of 10 direct collaborators"):
+            Agent(
+                **self.BASE_SPEC,
+                collaborators=collaborators,
+            )
+
+    def test_max_collaborators_up_to_10_passes(self):
+        """Up to 10 collaborators should pass validation."""
+        collaborators = [f"agent_{i}" for i in range(10)]
+        agent = Agent(
+            **self.BASE_SPEC,
+            collaborators=collaborators,
+        )
+        assert len(agent.collaborators) == 10

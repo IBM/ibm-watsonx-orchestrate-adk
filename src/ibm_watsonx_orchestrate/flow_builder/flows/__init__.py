@@ -1,6 +1,6 @@
 from .constants import START, END, RESERVED
 
-from ..types import FlowContext, TaskData, TaskEventType, DocProcInput, DecisionsCondition, DecisionsRule, FlowCallback, FlowCallbackEventKind, ThreadControlPolicy
+from ..types import FlowContext, TaskData, TaskEventType, DocProcInput, DecisionsCondition, DecisionsRule, FlowCallback, FlowCallbackEventKind, ThreadControlPolicy, AITaskLLMParameter, AITaskLLMParameters
 from ..node import (UserNode, AgentNode, StartNode, EndNode, PromptNode, ToolNode, DecisionsNode, ScriptNode,
     DocClassifierNode, DocExtNode, DocProcNode, TimerNode)
 
@@ -15,6 +15,9 @@ __all__ = [
     "START",
     "END",
     "RESERVED",
+
+    "AITaskLLMParameter",
+    "AITaskLLMParameters",
 
     "FlowContext",
     "TaskData",
