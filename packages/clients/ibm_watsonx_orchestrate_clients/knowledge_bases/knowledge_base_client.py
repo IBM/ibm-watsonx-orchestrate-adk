@@ -140,7 +140,11 @@ class KnowledgeBaseClient(BaseWXOClient):
         return self._patch_form_data(f"{self.base_endpoint}/{knowledge_base_id}/documents", data=payload, files=files)
 
     def validate_creds(self, connection_id: str, connection_type: str, url: Optional[str] = None, port: Optional[str] = None) -> dict:
-        payload = {"connection_id": connection_id, "connection_type": connection_type}
+        payload = {
+            "connection_id": connection_id,
+            "connection_type": connection_type,
+            "vector_index_type": connection_type,
+        }
         if url is not None:
             payload["url"] = url
         if port is not None:
