@@ -356,7 +356,7 @@ class WorkspacesController:
                 account_id = token.get('account')
 
             if not account_id:
-                # Try direct account field
+                # Try top-level account_id field (CPD JWT)
                 account_id = token.get('account_id')
 
             if not account_id:

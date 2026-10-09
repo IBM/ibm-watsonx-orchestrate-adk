@@ -207,7 +207,7 @@ class WorkspaceClient(BaseWXOClient):
                     return None
                 service_instance_id = path_parts[instances_idx + 1]
                 endpoint = f"{zen_base_url}/zen-data/v3/service_instances/{service_instance_id}/users"
-                response = requests.get(endpoint, headers=headers, timeout=30, verify=False)
+                response = requests.get(endpoint, headers=headers, timeout=30, verify=self.verify)
                 if response.status_code != 200:
                     return None
 
@@ -244,6 +244,7 @@ class WorkspaceClient(BaseWXOClient):
             return None
 
         except requests.exceptions.RequestException as e:
+            logger.error("Network error resolving user email to ID: %s", e)
             return None
         except Exception:
             return None
