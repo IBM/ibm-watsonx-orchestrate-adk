@@ -364,7 +364,7 @@ class WorkspacesController:
                 account_id = token.get('context', {}).get('client_tenantID') if isinstance(token.get('context'), dict) else None
 
             if not account_id:
-                logger.error("Could not extract account ID from token %r", token)
+                logger.error("Could not extract account ID from token")
                 sys.exit(1)
             
             return account_id
