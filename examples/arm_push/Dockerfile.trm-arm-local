@@ -1,0 +1,11 @@
+FROM alpine:3.21
+
+WORKDIR /app
+
+# Binary pre-built on the host via build-trm-local.sh before docker build
+COPY main .
+COPY database/ database/
+
+EXPOSE 8080
+
+CMD ["./main"]

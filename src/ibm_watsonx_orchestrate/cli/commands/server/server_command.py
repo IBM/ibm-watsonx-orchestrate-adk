@@ -553,6 +553,12 @@ def server_start(
         '--with-ingestion-from-external-source', '-g',
         help='Enable Apache Arrow Flight service for ingestion from external sources'
     ),
+    preview_arm: bool = typer.Option(
+        False,
+        '--preview-arm',
+        help='[Preview] Enable ARM push commands (orchestrate runtime push-image). '
+             'Sets FEATURE_ARM_PUSH=true for the duration of this server session.'
+    ),
     sequential_image_pull: bool = typer.Option(
         False,
         '--sequential-pull',
@@ -661,6 +667,10 @@ def server_start(
         merged_env_dict['ENABLE_KB_SOURCE_SYNC'] = 'true' if KNOWLEDGE_CONNECTORS_ENABLED else 'false'
 
     with_knowledge_opensearch = merged_env_dict.get('VECTOR_STORE_PROVIDER', '').lower() == 'opensearch'
+
+    if preview_arm:
+        os.environ['FEATURE_ARM_PUSH'] = 'true'
+        merged_env_dict['FEATURE_ARM_PUSH'] = 'true'
 
     if cert_bundle_path:
         cert_path: Path = Path(cert_bundle_path)
