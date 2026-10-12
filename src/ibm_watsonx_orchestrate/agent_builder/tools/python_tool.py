@@ -10,6 +10,7 @@ import logging
 from pydantic import TypeAdapter, BaseModel
 
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
@@ -185,22 +186,12 @@ class PythonTool(BaseTool):
         self.dynamic_input_schema = dynamic_input_schema
         self.dynamic_output_schema = dynamic_output_schema
         self.response_format = response_format
-        # Mark this instance as a coroutine function so that
-        # inspect.iscoroutinefunction(tool_instance) returns True regardless of
-        # whether the wrapped fn is sync or async.  TRM uses this check to decide
-        # between `await func(...)` (event-loop) and run_in_executor (thread pool).
-        #
-        # inspect.markcoroutinefunction() was added in Python 3.12.  On 3.11 we
-        # set the same sentinel directly — both code paths produce identical
-        # behaviour because inspect.iscoroutinefunction checks _is_coroutine_mark.
-        if hasattr(inspect, 'markcoroutinefunction'):
-            inspect.markcoroutinefunction(self)
-        else:
-            import asyncio.coroutines as _ac
-            self._is_coroutine = _ac._is_coroutine
 
-    async def __call__(self, *args, **kwargs):
-        # __call__ is async def — body awaits async fns, calls sync fns directly.
+    def __call__(self, *args, **kwargs):
+        # __call__ must stay sync: the runtime (TRM server-lite) calls the tool
+        # without awaiting, so an `async def __call__` would return a coroutine
+        # object instead of a ToolResponse. Async tool functions are bridged
+        # with run_coroutine_sync.
 
         run_context_param = self.get_run_param()
         context_object = None
@@ -212,7 +203,7 @@ class PythonTool(BaseTool):
                 kwargs[run_context_param] = context_object
 
         if inspect.iscoroutinefunction(self.fn):
-            result = await self.fn(*args, **kwargs)
+            result = run_coroutine_sync(self.fn(*args, **kwargs))
         else:
             result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
