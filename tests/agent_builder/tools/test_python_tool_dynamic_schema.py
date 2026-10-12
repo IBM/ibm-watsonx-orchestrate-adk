@@ -226,8 +226,7 @@ def test_tool_with_agent_run_context():
         return f"param: {param}"
     
     # The tool should be callable
-    import asyncio
-    result = asyncio.run(my_context_tool(param="test", context=AgentRun()))
+    result = my_context_tool(param="test", context=AgentRun())
     assert isinstance(result, ToolResponse)
     assert result.content == "param: test"
     
