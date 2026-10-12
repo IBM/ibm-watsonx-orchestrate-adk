@@ -190,23 +190,33 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
 # `async def` tool functions with run_coroutine_sync.
 # ---------------------------------------------------------------------------
 
-def test_call_returns_tool_response_not_coroutine():
+def test_sync_tool_call_returns_tool_response_not_coroutine():
     """Regression for wo-tracker#101663: __call__ must never return a coroutine."""
     @tool
     def sync_tool() -> int:
         """A sync tool"""
         return 1
 
+    result = sync_tool()
+
+    assert not inspect.iscoroutine(result)
+    assert isinstance(result, ToolResponse)
+    assert result.content == 1
+
+
+def test_async_tool_call_returns_tool_response_not_coroutine():
+    """Regression for wo-tracker#101663: the runtime does not await the call, so an
+    async def tool must be resolved inside __call__ and return a ToolResponse."""
     @tool
     async def async_tool() -> int:
         """An async tool"""
         return 1
 
-    for t in (sync_tool, async_tool):
-        result = t()
-        assert not inspect.iscoroutine(result)
-        assert isinstance(result, ToolResponse)
-        assert result.content == 1
+    result = async_tool()
+
+    assert not inspect.iscoroutine(result)
+    assert isinstance(result, ToolResponse)
+    assert result.content == 1
 
 
 def test_async_tool_naked_decorator():
@@ -267,6 +277,7 @@ async def test_async_tool_called_from_running_loop():
         return "in_loop"
 
     result = my_tool()
+    assert not inspect.iscoroutine(result)
     assert isinstance(result, ToolResponse)
     assert result.content == "in_loop"
 
