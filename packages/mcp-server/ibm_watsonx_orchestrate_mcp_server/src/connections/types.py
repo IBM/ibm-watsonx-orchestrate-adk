@@ -66,7 +66,11 @@ class SetCredentialsConnectionOptions(BaseConnectionOptions):
     )
     client_secret: Optional[str] = Field(
         default=None,
-        description="The client secret for the OAuth request. Required when connection kind is 'oauth_auth_code_flow', 'oauth_auth_client_credentials_flow' or 'oauth_auth_password_flow'"
+        description="The client secret for the OAuth request. Required when connection kind is 'oauth_auth_code_flow', 'oauth_auth_client_credentials_flow' or 'oauth_auth_password_flow'. Optional when connection kind is 'oauth_auth_on_behalf_of_flow' or 'oauth_auth_token_exchange_flow'"
+    )
+    app_token_key: Optional[str] = Field(
+        default=None,
+        description="The request body parameter name used to carry the end-user subject token into the downstream token exchange request. Used when connection kind is 'oauth_auth_on_behalf_of_flow' or 'oauth_auth_token_exchange_flow' (e.g. 'subject_token')"
     )
     send_via: Optional[ConnectionSendVia] = Field(
         default=None,
