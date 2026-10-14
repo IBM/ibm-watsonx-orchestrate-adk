@@ -194,6 +194,13 @@ class ServiceInstance(BaseServiceInstance):
             return authenticator.token_manager.get_token()
 
         except Exception as e:
+            api_key = self._credentials.api_key
+            if isinstance(api_key, str) and api_key != api_key.strip():
+                raise ClientError(
+                    f"Error getting {auth_type.upper()} Token. The API key has leading or trailing whitespace "
+                    "(spaces, tabs or newlines). Remove the whitespace from the API key and try again.",
+                    logg_messages=False,
+                )
             raise ClientError(f"Error getting {auth_type.upper()} Token", logg_messages=False)
 
 
