@@ -163,3 +163,29 @@ class TestScopelessTokenManagerHeader:
 
         # apikey body field must still be present for standard MCSP v2 endpoints
         assert captured["body"].get("apikey") == api_key
+
+
+class TestAuthenticateWhitespaceKeyMessage:
+    """If token acquisition fails and the API key has surrounding whitespace, say so."""
+
+    @staticmethod
+    def _authenticate_failing(api_key):
+        from ibm_watsonx_orchestrate_clients.common.errors import ClientError
+        si = _make_service_instance("https://api.example.watson-orchestrate.ibm.com/instances/abc", api_key=api_key)
+        with patch.object(ServiceInstance, "_get_authenticator", side_effect=Exception("boom")):
+            with pytest.raises(ClientError) as exc:
+                si._authenticate(EnvironmentAuthType.MCSP_V2)
+        return str(exc.value)
+
+    @pytest.mark.parametrize("key", ["abc\n", " abc", "abc ", "\tabc\t", " abc \r\n"])
+    def test_whitespace_key_gets_meaningful_message(self, key):
+        msg = self._authenticate_failing(key)
+        assert "leading or trailing whitespace" in msg
+        assert "MCSP_V2" in msg
+        assert "abc" not in msg  # the key itself must never be echoed
+
+    @pytest.mark.parametrize("key", ["abc", None, ""])
+    def test_clean_or_missing_key_keeps_generic_message(self, key):
+        msg = self._authenticate_failing(key)
+        assert "whitespace" not in msg
+        assert msg == "Error getting MCSP_V2 Token"
