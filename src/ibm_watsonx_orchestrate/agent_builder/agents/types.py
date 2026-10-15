@@ -310,7 +310,14 @@ def validate_agent_fields(values: dict) -> dict:
             raise BadRequest(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
 
     if len(collaborators) > 10:
-        raise BadRequest(f"An agent can have a maximum of 10 direct collaborators. Found {len(collaborators)}.")
+        context = validation_context.get()
+        if context in ("list", "get", "get_by_id", "prefetch"):
+            logger.warning(
+                f"Agent '{values.get('name')}' has {len(collaborators)} collaborators, "
+                f"which exceeds the maximum of 10. It may not function correctly via the ADK CLI."
+            )
+        else:
+            raise BadRequest(f"An agent can have a maximum of 10 direct collaborators. Found {len(collaborators)}.")
 
     coordination = values.get("coordination")
     if coordination is not None:

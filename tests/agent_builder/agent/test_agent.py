@@ -3,6 +3,7 @@ from pydantic_core import ValidationError
 from unittest.mock import patch, mock_open, MagicMock
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle, AgentGuideline, CoordinationMode
+from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate_clients.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
@@ -464,3 +465,20 @@ class TestCoordinationMode:
             collaborators=collaborators,
         )
         assert len(agent.collaborators) == 10
+
+    def test_max_collaborators_exceeded_warns_in_list_context(self, caplog):
+        """More than 10 collaborators should not raise during list/get — only warn."""
+        import logging
+        collaborators = [f"agent_{i}" for i in range(13)]
+        token = validation_context.set("list")
+        try:
+            with caplog.at_level(logging.WARNING):
+                agent = Agent(
+                    **self.BASE_SPEC,
+                    collaborators=collaborators,
+                )
+        finally:
+            validation_context.reset(token)
+
+        assert len(agent.collaborators) == 13
+        assert any("13 collaborators" in r.message for r in caplog.records)
