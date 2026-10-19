@@ -18,7 +18,7 @@ from itertools import chain
 from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, TypeVar
+from typing import Any, Callable, Iterable, List, Optional, TypeVar
 
 import requests
 import rich
@@ -1430,12 +1430,33 @@ class AgentsController:
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.reference_external_or_assistant_agent_dependencies(agent)
 
+    @staticmethod
+    def _send_with_skill_name_fallback(send: Callable[[dict], Any], payload: dict, original_skills: Optional[list[str]]):
+        """Send an agent payload; if the server rejects the skill UUIDs, retry once with the original skill names.
+
+        Some servers only accept skill names in agent.skills and report
+        "Skills not found" for UUIDs that GET /skills returned.
+        """
+        try:
+            return send(payload)
+        except ClientAPIException as e:
+            if (
+                not original_skills
+                or original_skills == payload.get("skills")
+                or "Skills not found" not in format_client_api_error(e)
+            ):
+                raise
+            logger.warning("The server rejected the skill IDs. Retrying with skill names...")
+            return send({**payload, "skills": original_skills})
+
     def publish_or_update_agents(
         self, agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent]
     ):
         for agent in agents:
             # Check for existing agents by name
             agent_name = agent.name
+            # Keep the skills exactly as written in the spec; dereferencing replaces them with IDs.
+            original_skills = list(agent.skills) if isinstance(agent, Agent) and agent.skills else []
 
             native_client = self.get_native_client()
             external_client = self.get_external_client()
@@ -1521,9 +1542,10 @@ class AgentsController:
                         logger.info(f"{agent_type} '{agent_name}' belongs to {agent_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
                     
                     agent_id = existing_agent.id
-                    self.update_agent(agent_id=agent_id, agent=agent, skip_workspace_injection=cross_workspace_update)
+                    self.update_agent(agent_id=agent_id, agent=agent, skip_workspace_injection=cross_workspace_update,
+                                      original_skills=original_skills)
             else:
-                self.publish_agent(agent)
+                self.publish_agent(agent, original_skills=original_skills)
 
     @staticmethod
     def _create_agent_zip(package_root: str, config_file: str | None = None) -> tuple[str, str | None]:
@@ -1705,7 +1727,9 @@ class AgentsController:
             # Use the client's create method which handles workspace injection
             native_client = self.get_native_client()
             try:
-                response_data = native_client.create(agent.model_dump(exclude_none=True))
+                response_data = self._send_with_skill_name_fallback(
+                    native_client.create, agent.model_dump(exclude_none=True), kwargs.get('original_skills')
+                )
             except ClientAPIException as e:
                 logger.error(f"Failed to create agent: {format_client_api_error(e)}")
                 sys.exit(1)
@@ -1783,8 +1807,18 @@ class AgentsController:
         if isinstance(agent, Agent):
             logger.info(f"Existing Agent '{agent.name}' found. Updating...")
             exclude_fields = {'custom_agent_file_path'} if hasattr(agent, 'custom_agent_file_path') else None
-            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields),
-                                                      skip_workspace_injection=skip_workspace_injection)
+            native_client = self.get_native_client()
+            try:
+                response = self._send_with_skill_name_fallback(
+                    lambda payload: native_client.update(
+                        agent_id, payload, skip_workspace_injection=skip_workspace_injection
+                    ),
+                    agent.model_dump(exclude_none=True, exclude=exclude_fields),
+                    kwargs.get('original_skills'),
+                )
+            except ClientAPIException as e:
+                logger.error(f"Failed to update agent: {format_client_api_error(e)}")
+                sys.exit(1)
             _raise_guidelines_warning(response)
 
             if agent.is_schedulable is not None:
