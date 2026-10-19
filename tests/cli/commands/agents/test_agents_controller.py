@@ -2175,6 +2175,125 @@ class TestNativeAgentDependenciesSkills:
             result = ac.dereference_native_agent_dependencies(agent)
         assert result.skills == ["uuid-skill-one"]
 
+class TestSkillNameFallback:
+    """Create/update retry with skill names when the server rejects skill UUIDs."""
+
+    SKILLS_ERROR = "Skills not found: ['uuid-skill-one']. Import the skills before importing the agent."
+
+    @staticmethod
+    def _client_error(detail, status_code=400):
+        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+        response = requests.Response()
+        response.status_code = status_code
+        response._content = json.dumps({"detail": detail}).encode()
+        return ClientAPIException(request=MagicMock(), response=response)
+
+    @staticmethod
+    def _agent(skills):
+        return Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=skills,
+        )
+
+    def _client(self, **method_side_effects):
+        client = MagicMock()
+        for method, side_effect in method_side_effects.items():
+            getattr(client, method).side_effect = side_effect
+        return client
+
+    def test_publish_retries_with_names_when_uuids_rejected(self, caplog):
+        agent = self._agent(["uuid-skill-one"])
+        client = self._client(create=[self._client_error(self.SKILLS_ERROR), AgentUpsertResponse(id="new-id")])
+        with patch.object(AgentsController, "get_native_client", return_value=client):
+            AgentsController().publish_agent(agent, original_skills=["skill-one"])
+
+        assert client.create.call_count == 2
+        assert client.create.call_args_list[0].args[0]["skills"] == ["uuid-skill-one"]
+        assert client.create.call_args_list[1].args[0]["skills"] == ["skill-one"]
+        assert "Retrying with skill names" in caplog.text
+        assert "imported successfully" in caplog.text
+
+    def test_update_retries_with_names_when_uuids_rejected(self):
+        agent = self._agent(["uuid-skill-one"])
+        client = self._client(update=[self._client_error(self.SKILLS_ERROR), AgentUpsertResponse(id="agent-id")])
+        with patch.object(AgentsController, "get_native_client", return_value=client):
+            AgentsController().update_agent(agent_id="agent-id", agent=agent, original_skills=["skill-one"])
+
+        assert client.update.call_count == 2
+        assert client.update.call_args_list[0].args[1]["skills"] == ["uuid-skill-one"]
+        assert client.update.call_args_list[1].args[1]["skills"] == ["skill-one"]
+
+    def test_publish_does_not_retry_unrelated_errors(self):
+        agent = self._agent(["uuid-skill-one"])
+        client = self._client(create=[self._client_error("Agent name already exists")])
+        with patch.object(AgentsController, "get_native_client", return_value=client), \
+             pytest.raises(SystemExit):
+            AgentsController().publish_agent(agent, original_skills=["skill-one"])
+
+        assert client.create.call_count == 1
+
+    def test_publish_does_not_retry_when_spec_already_used_ids(self):
+        agent = self._agent(["uuid-skill-one"])
+        client = self._client(create=[self._client_error(self.SKILLS_ERROR)])
+        with patch.object(AgentsController, "get_native_client", return_value=client), \
+             pytest.raises(SystemExit):
+            AgentsController().publish_agent(agent, original_skills=["uuid-skill-one"])
+
+        assert client.create.call_count == 1
+
+    def test_publish_retries_only_once(self):
+        agent = self._agent(["uuid-skill-one"])
+        client = self._client(create=[self._client_error(self.SKILLS_ERROR), self._client_error(self.SKILLS_ERROR)])
+        with patch.object(AgentsController, "get_native_client", return_value=client), \
+             pytest.raises(SystemExit):
+            AgentsController().publish_agent(agent, original_skills=["skill-one"])
+
+        assert client.create.call_count == 2
+
+    def test_update_failure_after_retry_exits(self, caplog):
+        agent = self._agent(["uuid-skill-one"])
+        client = self._client(update=[self._client_error(self.SKILLS_ERROR), self._client_error(self.SKILLS_ERROR)])
+        with patch.object(AgentsController, "get_native_client", return_value=client), \
+             pytest.raises(SystemExit):
+            AgentsController().update_agent(agent_id="agent-id", agent=agent, original_skills=["skill-one"])
+
+        assert client.update.call_count == 2
+        assert "Failed to update agent" in caplog.text
+
+    def test_publish_without_skills_is_not_retried(self):
+        agent = self._agent([])
+        client = self._client(create=[self._client_error(self.SKILLS_ERROR)])
+        with patch.object(AgentsController, "get_native_client", return_value=client), \
+             pytest.raises(SystemExit):
+            AgentsController().publish_agent(agent, original_skills=[])
+
+        assert client.create.call_count == 1
+
+    def test_publish_or_update_passes_original_names(self):
+        """The spec's skill names reach publish_agent even though dereferencing swaps them for UUIDs."""
+        agent = self._agent(["skill-one"])
+        ac = AgentsController()
+        native_client = MagicMock()
+        native_client.get_draft_by_name.return_value = []
+        external_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        assistant_client = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+        with patch.object(ac, "get_native_client", return_value=native_client), \
+             patch.object(ac, "get_external_client", return_value=external_client), \
+             patch.object(ac, "get_assistant_client", return_value=assistant_client), \
+             patch.object(ac, "dereference_agent_dependencies", side_effect=lambda a: a.model_copy(update={"skills": ["uuid-skill-one"]})), \
+             patch.object(ac, "publish_agent") as publish_mock:
+            ac.publish_or_update_agents([agent])
+
+        publish_mock.assert_called_once()
+        assert publish_mock.call_args.kwargs["original_skills"] == ["skill-one"]
+        assert publish_mock.call_args.args[0].skills == ["uuid-skill-one"]
+
+
+
 
 class TestCustomAgentsMetadataRoundTrip:
     BASE_SPEC = {
