@@ -10,6 +10,7 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import ENV_OTLP_ENDPOI
 from ibm_watsonx_orchestrate_sdk.observability.config import TracerConfig
 from ibm_watsonx_orchestrate_sdk.observability.exporters import (
     DynamicAuthOTLPSpanExporter,
+    _apply_ssl_verify,
     create_exporter,
 )
 
@@ -387,3 +388,177 @@ class TestGetAuthHeadersErrorHandling:
         config = self._config_with_authenticator(return_value="good-token")
         headers = config.get_auth_headers()
         assert headers == {"Authorization": "Bearer good-token"}
+
+
+# ---------------------------------------------------------------------------
+# _apply_ssl_verify
+# ---------------------------------------------------------------------------
+
+
+class TestApplySSLVerify:
+    """_apply_ssl_verify covers all three internal transport layouts."""
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _make_pool_exporter(self, initial_kw=None):
+        """Mock shaped like OTLPSpanExporter v0.66b0+:
+        exporter._client._transport._pool.connection_pool_kw
+        """
+        kw = dict(initial_kw) if initial_kw else {}
+        pool = MagicMock(spec=["connection_pool_kw"])
+        pool.connection_pool_kw = kw
+        client_transport = MagicMock(spec=["_pool"])
+        client_transport._pool = pool
+        client = MagicMock(spec=["_transport"])
+        client._transport = client_transport
+        exporter = MagicMock(spec=["_client"])
+        exporter._client = client
+        return exporter, kw
+
+    # ------------------------------------------------------------------
+    # v0.66b0+ path: _client._transport._pool.connection_pool_kw
+    # ------------------------------------------------------------------
+
+    def test_v066_sets_cert_reqs_none_when_ssl_verify_false(self):
+        """v0.66b0+: ssl_verify=False sets cert_reqs=CERT_NONE and removes ca_certs."""
+        import ssl as _ssl
+        exporter, kw = self._make_pool_exporter(initial_kw={"ca_certs": "/old/bundle.crt"})
+        _apply_ssl_verify(exporter, False)
+        assert kw["cert_reqs"] == _ssl.CERT_NONE
+        assert "ca_certs" not in kw
+
+    def test_v066_sets_ca_certs_when_ssl_verify_is_string(self):
+        """v0.66b0+: ssl_verify='/path/ca.crt' sets ca_certs to that path."""
+        exporter, kw = self._make_pool_exporter()
+        _apply_ssl_verify(exporter, "/path/to/ca.crt")
+        assert kw["ca_certs"] == "/path/to/ca.crt"
+        assert "cert_reqs" not in kw
+
+    def test_v066_no_mutation_when_ssl_verify_true(self):
+        """ssl_verify=True must return immediately — pool kw must be untouched."""
+        exporter, kw = self._make_pool_exporter(initial_kw={"ca_certs": "/original.crt"})
+        _apply_ssl_verify(exporter, True)
+        assert kw == {"ca_certs": "/original.crt"}
+
+    # ------------------------------------------------------------------
+    # mid path: exporter._transport.verify / ._transport._session.verify
+    # ------------------------------------------------------------------
+
+    def test_mid_sets_verify_false_on_transport_attr(self):
+        """Mid layout: ssl_verify=False sets exporter._transport.verify."""
+        exporter = MagicMock(spec=["_transport"])
+        exporter._transport = MagicMock(spec=["verify"])
+        _apply_ssl_verify(exporter, False)
+        assert exporter._transport.verify is False
+
+    def test_mid_sets_ca_bundle_on_transport_attr(self):
+        """Mid layout: ssl_verify=str sets exporter._transport.verify to the path."""
+        exporter = MagicMock(spec=["_transport"])
+        exporter._transport = MagicMock(spec=["verify"])
+        _apply_ssl_verify(exporter, "/my/ca.crt")
+        assert exporter._transport.verify == "/my/ca.crt"
+
+    def test_mid_sets_verify_on_transport_inner_session(self):
+        """Mid layout: exporter._transport._session.verify"""
+        exporter = MagicMock(spec=["_transport"])
+        inner = MagicMock(spec=["verify"])
+        exporter._transport = MagicMock(spec=["_session"])
+        exporter._transport._session = inner
+        _apply_ssl_verify(exporter, False)
+        assert inner.verify is False
+
+    # ------------------------------------------------------------------
+    # older path: exporter._session.verify
+    # ------------------------------------------------------------------
+
+    def test_older_sets_verify_false_on_direct_session(self):
+        """Older layout: ssl_verify=False sets exporter._session.verify."""
+        exporter = MagicMock(spec=["_session"])
+        exporter._session = MagicMock(spec=["verify"])
+        _apply_ssl_verify(exporter, False)
+        assert exporter._session.verify is False
+
+    def test_older_sets_ca_bundle_on_direct_session(self):
+        """Older layout: ssl_verify=str sets exporter._session.verify to the path."""
+        exporter = MagicMock(spec=["_session"])
+        exporter._session = MagicMock(spec=["verify"])
+        _apply_ssl_verify(exporter, "/ca/bundle.crt")
+        assert exporter._session.verify == "/ca/bundle.crt"
+
+    # ------------------------------------------------------------------
+    # unknown layout — warning must be emitted, no raise
+    # ------------------------------------------------------------------
+
+    def test_emits_warning_when_no_path_matched(self, caplog):
+        """Must log a warning when no known transport attribute is found."""
+        exporter = MagicMock(spec=[])
+        with caplog.at_level(logging.WARNING, logger="ibm_watsonx_orchestrate_sdk.observability.exporters"):
+            _apply_ssl_verify(exporter, False)
+        assert any("ssl_verify" in r.message for r in caplog.records)
+
+    def test_does_not_raise_when_no_transport_no_session(self):
+        """Must not raise even if the exporter exposes no known attribute."""
+        exporter = MagicMock(spec=[])
+        _apply_ssl_verify(exporter, False)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# SSL verify propagation — create_exporter and DynamicAuthOTLPSpanExporter
+# ---------------------------------------------------------------------------
+
+
+class TestSSLVerifyPropagation:
+    """_apply_ssl_verify must be called when ssl_verify is set, skipped when None."""
+
+    def _static_config(self, ssl_verify):
+        config = MagicMock(spec=TracerConfig)
+        config.endpoint = "https://cpd-host/v1/orchestrate/inject/traces"
+        config.ssl_verify = ssl_verify
+        config.session = MagicMock()
+        config.session.authenticator = None
+        config.get_auth_headers.return_value = {"Authorization": "Bearer tok"}
+        return config
+
+    def _dynamic_config(self, ssl_verify):
+        auth = MagicMock()
+        auth.token_manager = MagicMock()
+        auth.token_manager.get_token.return_value = "tok"
+        config = MagicMock(spec=TracerConfig)
+        config.endpoint = "https://cpd-host/v1/orchestrate/inject/traces"
+        config.ssl_verify = ssl_verify
+        config.session = MagicMock()
+        config.session.authenticator = auth
+        config.get_auth_headers.return_value = {"Authorization": "Bearer tok"}
+        return config
+
+    def test_static_exporter_calls_apply_when_ssl_verify_false(self):
+        with patch("ibm_watsonx_orchestrate_sdk.observability.exporters._apply_ssl_verify") as m:
+            create_exporter(self._static_config(False))
+            m.assert_called_once()
+            assert m.call_args[0][1] is False
+
+    def test_static_exporter_skips_apply_when_ssl_verify_none(self):
+        with patch("ibm_watsonx_orchestrate_sdk.observability.exporters._apply_ssl_verify") as m:
+            create_exporter(self._static_config(None))
+            m.assert_not_called()
+
+    def test_dynamic_exporter_calls_apply_when_ssl_verify_false(self):
+        with patch("ibm_watsonx_orchestrate_sdk.observability.exporters._apply_ssl_verify") as m:
+            DynamicAuthOTLPSpanExporter(
+                endpoint="https://cpd-host/inject/traces",
+                config=self._dynamic_config(False),
+            )
+            m.assert_called_once()
+            assert m.call_args[0][1] is False
+
+    def test_dynamic_exporter_skips_apply_when_ssl_verify_none(self):
+        with patch("ibm_watsonx_orchestrate_sdk.observability.exporters._apply_ssl_verify") as m:
+            DynamicAuthOTLPSpanExporter(
+                endpoint="https://cpd-host/inject/traces",
+                config=self._dynamic_config(None),
+            )
+            m.assert_not_called()
+
+

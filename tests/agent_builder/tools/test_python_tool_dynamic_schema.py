@@ -227,7 +227,7 @@ def test_tool_with_agent_run_context():
     
     # The tool should be callable
     result = my_context_tool(param="test", context=AgentRun())
-    assert isinstance(result,ToolResponse)
+    assert isinstance(result, ToolResponse)
     assert result.content == "param: test"
     
     # Check that context parameter is in the spec

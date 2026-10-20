@@ -22,6 +22,7 @@ from ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurati
 from ibm_watsonx_orchestrate.cli.commands.observability.observability_command import observability_app
 from ibm_watsonx_orchestrate.cli.commands.workspaces.workspaces_command import workspaces_app
 from ibm_watsonx_orchestrate.cli.commands.controls.controls_command import controls_app
+from ibm_watsonx_orchestrate.cli.commands.runtime.runtime_command import runtime_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 from ibm_watsonx_orchestrate.client.utils import is_ibm_cloud_platform
 from ibm_watsonx_orchestrate.client.utils import is_cpd_env
@@ -56,6 +57,7 @@ app.add_typer(settings_app, name="settings", help='Configure the settings for yo
 app.add_typer(partners_app, name="partners", help='Generate a well-structured, submission-ready agent artifact package for partner-built agents')
 app.add_typer(observability_app, name="observability", help='Search and export trace data from the observability platform for analysis in third-party tools')
 app.add_typer(controls_app, name="controls", help='Configure controls to protect and manage your AI assets')
+app.add_typer(runtime_app, name="runtime", help="[Preview] Push and manage custom agent and MCP toolkit workload images in ARM")
 
 # Conditionally add workspaces command only for IBM Cloud environments OR CP4D environments
 try:

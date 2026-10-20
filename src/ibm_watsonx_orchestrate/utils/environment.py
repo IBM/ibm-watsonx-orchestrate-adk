@@ -43,6 +43,7 @@ class EnvService:
         "WO_API_KEY",
         "WO_INSTANCE",
         "DOCKER_IAM_KEY",
+        "DOCKER_FALLBACK_IAM_KEY",
         "WO_DEVELOPER_EDITION_SOURCE",
         "WATSONX_SPACE_ID",
         "WATSONX_APIKEY",
@@ -384,6 +385,7 @@ class EnvService:
             "MCP_GATEWAY_ADMIN_PASSWORD",
             "ES_PASSWORD",
             "MILVUS_PASSWORD",
+            "OPENSEARCH_PASSWORD",
             "CLICKHOUSE_PASSWORD",
             "TAVILY_API_KEY", #May not be needed
             "RUNTIME_MANAGER_API_KEY",

@@ -32,18 +32,20 @@ speech_to_text:
 text_to_speech:
   provider: google_tts
   google_tts_config:
+    project_id: "your-gcp-project-id"  # Google Cloud project ID
     credentials_json: "service-account-json"  # Service Account Credentials. Can substitute with api_key
 
     # Voice selection
-    # Voice type comparison:
+    # Voice type comparison: 
     #   Chirp 3 HD  — highest quality, conversational agents, supports streaming (GA)
     #                 Does NOT support SSML, speaking_rate, pitch, volume, or effects_profile_id
     #   Neural2     — general purpose, full SSML support (GA)
     #   Studio      — media narration and news reading, full SSML support (GA)
     #   WaveNet     — warm/human-like, full SSML support (GA)
     #   Standard    — cost-efficient, full SSML support (GA)
-    voice: "en-US-Neural2-F"  # Full voice name. Use Neural2/WaveNet/Studio for speaking_rate, pitch, and volume support
-    language: "en-US"  # BCP-47 language tag. TTS may substitute a nearby dialect if exact match unavailable
+    # See https://docs.cloud.google.com/text-to-speech/docs/list-voices-and-types
+    voice: "en-US-Chirp3-HD-Charon" # Full voice name. Use Neural2/WaveNet/Studio for speaking_rate, pitch, and volume support
+    language_code: "en-US"  # BCP-47 language tag. TTS may substitute a nearby dialect if exact match unavailable
     ssml_gender: "FEMALE"  # Optional: Preferred voice gender — MALE | FEMALE | NEUTRAL. Not enforced if a matching voice is unavailable
 
     # Audio output controls

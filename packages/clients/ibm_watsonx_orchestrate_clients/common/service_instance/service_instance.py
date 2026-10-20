@@ -42,11 +42,18 @@ class _ScopelessMCSPV2TokenManager(MCSPV2TokenManager):
     OPERATION_PATH = '/api/2.0/apikeys/token'
 
     def request_token(self) -> dict:
-        """Invoke POST /api/2.0/apikeys/token (scopeless variant)."""
+        """Invoke POST /api/2.0/apikeys/token (scopeless variant).
+
+        The API key is sent both in the JSON body (standard MCSP v2 convention)
+        and as an X-API-Key header. Some MCSP v2 proxy deployments (e.g. the
+        WXO HIPAA/AWS regional proxy) only accept the header form and return
+        HTTP 400 "API Key Missing" when only the body field is present.
+        """
         required_headers = {
             'User-Agent': self.user_agent,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'X-API-Key': self.apikey,
         }
         request_headers = {}
         if self.headers is not None and isinstance(self.headers, dict):
@@ -187,6 +194,13 @@ class ServiceInstance(BaseServiceInstance):
             return authenticator.token_manager.get_token()
 
         except Exception as e:
+            api_key = self._credentials.api_key
+            if isinstance(api_key, str) and api_key != api_key.strip():
+                raise ClientError(
+                    f"Error getting {auth_type.upper()} Token. The API key has leading or trailing whitespace "
+                    "(spaces, tabs or newlines). Remove the whitespace from the API key and try again.",
+                    logg_messages=False,
+                )
             raise ClientError(f"Error getting {auth_type.upper()} Token", logg_messages=False)
 
 

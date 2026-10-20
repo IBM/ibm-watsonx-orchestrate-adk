@@ -262,7 +262,7 @@ def set_credentials_connection_command(
         str,
         typer.Option(
             '--client-secret',
-            help='For oauth_auth_client_credentials_flow and oauth_auth_password_flow, the client_secret to authenticate with'
+            help='For oauth_auth_client_credentials_flow, oauth_auth_password_flow, oauth_auth_on_behalf_of_flow and oauth_auth_token_exchange_flow, the client_secret to authenticate with'
         )
     ] = None,
     send_via: Annotated[
@@ -387,6 +387,13 @@ def set_credentials_connection_command(
             help="For oauth_auth_jwt_bearer_flow, a custom JWT payload claim in the form '<key>=<value>'. Multiple values can be passed using `--claims key1=value1 --claims key2=value2`"
         )
     ] = None,
+    app_token_key: Annotated[
+        str,
+        typer.Option(
+            '--app-token-key',
+            help='For oauth_auth_on_behalf_of_flow and oauth_auth_token_exchange_flow, the request body parameter name used to carry the end-user subject token into the downstream token exchange request (e.g. subject_token)'
+        )
+    ] = None,
 ):
     set_credentials_connection(
         app_id=app_id,
@@ -415,6 +422,7 @@ def set_credentials_connection_command(
         exp=exp,
         include_jti=include_jti,
         claims=claims,
+        app_token_key=app_token_key,
     )
 
 @connections_app.command(name="set-identity-provider")

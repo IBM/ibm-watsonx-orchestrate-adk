@@ -10,6 +10,7 @@ import logging
 from pydantic import TypeAdapter, BaseModel
 
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
@@ -187,6 +188,10 @@ class PythonTool(BaseTool):
         self.response_format = response_format
 
     def __call__(self, *args, **kwargs):
+        # __call__ must stay sync: the runtime (TRM server-lite) calls the tool
+        # without awaiting, so an `async def __call__` would return a coroutine
+        # object instead of a ToolResponse. Async tool functions are bridged
+        # with run_coroutine_sync.
 
         run_context_param = self.get_run_param()
         context_object = None
@@ -197,11 +202,13 @@ class PythonTool(BaseTool):
                 context_object = self.__parse_context_param(context_param_value)
                 kwargs[run_context_param] = context_object
 
-
-        result = self.fn(*args, **kwargs)
+        if inspect.iscoroutinefunction(self.fn):
+            result = run_coroutine_sync(self.fn(*args, **kwargs))
+        else:
+            result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
-        return ToolResponse(content=result,context_updates=context_updates)
+        return ToolResponse(content=result, context_updates=context_updates)
     
     def __parse_context_param(self, context_param_value):
         from ibm_watsonx_orchestrate.run.context import AgentRun

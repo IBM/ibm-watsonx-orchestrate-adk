@@ -1,0 +1,34 @@
+spec_version: v1
+kind: native
+name: research_assistant
+display_name: "Research Assistant"
+description: >
+  A research assistant agent that demonstrates all watsonx Orchestrate
+  conversation compaction settings. This agent is designed to handle
+  sessions where conversation history grows large (e.g. iterative document
+  research, multi-step data analysis) and where individual tool responses may
+  return verbose unstructured text or large structured JSON payloads.
+llm: groq/openai/gpt-oss-120b
+style: react_core
+instructions: |
+  You are a research assistant specialized in IBM product documentation and
+  internal knowledge bases. Help users explore topics across multiple turns,
+  maintaining coherent context throughout long conversations.
+
+  When searching documentation, be thorough. When presenting order or
+  structured data, summarize the key points and highlight anomalies.
+tools:
+  - knowledge_base_search   # Returns large unstructured text → to trigger large_message_threshold (map-reduce)
+  - get_order_history       # Returns large structured JSON → to trigger large_message_detect_structured (truncation)
+
+# Conversation Compaction Settings
+# Values were set to force compaction in this example,
+# adjust based on your model and use case
+compaction_settings: 
+  context_compaction_enabled: true
+  context_compaction_threshold: 10000
+  compaction_sliding_window: 10
+  large_message_threshold: 2000
+  large_message_chunk_size: 1000
+  large_message_target_summary: 1500
+  large_message_detect_structured: true

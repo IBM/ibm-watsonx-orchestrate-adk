@@ -730,3 +730,100 @@ class TestWXOFileMisconfigurationWarning:
             
             # No warning should be logged when properly configured
             assert not any("SECURE_FILE_DOWNLOAD is disabled" in record.message for record in caplog.records)
+
+    def test_ssl_verify_default_when_env_not_set(self, monkeypatch):
+        """Test that verify=True by default when SSL_CERT_FILE is not set.
+        Note: no module reload needed — _get_ssl_verify() reads os.getenv at call time."""
+        monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+        from ibm_watsonx_orchestrate_core.types.tools.types import _get_ssl_verify, WXOFile
+        assert _get_ssl_verify() is True
+
+        url = "https://a-mock-s3-presigned-url"
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.headers = {"x-amz-meta-filename": "test.txt"}
+            response.content = b"content"
+            mock_get.return_value = response
+
+            WXOFile.get_file_name(url)
+            assert mock_get.call_args.kwargs['verify'] is True
+
+            WXOFile.get_content(url)
+            assert mock_get.call_args.kwargs['verify'] is True
+
+    def test_ssl_verify_custom_cert_when_env_set(self, monkeypatch):
+        """Test that verify passes custom cert path when SSL_CERT_FILE is set and exists.
+        Note: no module reload needed — _get_ssl_verify() reads os.getenv at call time."""
+        cert_path = "/etc/ssl/certs/custom-bundle.crt"
+        monkeypatch.setenv("SSL_CERT_FILE", cert_path)
+        from ibm_watsonx_orchestrate_core.types.tools.types import _get_ssl_verify, WXOFile
+        with patch('os.path.isfile', return_value=True):
+            assert _get_ssl_verify() == cert_path
+
+            url = "https://a-mock-s3-presigned-url"
+            with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
+                response = MagicMock()
+                response.headers = {"x-amz-meta-filename": "test.txt"}
+                response.content = b"content"
+                mock_get.return_value = response
+
+                WXOFile.get_file_name(url)
+                assert mock_get.call_args.kwargs['verify'] == cert_path
+
+                WXOFile.get_content(url)
+                assert mock_get.call_args.kwargs['verify'] == cert_path
+
+    def test_ssl_verify_non_existent_cert_fallback(self, monkeypatch, caplog):
+        """Test that if SSL_CERT_FILE points to a non-existent file, it logs a warning and falls back to True."""
+        import logging
+        cert_path = "/non/existent/cert.crt"
+        monkeypatch.setenv("SSL_CERT_FILE", cert_path)
+        from ibm_watsonx_orchestrate_core.types.tools.types import _get_ssl_verify
+
+        with caplog.at_level(logging.WARNING):
+            result = _get_ssl_verify()
+            assert result is True
+            assert any("SSL_CERT_FILE is set to" in record.message and "does not exist" in record.message for record in caplog.records)
+
+    def test_ssl_verify_with_secure_download_and_redirect(self, monkeypatch):
+        """Test that verify is passed to both initial request and followed redirect request when SECURE_FILE_DOWNLOAD is enabled."""
+        import importlib
+        cert_path = "/etc/ssl/certs/custom-bundle.crt"
+        monkeypatch.setenv("SSL_CERT_FILE", cert_path)
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "true")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        monkeypatch.setenv("INTERNAL_REQUEST_IDENTIFIER", "test-token")
+
+        from ibm_watsonx_orchestrate_core.types.tools import types
+        importlib.reload(types)
+
+        wxo_url = "https://app-server.com/v1/files/document.pdf"
+        s3_url = "https://s3.amazonaws.com/bucket/document.pdf"
+
+        # Mock initial 302 response and subsequent S3 200 response
+        redirect_response = MagicMock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {'Location': s3_url}
+
+        s3_response = MagicMock()
+        s3_response.status_code = 200
+        s3_response.headers = {
+            "x-amz-meta-filename": "document.pdf",
+            "x-amz-meta-size": "1024",
+            "x-amz-meta-content-type": "application/pdf"
+        }
+
+        with patch('os.path.isfile', return_value=True), \
+             patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get', side_effect=[redirect_response, s3_response]) as mock_get:
+            file_name = types.WXOFile.get_file_name(wxo_url)
+            assert file_name == "document.pdf"
+
+            assert mock_get.call_count == 2
+            # Check 1st call (initial WXO request)
+            first_call_kwargs = mock_get.call_args_list[0].kwargs
+            assert first_call_kwargs['verify'] == cert_path
+            assert first_call_kwargs['allow_redirects'] is False
+
+            # Check 2nd call (redirected S3 request)
+            second_call_kwargs = mock_get.call_args_list[1].kwargs
+            assert second_call_kwargs['verify'] == cert_path

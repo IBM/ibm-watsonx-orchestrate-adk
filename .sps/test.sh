@@ -15,7 +15,7 @@ echo $BASE_DIR
 UNIT_TEST_SCRIPT=$(cat <<EOF
 pip install "./packages/core"
 pip install "./packages/clients"
-pip install ".[dev, agentops]"
+pip install ".[dev, agentops, aws]"
 mkdir -p coverage
 
 hatch python install 3.11 3.12 3.13 3.14

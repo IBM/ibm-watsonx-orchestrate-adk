@@ -12,8 +12,9 @@ speech_to_text:
 text_to_speech:
   provider: google_tts
   google_tts_config:
+    project_id: "project-id"
     credentials_json: "service-account-json"
-    voice: "en-US-Neural2-C"
-    language: "en-US"
+    voice: "en-US-Chirp3-HD-Charon"
+    language_code: "en-US"
     speaking_rate: 1.0
 language: "en-US"

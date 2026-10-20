@@ -356,9 +356,13 @@ class WorkspacesController:
                 account_id = token.get('account')
 
             if not account_id:
+                # Try top-level account_id field (CPD JWT)
+                account_id = token.get('account_id')
+
+            if not account_id:
                 # Try direct account field
                 account_id = token.get('context', {}).get('client_tenantID') if isinstance(token.get('context'), dict) else None
-            
+
             if not account_id:
                 logger.error("Could not extract account ID from token")
                 sys.exit(1)

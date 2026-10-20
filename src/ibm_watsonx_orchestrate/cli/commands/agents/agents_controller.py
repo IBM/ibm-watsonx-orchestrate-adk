@@ -18,7 +18,7 @@ from itertools import chain
 from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, TypeVar
+from typing import Any, Callable, Iterable, List, Optional, TypeVar
 
 import requests
 import rich
@@ -51,11 +51,12 @@ from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdo
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, transform_agents_from_flat_agent_spec
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException, format_client_api_error
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_cpd_env
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
@@ -166,6 +167,7 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "instructions": args.get("instructions"),
         "llm": args.get("llm"),
         "style": args.get("style"),
+        "coordination": args.get("coordination"),
         "custom_join_tool": args.get("custom_join_tool"),
         "structured_output": args.get("structured_output"),
         "context_access_enabled": args.get("context_access_enabled", True),
@@ -1131,46 +1133,6 @@ class AgentsController:
 
         return ref_agent
 
-    def dereference_skills(self, agent: Agent) -> Agent:
-        """Resolve skill names to IDs for agent import/binding."""
-        skills_controller = self.get_skills_controller()
-
-        deref_agent = deepcopy(agent)
-
-        all_skills = skills_controller.get_all_skills()
-        name_id_lookup = {s["name"]: s["id"] for s in all_skills}
-
-        deref_skills = []
-        for name in agent.skills:
-            skill_id = name_id_lookup.get(name)
-            if not skill_id:
-                logger.error(f"Failed to find skill. No skill found with the name '{name}'.")
-                sys.exit(1)
-            deref_skills.append(skill_id)
-
-        deref_agent.skills = deref_skills
-        return deref_agent
-
-    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
-        """Resolve skill IDs back to names for agent export."""
-        skills_controller = self.get_skills_controller()
-
-        ref_agent = deepcopy(agent)
-
-        all_skills = skills_controller.get_all_skills(workspace_id)
-        id_name_lookup = {s["id"]: s["name"] for s in all_skills}
-
-        ref_skills = []
-        for skill_id in agent.skills:
-            name = id_name_lookup.get(skill_id)
-            if not name:
-                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'.")
-                sys.exit(1)
-            ref_skills.append(name)
-
-        ref_agent.skills = ref_skills
-        return ref_agent
-
     def dereference_toolkits(self, agent: Agent) -> Agent:
         client = self.get_toolkit_client()
 
@@ -1210,6 +1172,59 @@ class AgentsController:
             ref_toolkits.append(name)
         ref_agent.toolkits = ref_toolkits
         return ref_agent
+
+    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+        """Export path: resolve each agent.skills entry to its canonical name.
+
+        Entries may be either UUIDs or names depending on the tenant.  Both are
+        accepted and mapped to the human-readable skill name so the exported
+        YAML is always portable.
+        """
+        skills_controller = self.get_skills_controller()
+        all_skills = skills_controller.get_all_skills(workspace_id=workspace_id)
+
+        # Build a lookup that accepts either an ID or a name as the key.
+        to_name: dict[str, str] = {}
+        for s in all_skills:
+            to_name[s["id"]] = s["name"]
+            to_name[s["name"]] = s["name"]
+
+        ref_agent = deepcopy(agent)
+        ref_skills = []
+        for entry in agent.skills:
+            name = to_name.get(entry)
+            if not name:
+                logger.error(f"Failed to find skill. No skill found with the id '{entry}'")
+                sys.exit(1)
+            ref_skills.append(name)
+        ref_agent.skills = ref_skills
+        return ref_agent
+
+    def dereference_skills(self, agent: Agent) -> Agent:
+        """Import path: resolve each agent.skills entry to its UUID.
+
+        Entries may be either names or UUIDs depending on the source YAML.
+        Both are accepted and mapped to the server-side UUID.
+        """
+        skills_controller = self.get_skills_controller()
+        all_skills = skills_controller.get_all_skills()
+
+        # Build a lookup that accepts either a name or an ID as the key.
+        to_id: dict[str, str] = {}
+        for s in all_skills:
+            to_id[s["name"]] = s["id"]
+            to_id[s["id"]] = s["id"]
+
+        deref_agent = deepcopy(agent)
+        deref_skills = []
+        for entry in agent.skills:
+            skill_id = to_id.get(entry)
+            if not skill_id:
+                logger.error(f"Failed to find skill. No skill found with the name '{entry}'")
+                sys.exit(1)
+            deref_skills.append(skill_id)
+        deref_agent.skills = deref_skills
+        return deref_agent
 
     def dereference_guidelines(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
@@ -1361,10 +1376,8 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
-        # NOTE: dereference_skills (name→UUID) is intentionally skipped here.
-        # The server-side validator on POST /agents rejects skill UUIDs on 2.16.0
-        # tenants. Re-enable once the server fix ships.
-        # Tracking: https://github.ibm.com/WatsonOrchestrate/wxo-clients/issues/82318
+        if agent.skills and len(agent.skills) > 0:
+            agent = self.dereference_skills(agent)
 
         return agent
     
@@ -1381,7 +1394,6 @@ class AgentsController:
             agent = self.reference_toolkits(agent)
         if agent.skills and len(agent.skills):
             agent = self.reference_skills(agent, workspace_id=workspace_id)
-
         return agent
     
     def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
@@ -1418,12 +1430,33 @@ class AgentsController:
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.reference_external_or_assistant_agent_dependencies(agent)
 
+    @staticmethod
+    def _send_with_skill_name_fallback(send: Callable[[dict], Any], payload: dict, original_skills: Optional[list[str]]):
+        """Send an agent payload; if the server rejects the skill UUIDs, retry once with the original skill names.
+
+        Some servers only accept skill names in agent.skills and report
+        "Skills not found" for UUIDs that GET /skills returned.
+        """
+        try:
+            return send(payload)
+        except ClientAPIException as e:
+            if (
+                not original_skills
+                or original_skills == payload.get("skills")
+                or "Skills not found" not in format_client_api_error(e)
+            ):
+                raise
+            logger.warning("The server rejected the skill IDs. Retrying with skill names...")
+            return send({**payload, "skills": original_skills})
+
     def publish_or_update_agents(
         self, agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent]
     ):
         for agent in agents:
             # Check for existing agents by name
             agent_name = agent.name
+            # Keep the skills exactly as written in the spec; dereferencing replaces them with IDs.
+            original_skills = list(agent.skills) if isinstance(agent, Agent) and agent.skills else []
 
             native_client = self.get_native_client()
             external_client = self.get_external_client()
@@ -1509,9 +1542,10 @@ class AgentsController:
                         logger.info(f"{agent_type} '{agent_name}' belongs to {agent_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
                     
                     agent_id = existing_agent.id
-                    self.update_agent(agent_id=agent_id, agent=agent, skip_workspace_injection=cross_workspace_update)
+                    self.update_agent(agent_id=agent_id, agent=agent, skip_workspace_injection=cross_workspace_update,
+                                      original_skills=original_skills)
             else:
-                self.publish_agent(agent)
+                self.publish_agent(agent, original_skills=original_skills)
 
     @staticmethod
     def _create_agent_zip(package_root: str, config_file: str | None = None) -> tuple[str, str | None]:
@@ -1689,35 +1723,15 @@ class AgentsController:
                 logger.warning(f"Failed to clean up temporary zip file: {e}")
 
     def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
-        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
-        
         if isinstance(agent, Agent):
             # Use the client's create method which handles workspace injection
             native_client = self.get_native_client()
             try:
-                response_data = native_client.create(agent.model_dump(exclude_none=True))
+                response_data = self._send_with_skill_name_fallback(
+                    native_client.create, agent.model_dump(exclude_none=True), kwargs.get('original_skills')
+                )
             except ClientAPIException as e:
-                # Extract error message from response
-                error_msg = "Unknown error"
-                
-                try:
-                    # Don't rely on truthiness of response object - check if it's not None
-                    if e.response is not None and hasattr(e.response, 'text'):
-                        response_text = e.response.text
-                        if response_text:
-                            try:
-                                error_data = json.loads(response_text)
-                                error_msg = error_data.get('detail', response_text)
-                            except:
-                                error_msg = response_text
-                        else:
-                            error_msg = str(e)
-                    else:
-                        error_msg = str(e)
-                except Exception:
-                    error_msg = str(e)
-                
-                logger.error(f"Failed to create agent: {error_msg}")
+                logger.error(f"Failed to create agent: {format_client_api_error(e)}")
                 sys.exit(1)
             
             _raise_guidelines_warning(response_data)
@@ -1774,27 +1788,7 @@ class AgentsController:
             try:
                 self.get_external_client().create(agent.model_dump(exclude_none=True))
             except ClientAPIException as e:
-                # Extract error message from response
-                error_msg = "Unknown error"
-                
-                try:
-                    # Don't rely on truthiness of response object - check if it's not None
-                    if e.response is not None and hasattr(e.response, 'text'):
-                        response_text = e.response.text
-                        if response_text:
-                            try:
-                                error_data = json.loads(response_text)
-                                error_msg = error_data.get('detail', response_text)
-                            except:
-                                error_msg = response_text
-                        else:
-                            error_msg = str(e)
-                    else:
-                        error_msg = str(e)
-                except Exception:
-                    error_msg = str(e)
-                
-                logger.error(f"Failed to create external agent: {error_msg}")
+                logger.error(f"Failed to create external agent: {format_client_api_error(e)}")
                 sys.exit(1)
             logger.info(f"External Agent '{agent.name}' imported successfully")
             
@@ -1802,27 +1796,7 @@ class AgentsController:
             try:
                 self.get_assistant_client().create(agent.model_dump(exclude_none=True, by_alias=True))
             except ClientAPIException as e:
-                # Extract error message from response
-                error_msg = "Unknown error"
-                
-                try:
-                    # Don't rely on truthiness of response object - check if it's not None
-                    if e.response is not None and hasattr(e.response, 'text'):
-                        response_text = e.response.text
-                        if response_text:
-                            try:
-                                error_data = json.loads(response_text)
-                                error_msg = error_data.get('detail', response_text)
-                            except:
-                                error_msg = response_text
-                        else:
-                            error_msg = str(e)
-                    else:
-                        error_msg = str(e)
-                except Exception:
-                    error_msg = str(e)
-                
-                logger.error(f"Failed to create assistant agent: {error_msg}")
+                logger.error(f"Failed to create assistant agent: {format_client_api_error(e)}")
                 sys.exit(1)
             logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
@@ -1833,8 +1807,18 @@ class AgentsController:
         if isinstance(agent, Agent):
             logger.info(f"Existing Agent '{agent.name}' found. Updating...")
             exclude_fields = {'custom_agent_file_path'} if hasattr(agent, 'custom_agent_file_path') else None
-            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields),
-                                                      skip_workspace_injection=skip_workspace_injection)
+            native_client = self.get_native_client()
+            try:
+                response = self._send_with_skill_name_fallback(
+                    lambda payload: native_client.update(
+                        agent_id, payload, skip_workspace_injection=skip_workspace_injection
+                    ),
+                    agent.model_dump(exclude_none=True, exclude=exclude_fields),
+                    kwargs.get('original_skills'),
+                )
+            except ClientAPIException as e:
+                logger.error(f"Failed to update agent: {format_client_api_error(e)}")
+                sys.exit(1)
             _raise_guidelines_warning(response)
 
             if agent.is_schedulable is not None:
@@ -3168,3 +3152,362 @@ class AgentsController:
             logger.error(f"Unexpected error during agent discovery: {str(e)}")
             sys.exit(1)
 
+    def discover_and_register_vertex_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+        yes: bool = False,
+    ) -> None:
+        """Discover Google Vertex AI agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    `service_account_json`, `project_id`, and `location`.
+            agents: Display name filter list (case-insensitive). `None` = all.
+            yes: If ``True``, skip the interactive confirmation prompt.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.vertex_discovery import VertexDiscoveryService
+        import json as _json
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "Vertex AI agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider vertex_agent. "
+                "Provide the connection app_id that holds your Google service account credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        if "service_account_json" not in creds:
+            logger.error(
+                f"Connection '{app_id}' is missing the 'service_account_json' credential entry. "
+                "Run 'orchestrate connections set-credentials' to add it."
+            )
+            sys.exit(1)
+
+        if "project_id" not in creds:
+            logger.error(
+                f"Connection '{app_id}' is missing the 'project_id' credential entry. "
+                "Run 'orchestrate connections set-credentials' to add it."
+            )
+            sys.exit(1)
+
+        if "location" not in creds:
+            logger.error(
+                f"Connection '{app_id}' is missing the 'location' credential entry. "
+                "Run 'orchestrate connections set-credentials' to add it."
+            )
+            sys.exit(1)
+
+        try:
+            service_account_json = _json.loads(creds["service_account_json"])
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse 'service_account_json' from connection '{app_id}': {e}")
+            sys.exit(1)
+
+        project_id: str = creds["project_id"]
+        location: str = creds["location"]
+
+        # Discover agents
+        try:
+            with VertexDiscoveryService() as svc:
+                logger.info(
+                    "Discovering Vertex AI agents in project '%s', location '%s'…",
+                    project_id, location,
+                )
+                raw_agents = svc.list_agents(project_id, location, service_account_json)
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, location)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list Vertex AI agents: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid Vertex AI service account credentials: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No Vertex AI agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered Vertex AI Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        if not yes:
+            confirmed = typer.confirm(
+                f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+            )
+            if not confirmed:
+                logger.info("Import cancelled.")
+                return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d Vertex AI agent(s).", len(agent_objects)
+        )
+
+    def discover_and_register_azure_ai_foundry_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+    ) -> None:
+        """Discover Microsoft Azure AI Foundry agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    `tenant_id`, `client_id`, `client_secret`, `endpoint`, and `project_name`.
+            agents: Agent name filter list (case-insensitive). `None` = all.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.azure_ai_foundry_discovery import AzureAIFoundryDiscoveryService
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "Azure AI Foundry agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider azure_ai_foundry. "
+                "Provide the connection app_id that holds your Azure service principal credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        required_fields = ["tenant_id", "client_id", "client_secret", "endpoint", "project_name"]
+        for field in required_fields:
+            if field not in creds:
+                logger.error(
+                    f"Connection '{app_id}' is missing the '{field}' credential entry. "
+                    "Run 'orchestrate connections set-credentials' to add it."
+                )
+                sys.exit(1)
+
+        tenant_id: str = creds["tenant_id"]
+        client_id: str = creds["client_id"]
+        client_secret: str = creds["client_secret"]
+        endpoint: str = creds["endpoint"]
+        project_name: str = creds["project_name"]
+
+        # Discover agents
+        try:
+            with AzureAIFoundryDiscoveryService() as svc:
+                logger.info(
+                    "Discovering Azure AI Foundry agents in project '%s'…",
+                    project_name,
+                )
+                raw_agents = svc.list_agents(
+                    endpoint=endpoint,
+                    project_name=project_name,
+                    tenant_id=tenant_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, endpoint, project_name)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list Azure AI Foundry agents: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid Azure AI Foundry credentials or parameters: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No Azure AI Foundry agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered Azure AI Foundry Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        confirmed = typer.confirm(
+            f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+        )
+        if not confirmed:
+            logger.info("Import cancelled.")
+            return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d Azure AI Foundry agent(s).", len(agent_objects)
+        )
+
+    def discover_and_register_bedrock_agents(
+        self,
+        app_id: Optional[str],
+        agents: Optional[List[str]],
+        yes: bool = False,
+    ) -> None:
+        """Discover AWS Bedrock agents and register them to WXO.
+
+        Args:
+            app_id: Connection app_id whose key_value credentials contain
+                    ``access_key_id``, ``secret_access_key``, and ``region``.
+            agents: Agent name filter list (case-insensitive). ``None`` = all.
+            yes: If ``True``, skip the interactive confirmation prompt.
+        """
+        from ibm_watsonx_orchestrate.agent_builder.agents.bedrock_discovery import BedrockDiscoveryService
+        import typer
+
+        # SaaS-only guard
+        if is_local_dev() or is_cpd_env():
+            logger.error(
+                "AWS Bedrock agent discovery is only supported in SaaS environments. "
+                "It cannot be used in Developer Edition or on-premises deployments."
+            )
+            sys.exit(1)
+
+        # app_id is mandatory
+        if not app_id:
+            logger.error(
+                "--app-id is required for --provider bedrock_agent. "
+                "Provide the connection app_id that holds your AWS IAM credentials."
+            )
+            sys.exit(1)
+
+        # Resolve credentials from key_value connection
+        try:
+            creds = get_connections_client().get_credentials(
+                app_id=app_id,
+                env=ConnectionEnvironment.DRAFT,
+                use_app_credentials=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials for app_id '{app_id}': {e}")
+            sys.exit(1)
+
+        for required_key in ("access_key_id", "secret_access_key", "region"):
+            if required_key not in creds:
+                logger.error(
+                    f"Connection '{app_id}' is missing the '{required_key}' credential entry. "
+                    "Run 'orchestrate connections set-credentials' to add it."
+                )
+                sys.exit(1)
+
+        access_key_id: str = creds["access_key_id"]
+        secret_access_key: str = creds["secret_access_key"]
+        region: str = creds["region"]
+        session_token: Optional[str] = creds.get("session_token")
+
+        # Discover agents
+        try:
+            with BedrockDiscoveryService() as svc:
+                logger.info(
+                    "Discovering AWS Bedrock agents in region '%s'…", region
+                )
+                raw_agents = svc.list_agents(
+                    region=region,
+                    access_key_id=access_key_id,
+                    secret_access_key=secret_access_key,
+                    session_token=session_token,
+                )
+                wxo_specs = svc.discover_and_convert(raw_agents, agents, region)
+        except requests.RequestException as e:
+            logger.error(f"Failed to list AWS Bedrock agents: {e}")
+            sys.exit(1)
+
+        if not wxo_specs:
+            logger.info("No AWS Bedrock agents found matching the given criteria.")
+            return
+
+        # Display a table of what will be imported
+        console = Console()
+        table = Table(title=f"Discovered AWS Bedrock Agents ({len(wxo_specs)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Title")
+        table.add_column("Description")
+        for spec in wxo_specs:
+            table.add_row(
+                spec.get("name", ""),
+                spec.get("title", ""),
+                (spec.get("description") or "")[:80],
+            )
+        console.print(table)
+
+        # Confirm before importing
+        if not yes:
+            confirmed = typer.confirm(
+                f"Import {len(wxo_specs)} agent(s) into the active workspace?"
+            )
+            if not confirmed:
+                logger.info("Import cancelled.")
+                return
+
+        # Validate and register
+        try:
+            agent_objects = [ExternalAgent.model_validate(spec) for spec in wxo_specs]
+        except Exception as e:
+            logger.error(f"Agent spec validation failed: {e}")
+            sys.exit(1)
+
+        self.publish_or_update_agents(agent_objects)
+        logger.info(
+            "Successfully registered %d AWS Bedrock agent(s).", len(agent_objects)
+        )

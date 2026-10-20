@@ -34,8 +34,8 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ..types import (
     Dimensions, DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
-    NodeIdCondition, PageRange, ParallelSpec, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
-    NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
+    NodeIdCondition, PageRange, ParallelSpec, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, AITaskLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
+    NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, AITaskLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
     UserFormButton, LanguageCode, OutputContentType
@@ -48,7 +48,7 @@ from ..node import (
 from ..types import (
     AgentNodeSpec, ThreadControlPolicy, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
     NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema,
-    FlowCallback, FlowCallbackEventKind, _UNSET
+    FlowCallback, FlowCallbackEventKind, _UNSET, UserRole
 )
 
 from ..data_map import DataMap, DataMapSpec
@@ -296,7 +296,7 @@ class Flow(Node):
                                 schema_ref = self._add_schema_ref(value, value.title)
                                 new_schema.properties[key] = JsonSchemaObjectRef(title=value.title,
                                                                                 ref = f"{schema_ref.ref}")
-                            elif value.type == "array" and (value.items.type == "object" or value.items.type == "array"):
+                            elif value.type == "array" and value.items is not None and (value.items.type == "object" or value.items.type == "array"):
                                 schema_ref = self._add_schema_ref(value.items, value.items.title)
                                 new_schema.properties[key].items = JsonSchemaObjectRef(title=value.title,
                                                                                     ref = f"{schema_ref.ref}")
@@ -307,7 +307,7 @@ class Flow(Node):
                                 new_schema.properties[key] = JsonSchemaObjectRef(ref = f"{schema_ref}")
 
             elif new_schema.type == "array":
-                if new_schema.items.type == "object" or new_schema.items.type == "array":
+                if new_schema.items is not None and (new_schema.items.type == "object" or new_schema.items.type == "array"):
                     schema_ref = self._add_schema_ref(new_schema.items, new_schema.items.title)
                     new_schema.items = JsonSchemaObjectRef(title=new_schema.items.title,
                                                            ref= f"{schema_ref.ref}")
@@ -1044,7 +1044,7 @@ class Flow(Node):
             user_prompt: str | list[str] | None = None,
             prompt_examples: list[PromptExample] | None = None,
             llm: str | None = None,
-            llm_parameters: PromptLLMParameters | None = None,
+            llm_parameters: AITaskLLMParameters | PromptLLMParameters | dict | None = None,
             description: str | None = None,
             input_schema: type[BaseModel]|None = None, 
             output_schema: type[BaseModel]|None=None,
@@ -2413,6 +2413,7 @@ class FlowFactory(BaseModel):
                     output_schema: type[BaseModel]|None=None,
                     private_schema: type[BaseModel]|None=None,
                     schedulable: bool=False,
+                    schedulable_by_role: UserRole|None=None,
                     suppress_agent_summarization: bool|None=None,
                     llm_model: str|ListVirtualModel|None=None,
                     agent_conversation_memory_turns_limit: int|None = None,
@@ -2441,6 +2442,7 @@ class FlowFactory(BaseModel):
             private_schema = private_schema_obj,
             output_schema_object = output_schema_obj,
             schedulable=schedulable,
+            schedulable_by_role=schedulable_by_role,
             suppress_agent_summarization=suppress_agent_summarization,
             context_window=context_window,
         )

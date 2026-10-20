@@ -1327,12 +1327,21 @@ class DockerLoginService:
                 if not iam_api_key:
                     raise ValueError(
                         "DOCKER_IAM_KEY is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'internal'.")
-                self.__docker_login(iam_api_key, registry_url, "iamapikey")
+                if not self.__docker_login(iam_api_key, registry_url, "iamapikey"):
+                    fallback_key = env_dict.get("DOCKER_FALLBACK_IAM_KEY")
+                    if not fallback_key:
+                        logger.error("Docker login failed and DOCKER_FALLBACK_IAM_KEY is not set.")
+                        sys.exit(1)
+                    logger.info("Primary DOCKER_IAM_KEY login failed. Retrying with DOCKER_FALLBACK_IAM_KEY ...")
+                    if not self.__docker_login(fallback_key, registry_url, "iamapikey"):
+                        logger.error("Docker login failed with both DOCKER_IAM_KEY and DOCKER_FALLBACK_IAM_KEY.")
+                        sys.exit(1)
             elif source == DeveloperEditionSources.MYIBM:
                 wo_entitlement_key = env_dict.get("WO_ENTITLEMENT_KEY")
                 if not wo_entitlement_key:
                     raise ValueError("WO_ENTITLEMENT_KEY is required in the environment file.")
-                self.__docker_login(wo_entitlement_key, registry_url, "cp")
+                if not self.__docker_login(wo_entitlement_key, registry_url, "cp"):
+                    sys.exit(1)
             elif source == DeveloperEditionSources.ORCHESTRATE:
                 wo_auth_type = self.__env_service.resolve_auth_type(env_dict)
                 if EnvironmentAuthType.is_cpd_like(wo_auth_type) and not self.__env_service.did_user_provide_registry_url(env_dict):
@@ -1350,20 +1359,23 @@ class DockerLoginService:
 
                 else:
                     api_key, username = self.__get_docker_cred_by_wo_auth_type(auth_type=wo_auth_type, env_dict=env_dict)
-                    self.__docker_login(api_key, registry_url, username)
+                    if not self.__docker_login(api_key, registry_url, username):
+                        sys.exit(1)
             elif source == DeveloperEditionSources.CUSTOM:
                 username = env_dict.get("REGISTRY_USERNAME")
                 password = env_dict.get("REGISTRY_PASSWORD")
                 if not username or not password:
                     logger.warning("REGISTRY_USERNAME or REGISTRY_PASSWORD are missing in the environment file. These values are needed for registry authentication when WO_DEVELOPER_EDITION_SOURCE is set to 'custom'. Skipping registry login." )
                     return
-                self.__docker_login(password, registry_url, username)
+                if not self.__docker_login(password, registry_url, username):
+                    sys.exit(1)
 
 
     @staticmethod
-    def __docker_login(api_key: str, registry_url: str, username: str = "iamapikey") -> None:
+    def __docker_login(api_key: str, registry_url: str, username: str = "iamapikey") -> bool:
         """
         Log into a Docker registry (Lima, WSL, or native Docker).
+        Returns True on success, False on failure.
         """
         vm = get_vm_manager()
         logger.info(f"Logging into Docker registry inside {vm.__class__.__name__}: {registry_url} ...")
@@ -1374,7 +1386,7 @@ class DockerLoginService:
             try:
                 result = vm.run_docker_command(
                     ["login", "-u", username, "--password-stdin", registry_url],
-                    input=api_key,        
+                    input=api_key,
                     capture_output=True,
                     check=True,
                 )
@@ -1383,13 +1395,13 @@ class DockerLoginService:
             else:
                 break
 
-
         if retry_limit <= 0 or result.returncode != 0:
             err = result.stderr if result.stderr else "Unknown error"
-            logger.error(f"Error logging into Docker:\n{err}")
-            sys.exit(1)
+            logger.warning(f"Docker login failed for {registry_url}: {err}")
+            return False
 
         logger.info("Successfully logged into Docker.")
+        return True
 
 
     @staticmethod

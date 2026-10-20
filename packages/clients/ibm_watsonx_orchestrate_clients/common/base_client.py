@@ -30,6 +30,8 @@ class ClientAPIException(requests.HTTPError):
         super().__init__(*args, request=request, response=response)
 
     def __repr__(self):
+        if self.response is None:
+            return f"ClientAPIException(message={requests.HTTPError.__str__(self)!r})"
         status = self.response.status_code
         resp = self.response.text
         try:
@@ -40,6 +42,70 @@ class ClientAPIException(requests.HTTPError):
 
     def __str__(self):
         return self.__repr__()
+
+
+class ResourceQuotaExceededError(ClientAPIException):
+    """A persistent tenant resource quota rejected a create operation."""
+
+    def __init__(self, *, request, response, detail: dict, body: dict):
+        """Initialize the error from a structured resource-quota response."""
+        super().__init__(request=request, response=response)
+        self.resource = detail.get("resource")
+        self.current = detail.get("current")
+        self.requested = detail.get("requested")
+        self.limit = detail.get("limit")
+        self.quota_message = detail.get("message") or "Tenant resource quota exceeded."
+        self.status_code = response.status_code
+        self.original_body = body
+
+    def __repr__(self):
+        """Return a detailed representation of the quota error."""
+        return (
+            "ResourceQuotaExceededError("
+            f"status_code={self.status_code}, resource={self.resource!r}, "
+            f"current={self.current!r}, requested={self.requested!r}, "
+            f"limit={self.limit!r}, message={self.quota_message!r})"
+        )
+
+    def __str__(self):
+        """Return the human-readable quota message."""
+        return self.quota_message
+
+
+def _response_json(response: requests.Response) -> dict | None:
+    """Return a JSON object response, or ``None`` when one is unavailable."""
+    try:
+        body = response.json()
+    except (ValueError, TypeError):
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def format_client_api_error(error: ClientAPIException) -> str:
+    """Return a safe, readable CLI message for a client HTTP failure."""
+    if isinstance(error, ResourceQuotaExceededError):
+        return (
+            f"{error.quota_message} "
+            f"[resource={error.resource}, current={error.current}, "
+            f"requested={error.requested}, limit={error.limit}]"
+        )
+
+    response = getattr(error, "response", None)
+    if response is None:
+        return requests.HTTPError.__str__(error)
+
+    body = _response_json(response)
+    if body is not None:
+        detail = body.get("detail")
+        if isinstance(detail, dict):
+            message = detail.get("message") or detail.get("code")
+            return str(message) if message else str(detail)
+        if detail is not None:
+            return str(detail)
+        for key in ("message", "error"):
+            if body.get(key) is not None:
+                return str(body[key])
+    return response.text or str(error)
 
 
 class BaseAPIClient:
@@ -133,6 +199,19 @@ class BaseAPIClient:
         try:
             response.raise_for_status()
         except requests.HTTPError as e:
+            body = _response_json(e.response)
+            detail = body.get("detail") if body is not None else None
+            if (
+                e.response.status_code == 429
+                and isinstance(detail, dict)
+                and detail.get("code") == "RESOURCE_QUOTA_EXCEEDED"
+            ):
+                raise ResourceQuotaExceededError(
+                    request=e.request,
+                    response=e.response,
+                    detail=detail,
+                    body=body,
+                ) from e
             raise ClientAPIException(request=e.request, response=e.response)
 
     @abstractmethod

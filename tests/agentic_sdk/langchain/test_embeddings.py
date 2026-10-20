@@ -52,6 +52,7 @@ def mock_runs_on_session():
     )
 
 
+
 @pytest.fixture
 def mock_local_session():
     """Create a mock AgenticSession for local mode."""
@@ -296,6 +297,88 @@ class TestWxOEmbeddingsInitialization:
                 api_key="test-api-key",
                 instance_url="https://api.example.com"
             )
+
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.build_runs_elsewhere_session')
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.Client')
+    def test_runs_on_local_with_wo_instance_redirects_url_and_token(self, mock_client_class, mock_build_session, monkeypatch):
+        """Test runs-on + local base URL + WO_INSTANCE/WO_API_KEY set: SaaS gateway used."""
+        
+        mock_saas_token_manager = Mock()
+        mock_saas_token_manager.get_token.return_value = "saas-token-abc"
+
+        mock_saas_session = Mock()
+        mock_saas_session.authenticator = Mock()
+        mock_saas_session.authenticator.token_manager = mock_saas_token_manager
+        mock_build_session.return_value = mock_saas_session
+
+        mock_client_instance = Mock()
+        mock_client_instance.session = AgenticSession(
+            mode="runs-on",
+            base_url="http://localhost:4321/v1/orchestrate",
+            access_token="runtime-token-456",
+            authenticator=None,
+            identity=None,
+            verify=True
+        )
+
+        mock_client_class.return_value = mock_client_instance
+
+        monkeypatch.setenv("WO_INSTANCE", "https://saas.example.com")
+        monkeypatch.setenv("WO_API_KEY", "test-api-key")
+
+        embeddings = WxOEmbeddings(model="openai/text-embedding-3-small", execution_context={"access_token": "runtime-token-456", "api_proxy_url": "http://localhost:4321"})
+
+        mock_build_session.assert_called_once_with(instance_url="https://saas.example.com", api_key="test-api-key", verify=None)
+
+        assert embeddings.openai_api_base == "https://saas.example.com/v1/orchestrate/gateway/model"
+        assert embeddings.default_headers["Authorization"] == "Bearer saas-token-abc"
+        assert embeddings._get_current_token() == "saas-token-abc"
+
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.build_runs_elsewhere_session')
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.Client')
+    def test_runs_on_local_without_wo_instance_uses_docker_url(self, mock_client_class, mock_build_session, monkeypatch):
+        """Test runs-on + local base URL + no WO_INSTANCE: Docker URL used, new path not activated."""
+
+        monkeypatch.delenv("WO_INSTANCE", raising=False)
+        monkeypatch.delenv("WO_API_KEY", raising=False)
+
+        mock_client_instance = Mock()
+        mock_client_instance.session = AgenticSession(
+            mode="runs-on",
+            base_url="http://localhost:4321/v1/orchestrate",
+            access_token="runtime-token-456",
+            authenticator=None,
+            identity=None,
+            verify=True
+        )
+
+        mock_client_class.return_value = mock_client_instance
+
+        embeddings = WxOEmbeddings(model="openai/text-embedding-3-small", execution_context={"access_token": "runtime-token-456", "api_proxy_url": "http://localhost:4321"})
+
+        mock_build_session.assert_not_called()
+        assert "localhost:4321" in embeddings.openai_api_base
+        assert embeddings.default_headers["Authorization"] == "Bearer runtime-token-456"
+
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.build_runs_elsewhere_session')
+    @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.Client')
+    def test_runs_on_non_local_with_wo_instance_env_ignored(self, mock_client_class, mock_build_session, mock_runs_on_session, monkeypatch):
+        """Test runs-on + non-local base URL: new path not activated even with WO_INSTANCE set."""
+
+        monkeypatch.setenv("WO_INSTANCE", "https://saas.example.com")
+        monkeypatch.setenv("WO_API_KEY", "test-api-key")
+
+        mock_client_instance = Mock()
+        mock_client_instance.session = mock_runs_on_session
+        mock_client_class.return_value = mock_client_instance
+
+        embeddings = WxOEmbeddings(model="openai/text-embedding-3-small", execution_context={"access_token": "runtime-token-456", "api_proxy_url": "http://proxy.internal"})
+
+        mock_build_session.assert_not_called()
+        
+        assert "proxy.internal" in embeddings.openai_api_base
+        assert embeddings.default_headers["Authorization"] == "Bearer runtime-token-456"
+
 
 
 class TestWxOEmbeddingsTokenManagement:

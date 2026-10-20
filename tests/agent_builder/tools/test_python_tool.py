@@ -1,6 +1,9 @@
+import asyncio
+import inspect
 import json
 from typing import Any, Optional, List, Dict
 
+import pytest
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolPermission, tool
@@ -24,7 +27,7 @@ def test_should_allow_naked_decorators(snapshot):
     assert spec.get('description') == "The description"
     assert spec['permission'] == 'read_only'
     assert spec['binding']['python']['function'] == 'test_python_tool:my_tool'
-    assert isinstance(result,ToolResponse)
+    assert isinstance(result, ToolResponse)
     assert result.content == 3
 
 def test_should_use_correct_defaults(snapshot):
@@ -179,3 +182,129 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
         assert "incorrect type for parameter 'task_results'" in str(e)
     else:
         assert False, "Expected error was not raised"
+
+
+# ---------------------------------------------------------------------------
+# Async tool tests
+# PythonTool.__call__ stays sync (the runtime does not await it) and bridges
+# `async def` tool functions with run_coroutine_sync.
+# ---------------------------------------------------------------------------
+
+def test_sync_tool_call_returns_tool_response_not_coroutine():
+    """Regression for wo-tracker#101663: __call__ must never return a coroutine."""
+    @tool
+    def sync_tool() -> int:
+        """A sync tool"""
+        return 1
+
+    result = sync_tool()
+
+    assert not inspect.iscoroutine(result)
+    assert isinstance(result, ToolResponse)
+    assert result.content == 1
+
+
+def test_async_tool_call_returns_tool_response_not_coroutine():
+    """Regression for wo-tracker#101663: the runtime does not await the call, so an
+    async def tool must be resolved inside __call__ and return a ToolResponse."""
+    @tool
+    async def async_tool() -> int:
+        """An async tool"""
+        return 1
+
+    result = async_tool()
+
+    assert not inspect.iscoroutine(result)
+    assert isinstance(result, ToolResponse)
+    assert result.content == 1
+
+
+def test_async_tool_naked_decorator():
+    @tool
+    async def my_tool():
+        """The async description"""
+        return 42
+
+    result = my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == 42
+
+
+def test_async_tool_with_params():
+    @tool(name="async_named_tool", description="An async tool with params")
+    async def my_tool(x: int) -> int:
+        return x * 2
+
+    spec = json.loads(my_tool.dumps_spec())
+    assert spec["name"] == "async_named_tool"
+    assert spec["description"] == "An async tool with params"
+
+    result = my_tool(x=5)
+    assert isinstance(result, ToolResponse)
+    assert result.content == 10
+
+
+def test_async_tool_with_asyncio_sleep():
+    @tool
+    async def my_tool():
+        """Async tool that does real async work"""
+        await asyncio.sleep(0)
+        return "done"
+
+    result = my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == "done"
+
+
+def test_sync_tool_still_works_after_async_change():
+    @tool
+    def my_tool():
+        """A plain sync tool"""
+        return "sync_result"
+
+    result = my_tool()
+    assert isinstance(result, ToolResponse)
+    assert result.content == "sync_result"
+
+
+@pytest.mark.asyncio
+async def test_async_tool_called_from_running_loop():
+    """TRM-style call from inside a running event loop must still return a ToolResponse."""
+    @tool
+    async def my_tool():
+        """Async tool"""
+        await asyncio.sleep(0)
+        return "in_loop"
+
+    result = my_tool()
+    assert not inspect.iscoroutine(result)
+    assert isinstance(result, ToolResponse)
+    assert result.content == "in_loop"
+
+
+def test_async_tool_with_agent_run_context():
+    """async def tool with an AgentRun context parameter — exercises the
+    run_context_param injection path alongside the iscoroutinefunction branch."""
+    from ibm_watsonx_orchestrate.run.context import AgentRun
+
+    captured = {}
+
+    @tool(name="async_context_tool", description="Async tool with context")
+    async def my_tool(value: str, context: AgentRun) -> str:
+        """Async tool that inspects its context.
+
+        Args:
+            value: Input value
+            context: The agent run context
+
+        Returns:
+            The input value echoed back
+        """
+        captured["had_context"] = isinstance(context, AgentRun)
+        await asyncio.sleep(0)
+        return f"got: {value}"
+
+    result = my_tool(value="hello", context=AgentRun())
+    assert isinstance(result, ToolResponse)
+    assert result.content == "got: hello"
+    assert captured["had_context"] is True

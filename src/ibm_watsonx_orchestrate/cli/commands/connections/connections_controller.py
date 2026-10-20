@@ -291,6 +291,8 @@ def _get_credentials(type: ConnectionType, **kwargs):
                 client_id=kwargs.get("client_id"),
                 access_token_url=kwargs.get("token_url"),
                 grant_type=kwargs.get("grant_type"),
+                client_secret=kwargs.get("client_secret"),
+                app_token_key=kwargs.get("app_token_key"),
                 **custom_fields
             )
         
@@ -298,6 +300,10 @@ def _get_credentials(type: ConnectionType, **kwargs):
             keys = ["client_id","token_url","grant_type"]
             filtered_args = { key_name: kwargs[key_name] for key_name in keys if kwargs.get(key_name) }
             filtered_args["access_token_url"] = kwargs.get("token_url")
+            if kwargs.get("client_secret"):
+                filtered_args["client_secret"] = kwargs["client_secret"]
+            if kwargs.get("app_token_key"):
+                filtered_args["app_token_key"] = kwargs["app_token_key"]
             custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
             return OAuth2TokenExchangeCredentials(**filtered_args, **custom_fields)
 
