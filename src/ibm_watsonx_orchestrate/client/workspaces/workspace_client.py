@@ -193,21 +193,45 @@ class WorkspaceClient(BaseWXOClient):
 
             response = None
             if "https://cpd" in self.base_url:
-                endpoint = f"{self.base_url}/v1/tenants/{account_id}/users"
-                response = requests.post(endpoint, headers=headers, timeout=30)
-                if response.status_code != 200:
-                    # Return None and let controller handle the error message
+                from urllib.parse import urlparse
+                parsed = urlparse(self.base_url)
+                zen_base_url = f"{parsed.scheme}://{parsed.netloc}"
+                # Extract service_instance_id from the last segment of the path
+                # e.g. .../instances/1789567457120334 -> "1789567457120334"
+                path_parts = parsed.path.rstrip("/").split("/")
+                instances_idx = next(
+                    (i for i, p in enumerate(path_parts) if p == "instances"), None
+                )
+                if instances_idx is None or instances_idx + 1 >= len(path_parts):
+                    logger.error("Could not extract service_instance_id from base_url: %r", self.base_url)
                     return None
+                service_instance_id = path_parts[instances_idx + 1]
+                endpoint = f"{zen_base_url}/zen-data/v3/service_instances/{service_instance_id}/users"
+                response = requests.get(endpoint, headers=headers, timeout=30, verify=self.verify)
+                if response.status_code != 200:
+                    return None
+
+                data = response.json()
+                # CPD zen-data response shape: {"users": [...], "limit": N, "offset": N}
+                # Each user has: email (may be absent), user_name, uid, id ("svc_id/uid")
+                users = data.get("users", [])
+                for user in users:
+                    user_email = user.get("email") or user.get("user_name", "")
+                    if user_email.lower() == email.lower():
+                        # uid is the stable per-user identifier on CPD
+                        uid = user.get("uid") or user.get("id")
+                        if uid:
+                            return uid
+                return None
             else:
                 response = requests.get(endpoint, headers=headers, timeout=30)
-            
+
             if response.status_code != 200:
-                # Return None and let controller handle the error message
                 return None
-            
+
             data = response.json()
             users = data.get("resources", [])
-                        
+
             # Find exact email match (case-insensitive)
             for user in users:
                 user_email = user.get("email", "") or user.get("user_id", "")
@@ -216,13 +240,11 @@ class WorkspaceClient(BaseWXOClient):
                     iam_id = user.get("iam_id") or user.get("id") or user.get("user_id")
                     if iam_id:
                         return iam_id
-            
-            # User not found - return None and let the controller handle the error message
+
             return None
-                    
-        except requests.exceptions.RequestException:
-            # Return None and let controller handle the error message
+
+        except requests.exceptions.RequestException as e:
+            logger.error("Network error resolving user email to ID: %s", e)
             return None
         except Exception:
-            # Return None and let controller handle the error message
             return None
