@@ -93,3 +93,45 @@ class TestAgentWithWelcomeContent:
         server = {**BASE_AGENT, "additional_properties": {"welcome_content": {"welcome_message": "hi"}}}
         flat = transform_agents_to_flat_agent_spec(server)
         assert flat["welcome_content"]["is_default_message"] is False
+
+
+# Shapes reported from the AWS staging tenant (agents todd_tool_citation_2_*, CK_PinDemo_*).
+# "pt-BR" alone, without a flat welcome_message, is what made `agents list` fail.
+SERVER_INNER = {
+    "welcome_message": "Hello, welcome to watsonx Orchestrate",
+    "description": "Accuracy of generated answers may vary. Please double-check responses.",
+    "is_default_voice_greeting": False,
+    "is_user_barge_in_disabled": False,
+    "is_default_message": True,
+    "is_default_description": True,
+}
+
+
+class TestReportedStagingShapes:
+    def test_single_pt_br_wrapper_parses_and_round_trips(self):
+        wrapped = {"pt-BR": copy.deepcopy(SERVER_INNER)}
+        server_agent = {**BASE_AGENT, "additional_properties": {"welcome_content": copy.deepcopy(wrapped)}}
+
+        agent = Agent.model_validate(transform_agents_to_flat_agent_spec(copy.deepcopy(server_agent)))
+        dumped = agent.model_dump(mode="json", exclude_none=True)
+        sent = transform_agents_from_flat_agent_spec(dumped)
+
+        assert sent["additional_properties"]["welcome_content"] == wrapped
+
+    def test_working_flat_shape_with_server_only_keys_parses(self):
+        server_agent = {**BASE_AGENT, "additional_properties": {"welcome_content": copy.deepcopy(SERVER_INNER)}}
+
+        agent = Agent.model_validate(transform_agents_to_flat_agent_spec(copy.deepcopy(server_agent)))
+
+        assert agent.welcome_content.welcome_message == SERVER_INNER["welcome_message"]
+
+    def test_flat_shape_keeps_server_only_keys_but_still_drops_is_default_message_on_send(self):
+        server_agent = {**BASE_AGENT, "additional_properties": {"welcome_content": copy.deepcopy(SERVER_INNER)}}
+
+        agent = Agent.model_validate(transform_agents_to_flat_agent_spec(copy.deepcopy(server_agent)))
+        sent = transform_agents_from_flat_agent_spec(agent.model_dump(mode="json", exclude_none=True))
+        sent_wc = sent["additional_properties"]["welcome_content"]
+
+        assert "is_default_message" not in sent_wc
+        assert sent_wc["is_default_voice_greeting"] is False
+        assert sent_wc["is_default_description"] is True
