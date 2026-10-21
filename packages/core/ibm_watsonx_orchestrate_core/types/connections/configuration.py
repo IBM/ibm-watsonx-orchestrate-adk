@@ -60,6 +60,7 @@ class ConnectionSecurityScheme(str, Enum):
     API_KEY_AUTH = 'api_key_auth'
     OAUTH2 = 'oauth2'
     KEY_VALUE = 'key_value_creds'
+    CUSTOM = 'custom_schema'
     
     def __str__(self):
         return self.value 
