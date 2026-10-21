@@ -1,7 +1,7 @@
 from typing import List, Optional, Annotated
 
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
-from pydantic import BaseModel, ValidationError, Field, AliasChoices, model_validator
+from pydantic import BaseModel, ValidationError, Field, AliasChoices, model_validator, field_validator
 
 from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient, ClientAPIException
 from ibm_watsonx_orchestrate_clients.common.utils import is_cpd_env, is_local_dev
@@ -11,14 +11,23 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ListConfigsResponse(BaseModel):
-    connection_id: str = None,
+    connection_id: str = None
     app_id: str = None
     name: str = None
-    security_scheme: ConnectionSecurityScheme | None = None,
-    auth_type: str | None = None,
-    environment:  ConnectionEnvironment | None = None,
-    preference: ConnectionPreference | None = None,
+    # Falls back to the raw string so a new server-side scheme does not break listing
+    security_scheme: ConnectionSecurityScheme | str | None = None
+    auth_type: str | None = None
+    environment:  ConnectionEnvironment | None = None
+    preference: ConnectionPreference | None = None
     credentials_entered: bool | None = False
+
+    @field_validator("security_scheme", mode="before")
+    @classmethod
+    def _coerce_security_scheme(cls, value):
+        try:
+            return ConnectionSecurityScheme(value)
+        except ValueError:
+            return value
 
 class GetConfigResponse(BaseModel):
     config_id: str = None

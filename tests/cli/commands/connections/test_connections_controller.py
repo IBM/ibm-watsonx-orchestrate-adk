@@ -1241,6 +1241,28 @@ class TestSetCredentialsConnection:
 
             assert f"No configuration '{environment}' found for connection '{app_id}'. Please create the connection using `orchestrate connections add --app-id {app_id}` then add a configuration `orchestrate connections configure --app-id {app_id} --environment {environment} ...`" in captured
 
+    def test_set_credentials_connection_custom_schema_exits_cleanly(self, connections_spec_content, caplog):
+        app_id = connections_spec_content.get("app_id")
+        environment = ConnectionEnvironment.DRAFT
+
+        mock_connection_client = MockConnectionClient(
+            get_config_response=GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.CUSTOM, auth_type=None)
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.add_credentials") as mock_add_credentials, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_client:
+
+            mock_client.return_value = mock_connection_client
+
+            with pytest.raises(SystemExit) as e:
+                set_credentials_connection(app_id=app_id, environment=environment, username="u", password="p")
+
+            assert e.value.code == 1
+            mock_add_credentials.assert_not_called()
+            assert f"Cannot set credentials for connection '{app_id}' with security scheme 'custom_schema'" in caplog.text
+
+
+
 class TestSetIdentityProviderConnection:
     mock_idp_args = {
         "url": "Test URL",

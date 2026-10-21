@@ -830,6 +830,9 @@ def set_credentials_connection(
         sys.exit(1)
 
     conn_type = get_connection_type(security_scheme=config.security_scheme, auth_type=config.auth_type)
+    if conn_type is None:
+        logger.error(f"Cannot set credentials for connection '{app_id}' with security scheme '{config.security_scheme}'. This connection type does not support credential management through this command.")
+        sys.exit(1)
     use_app_credentials = conn_type in OAUTH_CONNECTION_TYPES
 
     _validate_connection_params(type=conn_type, **kwargs)

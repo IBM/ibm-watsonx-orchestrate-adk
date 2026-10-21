@@ -274,7 +274,9 @@ def __validate_python_connections(tool: BaseTool):
             imported_connection_auth_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
 
             if conn and len(expected_tool_conn_types) and imported_connection_auth_type not in expected_tool_conn_types:
-                logger.error(f"The app-id '{conn.app_id}' is of type '{imported_connection_auth_type.value}' in the '{conn_environment}' environment. The tool '{tool.__tool_spec__.name}' accepts connections of the following types '{', '.join(expected_tool_conn_types)}'. Use `orchestrate connections list` to view current connections and use `orchestrate connections add` to create the relevent connection")
+                # get_connection_type returns None for schemes it does not know (e.g. custom_schema), so fall back to the raw scheme
+                imported_type_display = imported_connection_auth_type.value if imported_connection_auth_type else conn.security_scheme
+                logger.error(f"The app-id '{conn.app_id}' is of type '{imported_type_display}' in the '{conn_environment}' environment. The tool '{tool.__tool_spec__.name}' accepts connections of the following types '{', '.join(expected_tool_conn_types)}'. Use `orchestrate connections list` to view current connections and use `orchestrate connections add` to create the relevent connection")
                 validation_failed = True
 
     if validation_failed:
