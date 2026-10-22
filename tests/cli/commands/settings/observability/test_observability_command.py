@@ -13,7 +13,7 @@ def test_should_register_langfuse_command():
         with patch('typer.Typer', MockTyper):
             import ibm_watsonx_orchestrate.cli.commands.settings.observability.observability_command
 
-            add_typer.assert_called_once_with(
+            add_typer.assert_any_call(
                 settings_observability_langfuse_app,
                 name='langfuse',
                 help=MatchAny(str)

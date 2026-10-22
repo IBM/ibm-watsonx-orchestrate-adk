@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 class AnalyticsLLMUpsertToolIdentifier(str, Enum):
     LANGFUSE = 'langfuse'
+    OPENLAYER = 'openlayer'
 
 
 class AnalyticsLLMResponse(BaseModel):
