@@ -27,9 +27,13 @@ def get_connection_type(security_scheme: ConnectionSecurityScheme, auth_type: Co
     if security_scheme is None and auth_type is None:
         return None
 
-    if security_scheme != ConnectionSecurityScheme.OAUTH2:
-        return ConnectionType(security_scheme)
-    return ConnectionType(auth_type)
+    try:
+        if security_scheme != ConnectionSecurityScheme.OAUTH2:
+            return ConnectionType(security_scheme)
+        return ConnectionType(auth_type)
+    except ValueError:
+        # Schemes without a matching ConnectionType (e.g. custom_schema)
+        return None
 
 def get_connection_id(app_id: str, supported_schemas: set | None = None) -> str:
     if not app_id:

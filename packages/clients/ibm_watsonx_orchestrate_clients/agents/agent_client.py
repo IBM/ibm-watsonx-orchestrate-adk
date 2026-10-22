@@ -58,7 +58,8 @@ def _transform_agent_from_flat_agent_spec(agent_spec: dict ) -> dict:
             transformed["additional_properties"] |= { key: value }
             
         elif key == "welcome_content":
-            if value:
+            # is_default_message is client-only for the flat shape. Locale-keyed payloads come from the server with it, so keep it
+            if value and "welcome_message" in value:
                 value.pop("is_default_message", None)
 
             transformed["additional_properties"] |= { key: value }
@@ -97,9 +98,10 @@ def _transform_agent_to_flat_agent_spec(agent_spec: dict ) -> dict:
             transformed[key] = value
             
         elif key == "welcome_content":
-            if value:
-             value["is_default_message"] = False
-            
+            # Only the flat shape gets the client-side default. Locale-keyed payloads already carry the server's value
+            if value and "welcome_message" in value:
+                value["is_default_message"] = False
+
             transformed[key] = value
         
         elif key == "icon":
